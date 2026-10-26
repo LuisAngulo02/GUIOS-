@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GUIOSAD v. 0.1.2</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Encabezado de la Aplicación -->
+  <header class="app-header">
+    <div>
+      <h1>GUIOSAD v. 0.1.2</h1>
+      <span class="app-subtitle">Sistema de Apoyo a las Decisiones para la Adopción de Software Libre (FLOSS)</span>
+    </div>
+    <div>
+      <button id="btn-header-help" class="btn-help-header" type="button" title="Ver instrucciones para el paso actual">
+        Guía del paso actual
+      </button>
+    </div>
+  </header>
+
+  <!-- Contenedor Principal de Pestañas -->
+  <div class="app-container">
+    <!-- Barra de Navegación de Pestañas -->
+    <nav id="app-tabs-nav" class="tab-navigation" role="tablist">
+      <button class="flx-tab-button active" role="tab" aria-selected="true">
+        Paso 1 y 2. Obtención de factores relevantes
+      </button>
+      <button class="flx-tab-button" role="tab" aria-selected="false">
+        Paso 3 y 4. Obtención de factores ponderados
+      </button>
+      <button class="flx-tab-button" role="tab" aria-selected="false">
+        Paso 5 y 6. Evaluación y recomendación sobre la adopción
+      </button>
+    </nav>
+
+    <!-- Contenido Pestaña 1 -->
+    <section id="tab-content-step1" class="tab-content-panel active" role="tabpanel"></section>
+
+    <!-- Contenido Pestaña 2 -->
+    <section id="tab-content-step2" class="tab-content-panel" role="tabpanel" style="display: none;"></section>
+
+    <!-- Contenido Pestaña 3 -->
+    <section id="tab-content-step3" class="tab-content-panel" role="tabpanel" style="display: none;"></section>
+  </div>
+
+  <!-- Modal Accesible de Ayuda Contextual (<dialog>) -->
+  <dialog id="guiosad-help-modal" closedby="any" aria-labelledby="modal-help-title">
+    <div class="help-modal-card">
+      <header class="help-modal-header">
+        <div>
+          <span id="modal-step-badge" class="help-modal-badge">Paso 1 de 3</span>
+          <h3 id="modal-help-title" class="help-modal-title">Título del Paso</h3>
+        </div>
+        <button type="button" class="help-modal-close" data-dialog-close title="Cerrar ventana (Esc)">&times;</button>
+      </header>
+
+      <div class="help-modal-body">
+        <!-- Objetivo Clave -->
+        <div class="help-objective-box">
+          <h4>Objetivo del paso:</h4>
+          <p id="modal-objective-text">Descripción del objetivo...</p>
+        </div>
+
+        <!-- Pasos a Seguir -->
+        <div>
+          <h4 style="font-size: 13px; font-weight: 700; margin-bottom: 8px; color: #111111;">Instrucciones a seguir:</h4>
+          <div id="modal-steps-list" class="help-steps-container"></div>
+        </div>
+
+        <!-- Alerta o regla clave -->
+        <div id="modal-alert-box" class="help-callout" style="display: none;"></div>
+
+        <!-- Consejo / Tip -->
+        <div id="modal-tip-box" class="help-callout callout-tip" style="display: none;"></div>
+      </div>
+
+      <footer class="help-modal-footer">
+        <button type="button" class="btn-modal-primary" data-dialog-close>Entendido, continuar</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- Scripts Modulares -->
+  <script src="dataset.js"></script>
+  <script src="hooks/useGuiosad.js"></script>
+  <script src="components/help_modal.js"></script>
+  <script src="components/tabs.js"></script>
+  <script src="components/step1_factors.js"></script>
+  <script src="components/step2_subfactors.js"></script>
+  <script src="components/step3_foda.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>

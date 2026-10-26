@@ -1,0 +1,638 @@
+/**
+ * Estilos de GUIOSAD / GUIOS-PRO.
+ * Enfoque: Interfaz técnica profesional y sobria.
+ * Bordes rectos (cero radio), paleta monocromática neutra (negro/gris/blanco)
+ * y respeto a los colores funcionales FODA del modelo analítico.
+ */
+
+:root {
+  --color-border: #777777;
+  --color-border-light: #cccccc;
+  --color-border-dark: #333333;
+  --color-bg-light: #f8f9fa;
+  --color-bg-card: #ffffff;
+  --color-text-main: #111111;
+  --color-text-muted: #555555;
+  --color-good: #99dd99;       /* Color FODA Fortaleza/Oportunidad */
+  --color-bad: #ff9ec0;        /* Color FODA Debilidad/Amenaza */
+  --color-warning: #ffee78;    /* Alerta intermedia */
+  --color-neutral: #cccccc;    /* Sin evaluar / Neutro */
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: 13px;
+  color: var(--color-text-main);
+  background-color: var(--color-bg-light);
+  line-height: 1.4;
+  padding: 16px;
+}
+
+/* ==========================================================================
+   Encabezado Principal
+   ========================================================================== */
+.app-header {
+  background: var(--color-bg-card);
+  padding: 12px 18px;
+  border-radius: 0;
+  border: 1px solid var(--color-border-light);
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.app-header h1 {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text-main);
+  letter-spacing: -0.2px;
+}
+
+.app-header .app-subtitle {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* ==========================================================================
+   Contenedor Principal y Pestañas
+   ========================================================================== */
+.app-container {
+  background: var(--color-bg-card);
+  border-radius: 0;
+  border: 1px solid var(--color-border-light);
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 600px;
+}
+
+/* Barra de Botones de Pestañas */
+.tab-navigation {
+  display: flex;
+  background-color: #eaebed;
+  border-bottom: 1px solid var(--color-border-light);
+  padding: 6px 8px 0 8px;
+  gap: 4px;
+}
+
+.flx-tab-button {
+  padding: 8px 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #333333;
+  background-color: #dcdde0;
+  border: 1px solid #b5b5b8;
+  border-bottom: none;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+
+.flx-tab-button:hover {
+  background-color: #e5e6e8;
+  color: #000000;
+}
+
+.flx-tab-button.active {
+  background-color: var(--color-bg-card);
+  color: var(--color-text-main);
+  font-weight: 700;
+  border-color: var(--color-border-light);
+  border-top: 2px solid var(--color-border-dark);
+  margin-bottom: -1px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Paneles de Contenido */
+.tab-content-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  flex: 1;
+}
+
+/* Encabezado descriptivo de cada paso */
+.flx-header-description {
+  margin-bottom: 14px;
+  line-height: 1.45;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background: #ffffff;
+  padding: 10px 14px;
+  border-radius: 0;
+  border: 1px solid var(--color-border-light);
+}
+
+.flx-header-text {
+  flex: 1;
+}
+
+.flx-header-description h5 {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin-bottom: 3px;
+  color: var(--color-text-main);
+}
+
+.flx-header-description p {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+/* ==========================================================================
+   Botones de Ayuda Contextual (Sobrios, sin acentos de IA)
+   ========================================================================== */
+.btn-help-step {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #212529;
+  background: #f1f3f5;
+  border: 1px solid #adb5bd;
+  border-radius: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.1s, border-color 0.1s;
+}
+
+.btn-help-step:hover {
+  background: #e9ecef;
+  border-color: #6c757d;
+  color: #000000;
+}
+
+.btn-help-header {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #212529;
+  background: #f1f3f5;
+  border: 1px solid #adb5bd;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background-color 0.1s, border-color 0.1s;
+}
+
+.btn-help-header:hover {
+  background: #e9ecef;
+  border-color: #6c757d;
+  color: #000000;
+}
+
+/* ==========================================================================
+   Tablas y Flexbox
+   ========================================================================== */
+.border-box {
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-card);
+  border-radius: 0;
+}
+
+.table-container {
+  display: flex;
+  flex-direction: column;
+  max-height: 480px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.table-row {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  gap: 10px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.table-row:last-child {
+  border-bottom: none;
+}
+
+.table-header {
+  background-color: #f1f3f5;
+  font-weight: bold;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 2px solid #cbd5e1;
+  padding: 6px 8px;
+}
+
+.col {
+  display: flex;
+  align-items: center;
+}
+
+.col-flex-1 { flex: 1; min-width: 110px; }
+.col-flex-2 { flex: 2; min-width: 200px; }
+.col-flex-3 { flex: 3; min-width: 280px; }
+
+.factor-label {
+  font-size: 12px;
+  color: #111111;
+}
+
+/* ==========================================================================
+   Controles de Formulario
+   ========================================================================== */
+.flx-lineedit {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--color-border-light);
+  border-radius: 0;
+  font-size: 12px;
+  background-color: #fafafa;
+  color: var(--color-text-main);
+}
+
+.flx-lineedit:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.flx-slider {
+  width: 100%;
+  cursor: pointer;
+  accent-color: #333333;
+}
+
+.flx-combobox {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid #888888;
+  border-radius: 0;
+  background-color: #ffffff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.flx-button {
+  padding: 6px 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 0;
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.btn-primary {
+  background-color: #f1f3f5;
+  color: #111111;
+}
+
+.btn-primary:hover {
+  background-color: #e2e4e7;
+}
+
+.btn-success {
+  background-color: #212529;
+  color: #ffffff;
+  border-color: #000000;
+}
+
+.btn-success:hover {
+  background-color: #000000;
+}
+
+/* Selector en Paso 3 y 4 */
+.selector-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.selector-row label {
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+
+.selector-row select {
+  max-width: 380px;
+}
+
+.save-status {
+  font-size: 12px;
+  font-weight: 600;
+  transition: opacity 0.3s;
+}
+
+.status-good { color: #166534; }
+.status-bad { color: #991b1b; }
+
+/* Sección de Recomendación (Paso 5 y 6) */
+.recommendation-section {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 14px;
+  padding-top: 8px;
+}
+
+.col-spacer {
+  flex: 2;
+}
+
+.recommendation-section button {
+  flex: 1;
+  height: 38px;
+  white-space: nowrap;
+}
+
+.flx-multilineedit {
+  flex: 2;
+  min-height: 90px;
+  padding: 8px 10px;
+  font-size: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  font-family: inherit;
+  resize: vertical;
+  color: #111111;
+  line-height: 1.4;
+}
+
+/* ==========================================================================
+   Colores Funcionales FODA (Modelo Doctoral)
+   ========================================================================== */
+.foda-badge {
+  text-align: center;
+  font-weight: 600;
+  border: 1px solid #777 !important;
+  border-radius: 0;
+}
+
+.foda-good, .style-good {
+  background-color: var(--color-good) !important;
+  color: #053305 !important;
+}
+
+.foda-bad, .style-bad {
+  background-color: var(--color-bad) !important;
+  color: #4d0018 !important;
+}
+
+.foda-none {
+  background-color: #ffffff !important;
+  color: #666666 !important;
+  font-style: italic;
+  font-weight: normal;
+}
+
+.style-warning {
+  background-color: var(--color-warning) !important;
+  color: #4d4400 !important;
+  font-weight: 600;
+}
+
+.style-neutral {
+  background-color: var(--color-neutral) !important;
+  color: #222222 !important;
+}
+
+.empty-notice {
+  padding: 24px;
+  text-align: center;
+  color: #666666;
+  font-style: italic;
+}
+
+/* ==========================================================================
+   MODAL DE AYUDA CONTEXTUAL (<dialog>)
+   Diseño Enterprise: Esquinas rectas, tonos neutros y alta legibilidad.
+   ========================================================================== */
+dialog#guiosad-help-modal {
+  margin: auto;
+  max-width: 620px;
+  width: 92%;
+  border: 1px solid #444444;
+  border-radius: 0;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  padding: 0;
+  overflow: hidden;
+  background-color: #ffffff;
+  color: #111111;
+}
+
+dialog#guiosad-help-modal::backdrop {
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.help-modal-card {
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+
+/* Encabezado del Modal */
+.help-modal-header {
+  padding: 14px 18px;
+  background: #f1f3f5;
+  border-bottom: 1px solid #ced4da;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.help-modal-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #343a40;
+  background: #e9ecef;
+  border: 1px solid #adb5bd;
+  border-radius: 0;
+  margin-bottom: 4px;
+}
+
+.help-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111111;
+  margin: 0;
+}
+
+.help-modal-close {
+  background: #ffffff;
+  border: 1px solid #adb5bd;
+  border-radius: 0;
+  font-size: 16px;
+  line-height: 1;
+  color: #333333;
+  cursor: pointer;
+  padding: 3px 8px;
+  transition: all 0.1s;
+}
+
+.help-modal-close:hover {
+  background: #000000;
+  color: #ffffff;
+  border-color: #000000;
+}
+
+/* Cuerpo del Modal con Scroll */
+.help-modal-body {
+  padding: 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+/* Contenedor del Objetivo */
+.help-objective-box {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-left: 4px solid #212529;
+  padding: 10px 12px;
+  border-radius: 0;
+}
+
+.help-objective-box h4 {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #111111;
+  margin-bottom: 3px;
+}
+
+.help-objective-box p {
+  color: #333333;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+/* Lista de Pasos Numerados */
+.help-steps-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.help-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid #dee2e6;
+  padding: 8px 12px;
+  border-radius: 0;
+}
+
+.help-step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  background: #212529;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 11.5px;
+  border-radius: 0;
+  margin-top: 1px;
+}
+
+.help-step-content h4 {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #111111;
+  margin: 0 0 2px 0;
+}
+
+.help-step-content p {
+  font-size: 12px;
+  color: #444444;
+  margin: 0;
+}
+
+/* Alertas Pedagógicas Sobrias */
+.help-callout {
+  padding: 9px 12px;
+  border-radius: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #f8f9fa;
+  border: 1px solid #ced4da;
+}
+
+.callout-warning {
+  border-left: 4px solid #6c757d;
+  color: #212529;
+}
+
+.callout-warning strong {
+  color: #111111;
+}
+
+.callout-info {
+  border-left: 4px solid #495057;
+  color: #212529;
+}
+
+.callout-info strong {
+  color: #111111;
+}
+
+.callout-tip {
+  border-left: 4px solid #212529;
+  color: #212529;
+}
+
+.callout-tip strong {
+  color: #111111;
+}
+
+/* Pie del Modal */
+.help-modal-footer {
+  padding: 10px 18px;
+  background: #f1f3f5;
+  border-top: 1px solid #ced4da;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-modal-primary {
+  background: #212529;
+  color: #ffffff;
+  border: 1px solid #000000;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.btn-modal-primary:hover {
+  background: #000000;
+}
