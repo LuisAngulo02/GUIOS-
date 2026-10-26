@@ -27,7 +27,7 @@
 
 **GUIOSAD** (*Guía para la Adopción de Software Libre — Sistema de Apoyo a las Decisiones*) es una herramienta interactiva basada en navegador que permite a directivos, responsables de tecnología y administradores de sistemas evaluar de forma sistemática y objetiva si una solución de Software Libre y de Fuentes Abiertas (FLOSS, *Free/Libre Open Source Software*) es viable para ser adoptada en su organización.
 
-El sistema implementa íntegramente la guía metodológica **GUIOS** desarrollada en la tesis doctoral de 2022, que consolida los resultados de una Revisión Sistemática de la Literatura sobre 54 estudios científicos internacionales, una encuesta a 57 expertos en FLOSS de Ecuador y España, y la validación en un caso de estudio real en la Universidad Estatal de Milagro (UNEMI, Ecuador).
+El sistema implementa íntegramente la guía metodológica **GUIOS** desarrollada en la tesis doctoral de 2022, que consolida los resultados de una Revisión Sistemática de la Literatura sobre 54 estudios científicos internacionales, una encuesta a 57 expertos en FLOSS de Ecuador y España, y la validación en un caso de estudio real en la Universidad Estatal de Milagro.
 
 ---
 
