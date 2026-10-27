@@ -3,7 +3,7 @@ Motor de Cálculo y Reglas de Decisión de GUIOSAD / GUIOS-PRO.
 Implementa las fórmulas matemáticas y la matriz de decisión de la Tesis Doctoral y la Matriz 2021.
 """
 from typing import List, Optional
-from core.models import (
+from guio_core.engine.domain_models import (
     Factor,
     FodaCategory,
     ImportanceLevel,
@@ -14,7 +14,7 @@ from core.models import (
 
 
 class GuiosadEngine:
-    """Motor de cálculo puro desacoplado de la interfaz de usuario."""
+    """Motor de cálculo puro desacoplado del framework web."""
 
     @staticmethod
     def calculate_relative_importance(
@@ -100,7 +100,7 @@ class GuiosadEngine:
             ):
                 has_critical_issue = True
                 break
-            elif factor.relative_importance == ImportanceLevel.OPOCIONAL if hasattr(ImportanceLevel, 'OPOCIONAL') else (factor.relative_importance == ImportanceLevel.OPCIONAL):
+            elif factor.relative_importance == ImportanceLevel.OPCIONAL:
                 has_optional_issue = True
 
         if has_critical_issue:

@@ -1,5 +1,5 @@
 """
-Módulo de Modelos de Datos del Sistema GUIOSAD / GUIOS-PRO.
+Modelos de dominio puro del Sistema GUIOSAD / GUIOS-PRO.
 Basado en la Tesis Doctoral de Víctor Hugo Rea Sánchez (Universidad de Sevilla / UNEMI).
 """
 from dataclasses import dataclass, field

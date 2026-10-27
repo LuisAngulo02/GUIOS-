@@ -1,10 +1,16 @@
-dialite==0.6.0
-flexx==0.8.4
-numpy==2.5.3
-pandas==3.0.6
-pscript==0.8.1
-python-dateutil==2.9.0.post0
-six==1.17.0
-tornado==6.5.10
-tzdata==2026.4
-webruntime==0.5.8
+# Core Framework & API
+Django>=5.1,<5.2
+djangorestframework>=3.15,<3.16
+djangorestframework-simplejwt>=5.3.1
+
+# Database & Environment
+psycopg2-binary>=2.9.9
+django-environ>=0.11.2
+
+# Security & CORS
+django-cors-headers>=4.3.1
+bcrypt>=4.1.2
+
+# Mathematics & Calculation Engine (para GUIOS Engine)
+numpy>=1.26.0
+pandas>=2.2.0
