@@ -16,6 +16,7 @@ export const FactoresRelevantes = () => {
     totalRelevantes,
     totalIrrelevantes,
     puedeAvanzarPaso2,
+    sincronizarPaso1ConBackend,
   } = useEvaluation();
 
   const navigate = useNavigate();
@@ -81,16 +82,18 @@ export const FactoresRelevantes = () => {
     }
   };
 
-  const handleGuardar = () => {
+  const handleGuardar = async () => {
     setGuardadoManual(true);
-    setTimeout(() => setGuardadoManual(false), 1500);
+    await sincronizarPaso1ConBackend();
+    setTimeout(() => setGuardadoManual(false), 2000);
   };
 
-  const handleContinuarPaso2 = () => {
+  const handleContinuarPaso2 = async () => {
     if (!puedeAvanzarPaso2) {
       alert("No hay ningún factor relevante seleccionado (IR > 1). Asigne al menos un factor con importancia para continuar.");
       return;
     }
+    sincronizarPaso1ConBackend();
     navigate("/subfactores");
   };
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { MOCK_FACTORES, MOCK_SUBFACTORES } from "../data/mockCatalog";
 import { apiService } from "../services/apiService";
 
@@ -21,28 +21,34 @@ export const EvaluationProvider = ({ children }) => {
           id: 1,
           nombre: "Admin Usuario",
           email: "admin@guiosplus.org",
-          rol: "Administrador",
+          rol: "administrador",
           avatar: "AU",
         };
   });
 
-  // 2. Indicador de Guardado
+  // 2. Identificador de Evaluación en Base de Datos PostgreSQL
+  const [evaluacionId, setEvaluacionId] = useState(() => {
+    return localStorage.getItem("guios_evaluacion_id") || "1";
+  });
+
+  const [isBackendConnected, setIsBackendConnected] = useState(false);
+
+  // 3. Indicador de Guardado
   const [saveStatus, setSaveStatus] = useState("Guardado");
 
-  // 3. Estado de la Evaluación Activa
+  // 4. Estado de la Evaluación Activa
   const [softwareActivo, setSoftwareActivo] = useState("Moodle");
   const [contextoActivo, setContextoActivo] = useState("Educación · Plataforma de aprendizaje virtual");
   const [descripcionCaso, setDescripcionCaso] = useState(
     "Evaluación de viabilidad para migrar el campus virtual institucional hacia Moodle 4.x garantizando interoperabilidad con LDAP y Office 365."
   );
 
-  // 4. Lista de Factores con sus Importancias y Evidencia
+  // 5. Lista de Factores con sus Importancias y Evidencia
   const [factores, setFactores] = useState(() => {
     const saved = localStorage.getItem("guios_factores");
     if (!saved) return MOCK_FACTORES;
     try {
       const parsed = JSON.parse(saved);
-      // Combinar para asegurar campos de evidencia enriquecidos y decimales
       return MOCK_FACTORES.map((mf) => {
         const found = parsed.find((p) => p.id === mf.id);
         if (!found) return mf;
@@ -67,26 +73,87 @@ export const EvaluationProvider = ({ children }) => {
     }
   });
 
-  // 5. Calificaciones de Subfactores por cada Factor
+  // 6. Calificaciones de Subfactores por cada Factor
   const [subfactoresState, setSubfactoresState] = useState(() => {
     const saved = localStorage.getItem("guios_subfactores");
     return saved ? JSON.parse(saved) : MOCK_SUBFACTORES;
   });
 
-  // Disparar indicador de guardado cada vez que cambien factores o subfactores
+  // Persistir en LocalStorage
   useEffect(() => {
     localStorage.setItem("guios_factores", JSON.stringify(factores));
-    setSaveStatus("Guardando...");
-    const t = setTimeout(() => setSaveStatus("Guardado"), 400);
-    return () => clearTimeout(t);
   }, [factores]);
 
   useEffect(() => {
     localStorage.setItem("guios_subfactores", JSON.stringify(subfactoresState));
-    setSaveStatus("Guardando...");
-    const t = setTimeout(() => setSaveStatus("Guardado"), 400);
-    return () => clearTimeout(t);
   }, [subfactoresState]);
+
+  useEffect(() => {
+    if (evaluacionId) {
+      localStorage.setItem("guios_evaluacion_id", evaluacionId.toString());
+    }
+  }, [evaluacionId]);
+
+  // Sincronizar Paso 1 con Backend DRF
+  const sincronizarPaso1ConBackend = useCallback(async (factoresParaGuardar) => {
+    setSaveStatus("Sincronizando con base de datos...");
+    try {
+      const resp = await apiService.savePaso1(evaluacionId, factoresParaGuardar || factores);
+      if (resp && resp.isLiveApi) {
+        setIsBackendConnected(true);
+        setSaveStatus("Guardado en PostgreSQL");
+      } else {
+        setSaveStatus("Guardado localmente");
+      }
+    } catch (e) {
+      console.warn("Fallo persistencia paso 1:", e);
+      setSaveStatus("Guardado local");
+    } finally {
+      setTimeout(() => setSaveStatus("Guardado"), 2500);
+    }
+  }, [evaluacionId, factores]);
+
+  // Sincronizar Paso 2 con Backend DRF
+  const sincronizarPaso2ConBackend = useCallback(async (factorIdOpcional) => {
+    setSaveStatus("Sincronizando con base de datos...");
+    try {
+      // Aplanar todos los subfactores calificados
+      let lista = [];
+      if (factorIdOpcional) {
+        lista = subfactoresState[factorIdOpcional] || [];
+      } else {
+        Object.values(subfactoresState).forEach((subList) => {
+          lista = lista.concat(subList);
+        });
+      }
+
+      // Solo enviar los que tienen id y calificacion
+      const subfactoresAEnviar = lista
+        .filter((s) => s.id && s.calificacion !== undefined)
+        .map((s) => ({
+          id: s.id,
+          calificacion: s.calificacion,
+          observacion: s.observacion || "",
+        }));
+
+      if (subfactoresAEnviar.length > 0) {
+        const resp = await apiService.savePaso2(evaluacionId, subfactoresAEnviar);
+        if (resp && resp.isLiveApi) {
+          setIsBackendConnected(true);
+          setSaveStatus("Guardado en PostgreSQL");
+        } else {
+          setSaveStatus("Guardado localmente");
+        }
+      } else {
+        setSaveStatus("Guardado");
+      }
+    } catch (e) {
+      console.warn("Fallo persistencia paso 2:", e);
+      setSaveStatus("Guardado local");
+    } finally {
+      setTimeout(() => setSaveStatus("Guardado"), 2500);
+    }
+  }, [evaluacionId, subfactoresState]);
 
   // Actualizar "Tu importancia" (ID) de un factor con recálculo en vivo
   const updateFactorID = (factorId, nuevoID) => {
@@ -103,7 +170,6 @@ export const EvaluationProvider = ({ children }) => {
           ID: idVal,
           IR: `${irNum} · ${irTexto}`,
           relevante: relevante,
-          // Si es irrelevante, el alcance queda vacío según la regla de oro
           alcance: f.nombre === "Soporte" && !relevante ? "" : f.alcance,
         };
       })
@@ -133,7 +199,7 @@ export const EvaluationProvider = ({ children }) => {
     });
   };
 
-  // 6. Cálculos en tiempo real según la Regla de Oro
+  // 7. Cálculos en tiempo real según la Regla de Oro
   const calculationSummary = useMemo(() => {
     const relevantes = factores.filter((f) => f.relevante);
     const irrelevantes = factores.filter((f) => !f.relevante);
@@ -172,7 +238,7 @@ export const EvaluationProvider = ({ children }) => {
       // Es Crítico si es Debilidad o Amenaza y la Importancia Relativa es Importante o Fundamental
       const isCritical =
         (foda === "Debilidad" || foda === "Amenaza") &&
-        (factor.IR === "Importante" || factor.IR === "Fundamental");
+        (factor.IR?.includes("Importante") || factor.IR?.includes("Fundamental"));
 
       if (isCritical) totalCriticos++;
 
@@ -256,13 +322,13 @@ export const EvaluationProvider = ({ children }) => {
   const login = async (email, password, remember) => {
     const data = await apiService.login(email, password, remember);
     setCurrentUser(data.user);
-    localStorage.setItem("guios_user", JSON.stringify(data.user));
+    if (data.isLiveApi) setIsBackendConnected(true);
     return data;
   };
 
   const logout = () => {
+    apiService.logout();
     setCurrentUser(null);
-    localStorage.removeItem("guios_user");
   };
 
   return (
@@ -271,7 +337,11 @@ export const EvaluationProvider = ({ children }) => {
         currentUser,
         login,
         logout,
+        evaluacionId,
+        setEvaluacionId,
+        isBackendConnected,
         saveStatus,
+        setSaveStatus,
         softwareActivo,
         setSoftwareActivo,
         contextoActivo,
@@ -285,6 +355,8 @@ export const EvaluationProvider = ({ children }) => {
         updateFactorID,
         updateFactorAlcance,
         updateSubfactorScore,
+        sincronizarPaso1ConBackend,
+        sincronizarPaso2ConBackend,
         ...calculationSummary,
       }}
     >

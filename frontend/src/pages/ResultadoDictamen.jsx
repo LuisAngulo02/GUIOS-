@@ -1,6 +1,7 @@
 import React from "react";
 import { Download } from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
+import { apiService } from "../services/apiService";
 import Badge from "../components/Badge";
 import FodaQuadrant from "../components/FodaQuadrant";
 
@@ -13,6 +14,7 @@ import FodaQuadrant from "../components/FodaQuadrant";
  */
 export const ResultadoDictamen = () => {
   const {
+    evaluacionId,
     recomendacion,
     dictamenTitulo,
     viabilidad,
@@ -23,6 +25,12 @@ export const ResultadoDictamen = () => {
     weaknesses,
     threats,
   } = useEvaluation();
+
+  React.useEffect(() => {
+    if (evaluacionId) {
+      apiService.calcularResultado(evaluacionId).catch(console.warn);
+    }
+  }, [evaluacionId]);
 
   // Filtrar factores por cuadrante FODA
   const listaFortalezas = factoresEvaluados.filter((f) => f.foda === "Fortaleza");
