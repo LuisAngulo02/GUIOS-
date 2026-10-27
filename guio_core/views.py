@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from guio_core.models import (
     Dimension,
@@ -12,6 +13,8 @@ from guio_core.models import (
     Recomendacion,
     Evaluacion,
     ResultadoFactor,
+    ResultadoSubfactor,
+    ResultadoFoda,
     LogAuditoria,
 )
 from guio_core.serializers import (
@@ -21,7 +24,10 @@ from guio_core.serializers import (
     EvaluacionDetalleSerializer,
     CrearEvaluacionSerializer,
     GuardarPaso1Serializer,
+    GuardarPaso2Serializer,
     ResultadoFactorSerializer,
+    ResultadoSubfactorSerializer,
+    ResultadoFodaSerializer,
 )
 
 
@@ -188,3 +194,307 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+    @action(detail=True, methods=["get", "post"], url_path="paso2")
+    def paso2(self, request, pk=None):
+        """
+        HU-05 (Paso 2): Calificación de Subfactores y Ponderación Media.
+        GET: Retorna los subfactores de los factores relevantes y sus notas actuales.
+        POST: Guarda o actualiza calificaciones (1-4) y observaciones de subfactores.
+        """
+        evaluacion = self.get_object()
+
+        # Obtener factores relevantes de la evaluación
+        relevantes_rf = evaluacion.resultados_factor.exclude(
+            importancia_relativa=ResultadoFactor.ImportanciaRelativaTexto.IRRELEVANTE
+        ).select_related("id_factor", "id_factor__id_dimension")
+
+        if not relevantes_rf.exists():
+            return Response(
+                {"detail": "No hay factores relevantes en esta evaluación. Complete el Paso 1 primero."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if request.method == "POST":
+            if evaluacion.estado == Evaluacion.EstadoEvaluacion.COMPLETADA:
+                return Response(
+                    {"detail": "Esta evaluación ya fue completada y está congelada contra modificaciones."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            serializer = GuardarPaso2Serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            items_subfactores = serializer.validated_data["subfactores"]
+
+            sf_ids = [item["id_subfactor"] for item in items_subfactores]
+            subfactores_dict = {
+                sf.id: sf for sf in Subfactor.objects.filter(id__in=sf_ids, activo=True)
+            }
+
+            with transaction.atomic():
+                for item in items_subfactores:
+                    sf_obj = subfactores_dict.get(item["id_subfactor"])
+                    if not sf_obj:
+                        continue
+                    ResultadoSubfactor.objects.update_or_create(
+                        id_evaluacion=evaluacion,
+                        id_subfactor=sf_obj,
+                        defaults={
+                            "calificacion": item["calificacion"],
+                            "observacion": item.get("observacion") or "",
+                        },
+                    )
+
+                LogAuditoria.objects.create(
+                    id_usuario=request.user,
+                    accion="evaluacion_paso2",
+                    entidad="evaluacion",
+                    id_entidad=str(evaluacion.id),
+                    detalle=f"Guardadas {len(items_subfactores)} calificaciones de subfactores.",
+                )
+
+        # Mapear estado y calificaciones actuales
+        calificaciones_existentes = {
+            rs.id_subfactor_id: {
+                "calificacion": rs.calificacion,
+                "observacion": rs.observacion or "",
+            }
+            for rs in evaluacion.resultados_subfactor.select_related("id_subfactor").all()
+        }
+
+        factores_detalle = []
+        total_sfs_relevantes = 0
+        total_sfs_calificados = 0
+
+        for rf in relevantes_rf:
+            factor = rf.id_factor
+            sfs_del_factor = factor.subfactores.filter(activo=True).order_by("codigo")
+            total_sfs_relevantes += sfs_del_factor.count()
+
+            notas = []
+            sfs_data = []
+            for sf in sfs_del_factor:
+                calif_data = calificaciones_existentes.get(sf.id)
+                calif_val = calif_data["calificacion"] if calif_data else None
+                obs_val = calif_data["observacion"] if calif_data else ""
+
+                if calif_val is not None:
+                    notas.append(calif_val)
+                    total_sfs_calificados += 1
+
+                sfs_data.append({
+                    "id": sf.id,
+                    "codigo": sf.codigo,
+                    "descripcion": sf.descripcion,
+                    "calificacion": calif_val,
+                    "observacion": obs_val,
+                })
+
+            pm = round(sum(notas) / len(notas), 2) if notas else 0.0
+
+            factores_detalle.append({
+                "id_factor": factor.id,
+                "nombre": factor.nombre,
+                "descripcion": factor.descripcion,
+                "dimension": factor.id_dimension.nombre,
+                "alcance": rf.alcance_aplicado or factor.alcance,
+                "importancia_relativa": rf.importancia_relativa,
+                "total_subfactores": sfs_del_factor.count(),
+                "calificados": len(notas),
+                "completo": len(notas) == sfs_del_factor.count(),
+                "ponderacion_media": float(pm),
+                "subfactores": sfs_data,
+            })
+
+        puede_avanzar = (
+            total_sfs_relevantes > 0 and total_sfs_calificados == total_sfs_relevantes
+        )
+
+        return Response(
+            {
+                "evaluacion_id": evaluacion.id,
+                "software": evaluacion.nombre_software,
+                "total_relevantes": relevantes_rf.count(),
+                "total_subfactores_relevantes": total_sfs_relevantes,
+                "total_subfactores_calificados": total_sfs_calificados,
+                "puede_avanzar_paso3": puede_avanzar,
+                "factores": factores_detalle,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["post"], url_path="resultado")
+    def calcular_resultado(self, request, pk=None):
+        """
+        HU-06 (Paso 3): Clasificación FODA y Dictamen Final (Regla de Oro de la Tesis).
+        - Clasifica cada factor relevante en Fortaleza / Oportunidad / Debilidad / Amenaza (umbral PM=3.00).
+        - Detecta factores Críticos (Debilidad/Amenaza con IR=Importante o Fundamental).
+        - Determina recomendación A, B o C y genera dictamen con factores causantes.
+        - Calcula Índice de Viabilidad (%) y Nivel de Confianza (Alto/Medio/Bajo).
+        - Congela dictamen_texto y marca la evaluación como completada.
+        """
+        evaluacion = self.get_object()
+
+        relevantes_rf = evaluacion.resultados_factor.exclude(
+            importancia_relativa=ResultadoFactor.ImportanciaRelativaTexto.IRRELEVANTE
+        ).select_related("id_factor", "id_factor__id_dimension")
+
+        if not relevantes_rf.exists():
+            return Response(
+                {"detail": "No hay factores relevantes en esta evaluación para emitir un dictamen."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        calificaciones_map = {
+            rs.id_subfactor_id: rs.calificacion
+            for rs in evaluacion.resultados_subfactor.all()
+        }
+
+        foda_registros = []
+        factores_criticos = []
+        factores_opcionales_da = []
+        positivos_count = 0
+        total_calificados = len(calificaciones_map)
+        no_se_count = sum(1 for c in calificaciones_map.values() if c == 2)
+
+        with transaction.atomic():
+            # Limpiar resultados FODA previos si se recalcula
+            ResultadoFoda.objects.filter(id_evaluacion=evaluacion).delete()
+
+            for rf in relevantes_rf:
+                factor = rf.id_factor
+                sfs = factor.subfactores.filter(activo=True)
+                notas = [calificaciones_map[sf.id] for sf in sfs if sf.id in calificaciones_map]
+
+                if len(notas) < sfs.count():
+                    return Response(
+                        {
+                            "detail": (
+                                f"Faltan reactivos por calificar en el factor relevante '{factor.nombre}'. "
+                                f"({len(notas)} de {sfs.count()} completados)."
+                            )
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                pm = round(sum(notas) / len(notas), 2)
+                alcance = rf.alcance_aplicado or factor.alcance
+                es_interno = (alcance == Factor.AlcanceFactor.INTERNO)
+                es_positivo = (pm >= 3.00)
+
+                if es_positivo:
+                    categoria = (
+                        ResultadoFoda.CategoriaFoda.FORTALEZA
+                        if es_interno
+                        else ResultadoFoda.CategoriaFoda.OPORTUNIDAD
+                    )
+                    positivos_count += 1
+                    es_critico = False
+                else:
+                    categoria = (
+                        ResultadoFoda.CategoriaFoda.DEBILIDAD
+                        if es_interno
+                        else ResultadoFoda.CategoriaFoda.AMENAZA
+                    )
+                    # Crítico sii IR es Importante o Fundamental
+                    es_critico = rf.importancia_relativa in (
+                        ResultadoFactor.ImportanciaRelativaTexto.IMPORTANTE,
+                        ResultadoFactor.ImportanciaRelativaTexto.FUNDAMENTAL,
+                    )
+                    if es_critico:
+                        factores_criticos.append(factor.nombre)
+                    else:
+                        factores_opcionales_da.append(factor.nombre)
+
+                rfoda = ResultadoFoda.objects.create(
+                    id_evaluacion=evaluacion,
+                    id_factor=factor,
+                    ponderacion_media=pm,
+                    categoria=categoria,
+                    critico=es_critico,
+                )
+                foda_registros.append(rfoda)
+
+            total_relevantes = relevantes_rf.count()
+            indice_viabilidad = round((positivos_count / total_relevantes) * 100, 2)
+
+            # Nivel de confianza: % de respuestas != 2 ("Desconozco")
+            if total_calificados > 0:
+                pct_certeza = ((total_calificados - no_se_count) / total_calificados) * 100
+            else:
+                pct_certeza = 100.0
+
+            if pct_certeza >= 90.0:
+                nivel_confianza = Evaluacion.NivelConfianza.ALTO
+            elif pct_certeza >= 60.0:
+                nivel_confianza = Evaluacion.NivelConfianza.MEDIO
+            else:
+                nivel_confianza = Evaluacion.NivelConfianza.BAJO
+
+            # Determinación de recomendación A, B o C
+            if not factores_criticos and not factores_opcionales_da:
+                tipo_rec = "A"
+                rec_obj = Recomendacion.objects.filter(tipo="A").first()
+                dictamen_texto = (
+                    "Recomendación A: Adoptar. Todos los factores relevantes han sido identificados "
+                    "como Oportunidades y/o Fortalezas. La organización cumple satisfactoriamente "
+                    "con los requisitos técnicos y organizacionales para adoptar la solución FLOSS."
+                )
+            elif not factores_criticos:
+                tipo_rec = "B"
+                rec_obj = Recomendacion.objects.filter(tipo="B").first()
+                obs_factores = ", ".join(factores_opcionales_da)
+                dictamen_texto = (
+                    f"Recomendación B: Es posible adoptar con observaciones en factores opcionales: {obs_factores}. "
+                    "Se sugiere revisar los subfactores que no cumplen con el óptimo antes o durante la implantación."
+                )
+            else:
+                tipo_rec = "C"
+                rec_obj = Recomendacion.objects.filter(tipo="C").first()
+                criticos_str = ", ".join(factores_criticos)
+                opcionales_str = (
+                    f" Observaciones en factores opcionales: {', '.join(factores_opcionales_da)}."
+                    if factores_opcionales_da
+                    else ""
+                )
+                dictamen_texto = (
+                    f"Recomendación C: Requiere recursos antes de adoptar. Factores críticos detectados: {criticos_str}.{opcionales_str} "
+                    "La organización debe destinar recursos de ingeniería si son factores externos, "
+                    "o fortalecer capacidades si son factores internos, antes de autorizar la adopción."
+                )
+
+            # Congelar en evaluación
+            evaluacion.id_recomendacion = rec_obj
+            evaluacion.indice_viabilidad = indice_viabilidad
+            evaluacion.nivel_confianza = nivel_confianza
+            evaluacion.dictamen_texto = dictamen_texto
+            evaluacion.estado = Evaluacion.EstadoEvaluacion.COMPLETADA
+            evaluacion.fecha_fin = timezone.now()
+            evaluacion.save()
+
+            LogAuditoria.objects.create(
+                id_usuario=request.user,
+                accion="evaluacion_completada",
+                entidad="evaluacion",
+                id_entidad=str(evaluacion.id),
+                detalle=(
+                    f"Dictamen emitido para '{evaluacion.nombre_software}': "
+                    f"Recomendación {tipo_rec} (Viabilidad: {indice_viabilidad}%, Confianza: {nivel_confianza})."
+                ),
+            )
+
+        return Response(
+            {
+                "message": "Evaluación calculada y completada exitosamente.",
+                "recomendacion_tipo": tipo_rec,
+                "recomendacion_titulo": rec_obj.titulo if rec_obj else "",
+                "dictamen_texto": dictamen_texto,
+                "indice_viabilidad": float(indice_viabilidad),
+                "nivel_confianza": nivel_confianza,
+                "estado": evaluacion.estado,
+                "total_factores_evaluados": len(foda_registros),
+                "foda": ResultadoFodaSerializer(foda_registros, many=True).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+

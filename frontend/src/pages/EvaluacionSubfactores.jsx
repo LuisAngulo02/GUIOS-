@@ -16,7 +16,10 @@ export const EvaluacionSubfactores = () => {
     updateSubfactorScore,
     saveStatus,
     puedeAvanzarPaso3,
+    sincronizarPaso2ConBackend,
   } = useEvaluation();
+
+  const [guardadoManual, setGuardadoManual] = useState(false);
 
   const navigate = useNavigate();
 
@@ -53,11 +56,18 @@ export const EvaluacionSubfactores = () => {
           .replace(".", ",")
       : "0,0";
 
-  const handleContinuarPaso3 = () => {
+  const handleGuardarPaso2 = async () => {
+    setGuardadoManual(true);
+    await sincronizarPaso2ConBackend(selectedFactorId);
+    setTimeout(() => setGuardadoManual(false), 2000);
+  };
+
+  const handleContinuarPaso3 = async () => {
     if (!puedeAvanzarPaso3) {
       alert("Faltan subfactores por calificar en los factores relevantes. Complete la evaluación de todos los factores para emitir el dictamen.");
       return;
     }
+    sincronizarPaso2ConBackend();
     navigate("/resultado");
   };
 
@@ -75,11 +85,11 @@ export const EvaluacionSubfactores = () => {
         </div>
 
         <button
-          onClick={() => alert("Calificaciones de subfactores guardadas en la base de datos.")}
+          onClick={handleGuardarPaso2}
           className="px-5 py-2.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm shrink-0 self-start sm:self-auto cursor-pointer"
         >
           <Save size={14} />
-          <span>Guardar</span>
+          <span>{guardadoManual ? "¡Guardado en base de datos!" : "Guardar calificaciones"}</span>
         </button>
       </div>
 
