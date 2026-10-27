@@ -1,8 +1,7 @@
 """
-Paquete core de GUIOSAD.
-Provee los modelos de datos, cargador y motor de decisión lógica de GUIOSAD / GUIOS-PRO.
+Motor de cálculo y modelos de dominio de GUIOSAD integrados en la app guio_core.
 """
-from core.models import (
+from guio_core.engine.domain_models import (
     Dimension,
     Factor,
     Subfactor,
@@ -13,8 +12,8 @@ from core.models import (
     RecommendationType,
     RecommendationResult,
 )
-from core.engine import GuiosadEngine
-from core.data_loader import DataLoader
+from guio_core.engine.calculator import GuiosadEngine
+from guio_core.engine.data_loader import DataLoader
 
 __all__ = [
     "Dimension",
