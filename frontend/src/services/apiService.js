@@ -226,10 +226,10 @@ export const apiService = {
   async savePaso1(evaluacionId, items) {
     try {
       const payload = {
-        items: items.map((f) => ({
-          factor_id: f.id,
-          id_usuario: Number(f.ID || 1),
-          alcance: f.alcance || undefined,
+        factores: items.map((f) => ({
+          id_factor: f.id,
+          importancia_decisor: Number(f.ID || 1),
+          alcance_aplicado: f.alcance || null,
         })),
       };
 
@@ -258,9 +258,9 @@ export const apiService = {
     try {
       const payload = {
         subfactores: subfactoresList.map((sf) => ({
-          subfactor_id: sf.id,
+          id_subfactor: sf.id,
           calificacion: Number(sf.calificacion),
-          observaciones: sf.observacion || "",
+          observacion: sf.observacion || "",
         })),
       };
 
