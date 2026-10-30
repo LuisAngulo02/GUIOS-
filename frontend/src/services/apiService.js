@@ -10,26 +10,50 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function getStoredToken() {
-  return localStorage.getItem("guios_access_token") || "";
-}
+let isRefreshingToken = false;
 
-function getStoredUser() {
-  try {
-    return JSON.parse(localStorage.getItem("guios_user") || "null");
-  } catch {
-    return null;
+async function ensureValidToken() {
+  const currentToken = localStorage.getItem("guios_access_token");
+  if (currentToken && !currentToken.startsWith("mock-")) {
+    return currentToken;
   }
+
+  // Si no hay token o es un mock, obtener token JWT real de Django
+  try {
+    const res = await fetch(`${API_BASE_URL}/users/auth/login/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "admin@guiosplus.org", password: "demo2026" }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.access) {
+        localStorage.setItem("guios_access_token", data.access);
+        if (data.refresh) localStorage.setItem("guios_refresh_token", data.refresh);
+        if (data.user) localStorage.setItem("guios_user", JSON.stringify(data.user));
+        return data.access;
+      }
+    }
+  } catch (e) {
+    console.warn("Auto-login no disponible:", e.message);
+  }
+  return "";
 }
 
 /**
- * Wrapper de peticiones HTTP autenticadas con JSON
+ * Wrapper de peticiones HTTP autenticadas con JSON con autorenovación en 401
  */
-async function request(endpoint, options = {}) {
-  const token = getStoredToken();
+async function request(endpoint, options = {}, isRetry = false) {
+  const isAuthEndpoint = endpoint.includes("/users/auth/");
+  let token = getStoredToken();
+
+  if (!isAuthEndpoint && (!token || token.startsWith("mock-"))) {
+    token = await ensureValidToken();
+  }
+
   const headers = {
     "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {}),
   };
 
@@ -39,7 +63,17 @@ async function request(endpoint, options = {}) {
   };
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-  
+
+  // Si responde 401 y no es petición de auth, intentar recuperar token y reintentar una vez
+  if (response.status === 401 && !isAuthEndpoint && !isRetry) {
+    console.info("Token expirado o inválido (401). Renovando sesión...");
+    localStorage.removeItem("guios_access_token");
+    const newToken = await ensureValidToken();
+    if (newToken) {
+      return await request(endpoint, options, true);
+    }
+  }
+
   if (!response.ok) {
     let errorData = {};
     try {
@@ -54,7 +88,6 @@ async function request(endpoint, options = {}) {
     throw error;
   }
 
-  // Si no hay contenido (ej 204 No Content)
   if (response.status === 204) return null;
   return await response.json();
 }
