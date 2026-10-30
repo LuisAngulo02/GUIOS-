@@ -17,7 +17,7 @@ import { useEvaluation } from "../context/EvaluationContext";
  */
 export const Sidebar = () => {
   const { currentUser } = useEvaluation();
-  const esAdmin = currentUser?.rol === "Administrador";
+  const esAdmin = currentUser?.rol?.toLowerCase() === "administrador";
 
   const navItems = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },

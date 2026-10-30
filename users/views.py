@@ -1,4 +1,4 @@
-from rest_framework import status, views, viewsets
+from rest_framework import status, views, viewsets, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -12,6 +12,7 @@ from users.serializers import (
     UsuarioPerfilSerializer,
     AdminUsuarioSerializer,
     RolSerializer,
+    LogAuditoriaSerializer,
 )
 from users.permissions import EsAdministrador
 
@@ -76,6 +77,17 @@ class AdminUsuariosViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, EsAdministrador]
     queryset = Usuario.objects.select_related("id_rol").order_by("-fecha_creacion")
     serializer_class = AdminUsuarioSerializer
+
+    def perform_create(self, serializer):
+        """Registra la creación de usuario en el log de auditoría."""
+        usuario = serializer.save()
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="crear_usuario",
+            entidad="usuario",
+            id_entidad=str(usuario.id),
+            detalle=f"Creación administrativa de usuario {usuario.email} con rol {usuario.id_rol.nombre}",
+        )
 
     def perform_destroy(self, instance):
         """Implementa baja lógica en lugar de borrado físico (RNF de persistencia)."""
@@ -163,6 +175,36 @@ class AdminUsuariosViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+    @action(detail=True, methods=["post"], url_path="desbloquear")
+    def desbloquear(self, request, pk=None):
+        """Desbloquea una cuenta bloqueada por exceso de intentos fallidos (RNF-02)."""
+        usuario = self.get_object()
+        usuario.intentos_fallidos = 0
+        usuario.bloqueado_hasta = None
+        usuario.save(update_fields=["intentos_fallidos", "bloqueado_hasta"])
+
+        LogAuditoria.objects.create(
+            id_usuario=request.user,
+            accion="desbloquear_usuario",
+            entidad="usuario",
+            id_entidad=str(usuario.id),
+            detalle=f"Desbloqueo de seguridad aplicado al usuario {usuario.email}",
+        )
+
+        return Response(
+            {
+                "message": f"Cuenta de {usuario.email} desbloqueada exitosamente.",
+                "user": AdminUsuarioSerializer(usuario).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["get"], url_path="auditoria")
+    def logs_auditoria(self, request):
+        """Bitácora en log_auditoria de eventos administrativos (HU-02)."""
+        logs = LogAuditoria.objects.select_related("id_usuario").order_by("-fecha")[:60]
+        return Response(LogAuditoriaSerializer(logs, many=True).data, status=status.HTTP_200_OK)
 
 
 class RolesListView(views.APIView):

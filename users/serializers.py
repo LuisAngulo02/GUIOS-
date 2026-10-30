@@ -139,6 +139,13 @@ class LoginSerializer(serializers.Serializer):
 class AdminUsuarioSerializer(serializers.ModelSerializer):
     """Serializer para el panel de administración de usuarios (HU-02)."""
     rol_nombre = serializers.CharField(source="id_rol.nombre", read_only=True)
+    password = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+        min_length=8,
+        error_messages={"min_length": "La contraseña debe tener al menos 8 caracteres."}
+    )
 
     class Meta:
         model = Usuario
@@ -146,6 +153,7 @@ class AdminUsuarioSerializer(serializers.ModelSerializer):
             "id",
             "nombre",
             "email",
+            "password",
             "id_rol",
             "rol_nombre",
             "activo",
@@ -154,3 +162,49 @@ class AdminUsuarioSerializer(serializers.ModelSerializer):
             "fecha_creacion",
         ]
         read_only_fields = ["id", "fecha_creacion", "intentos_fallidos", "bloqueado_hasta"]
+
+    def validate_email(self, value):
+        user_id = self.instance.id if self.instance else None
+        if Usuario.objects.filter(email__iexact=value).exclude(id=user_id).exists():
+            raise serializers.ValidationError("Ya existe un usuario registrado con este correo electrónico.")
+        return value.lower()
+
+    def create(self, validated_data):
+        password = validated_data.pop("password", None)
+        user = Usuario.objects.create(**validated_data)
+        if password:
+            user.set_password(password)
+        else:
+            user.set_password("Guios2026!")
+        user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop("password", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if password:
+            instance.set_password(password)
+        instance.save()
+        return instance
+
+
+class LogAuditoriaSerializer(serializers.ModelSerializer):
+    """Serializer para la bitácora de auditoría administrativa (HU-02)."""
+    usuario_email = serializers.CharField(source="id_usuario.email", default="Sistema", read_only=True)
+    usuario_nombre = serializers.CharField(source="id_usuario.nombre", default="Sistema", read_only=True)
+
+    class Meta:
+        model = LogAuditoria
+        fields = [
+            "id",
+            "id_usuario",
+            "usuario_email",
+            "usuario_nombre",
+            "accion",
+            "entidad",
+            "id_entidad",
+            "detalle",
+            "fecha",
+        ]
+        read_only_fields = fields

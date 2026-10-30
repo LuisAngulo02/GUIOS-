@@ -19,8 +19,7 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (requireAdmin && currentUser.rol !== "Administrador") {
-    alert("Se requieren privilegios de Administrador para acceder a esta sección.");
+  if (requireAdmin && currentUser?.rol?.toLowerCase() !== "administrador") {
     return <Navigate to="/dashboard" replace />;
   }
 

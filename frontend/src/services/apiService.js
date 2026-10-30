@@ -481,4 +481,172 @@ export const apiService = {
     await delay(150);
     return JSON.parse(JSON.stringify(MOCK_EVIDENCIA));
   },
+
+  // ---------------------------------------------------------------------------
+  // 6. HU-02: Gestión de Usuarios y Roles (Panel Administrador)
+  // ---------------------------------------------------------------------------
+  async getUsuarios() {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    try {
+      const resp = await doFetch(`${API_BASE_URL}/users/admin/cuentas/`, { headers });
+      if (resp.ok) {
+        return await resp.json();
+      }
+    } catch (e) {
+      console.warn("Fallo al obtener usuarios desde el backend:", e.message);
+    }
+    return [
+      { id: 1, nombre: "Admin Usuario", email: "admin@guiosplus.org", id_rol: 1, rol_nombre: "administrador", activo: true, intentos_fallidos: 0, bloqueado_hasta: null, fecha_creacion: "2026-10-25T10:00:00Z" },
+      { id: 2, nombre: "Evaluador Técnico", email: "evaluador@guiosplus.org", id_rol: 2, rol_nombre: "evaluador", activo: true, intentos_fallidos: 0, bloqueado_hasta: null, fecha_creacion: "2026-10-26T14:30:00Z" },
+    ];
+  },
+
+  async getRoles() {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    try {
+      const resp = await doFetch(`${API_BASE_URL}/users/admin/roles/`, { headers });
+      if (resp.ok) {
+        return await resp.json();
+      }
+    } catch (e) {
+      console.warn("Fallo al obtener roles desde el backend:", e.message);
+    }
+    return [
+      { id: 1, nombre: "administrador" },
+      { id: 2, nombre: "evaluador" },
+    ];
+  },
+
+  async crearUsuario(userData) {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      "Content-Type": "application/json",
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const resp = await doFetch(`${API_BASE_URL}/users/admin/cuentas/`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(userData),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      const msg = err.detail || Object.values(err)[0] || "Error al crear usuario";
+      throw new Error(Array.isArray(msg) ? msg[0] : msg);
+    }
+    return await resp.json();
+  },
+
+  async cambiarEstadoUsuario(id) {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      "Content-Type": "application/json",
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const resp = await doFetch(`${API_BASE_URL}/users/admin/cuentas/${id}/cambiar-estado/`, {
+      method: "POST",
+      headers,
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || "Error al modificar estado del usuario");
+    }
+    return await resp.json();
+  },
+
+  async cambiarRolUsuario(id, idRol) {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      "Content-Type": "application/json",
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const resp = await doFetch(`${API_BASE_URL}/users/admin/cuentas/${id}/cambiar-rol/`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ id_rol: idRol }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || "Error al cambiar rol del usuario");
+    }
+    return await resp.json();
+  },
+
+  async desbloquearUsuario(id) {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      "Content-Type": "application/json",
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const resp = await doFetch(`${API_BASE_URL}/users/admin/cuentas/${id}/desbloquear/`, {
+      method: "POST",
+      headers,
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || "Error al desbloquear cuenta");
+    }
+    return await resp.json();
+  },
+
+  async eliminarUsuario(id) {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const resp = await doFetch(`${API_BASE_URL}/users/admin/cuentas/${id}/`, {
+      method: "DELETE",
+      headers,
+    });
+    if (!resp.ok && resp.status !== 204) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || "Error al dar de baja al usuario");
+    }
+    return true;
+  },
+
+  async getLogsAuditoria() {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    try {
+      const resp = await doFetch(`${API_BASE_URL}/users/admin/cuentas/auditoria/`, { headers });
+      if (resp.ok) {
+        return await resp.json();
+      }
+    } catch (e) {
+      console.warn("Fallo al obtener bitácora de auditoría:", e.message);
+    }
+    return [];
+  },
 };
