@@ -12,7 +12,7 @@ from guio_core.models import (
 
 
 # ==============================================================================
-# SERIALIZERS DEL CATÁLOGO OFICIAL (3 Dimensiones, 18 Factores, 61 Subfactores)
+# SERIALIZERS DEL CATÁLOGO OFICIAL 
 # ==============================================================================
 class SubfactorCatalogoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -68,7 +68,7 @@ class RecomendacionCatalogoSerializer(serializers.ModelSerializer):
 
 
 # ==============================================================================
-# SERIALIZERS DE EVALUACIÓN Y PASO 1 (FACTORES RELEVANTES)
+# SERIALIZERS DE EVALUACIÓN Y PASO 1 
 # ==============================================================================
 class ResultadoFactorSerializer(serializers.ModelSerializer):
     id_factor_nombre = serializers.CharField(source="id_factor.nombre", read_only=True)
@@ -129,14 +129,56 @@ class GuardarPaso1Serializer(serializers.Serializer):
         return factores
 
 
+class ResultadoSubfactorSerializer(serializers.ModelSerializer):
+    codigo = serializers.CharField(source="id_subfactor.codigo", read_only=True)
+    descripcion = serializers.CharField(source="id_subfactor.descripcion", read_only=True)
+    id_factor = serializers.IntegerField(source="id_subfactor.id_factor_id", read_only=True)
+
+    class Meta:
+        model = ResultadoSubfactor
+        fields = [
+            "id",
+            "id_evaluacion",
+            "id_subfactor",
+            "codigo",
+            "descripcion",
+            "id_factor",
+            "calificacion",
+            "observacion",
+        ]
+        read_only_fields = ["id", "id_evaluacion"]
+
+
+class ResultadoFodaSerializer(serializers.ModelSerializer):
+    nombre_factor = serializers.CharField(source="id_factor.nombre", read_only=True)
+    dimension = serializers.CharField(source="id_factor.id_dimension.nombre", read_only=True)
+
+    class Meta:
+        model = ResultadoFoda
+        fields = [
+            "id",
+            "id_evaluacion",
+            "id_factor",
+            "nombre_factor",
+            "dimension",
+            "ponderacion_media",
+            "categoria",
+            "critico",
+        ]
+        read_only_fields = ["id", "id_evaluacion"]
+
+
 class EvaluacionDetalleSerializer(serializers.ModelSerializer):
     evaluador_nombre = serializers.CharField(source="id_usuario.nombre", read_only=True)
     evaluador_email = serializers.CharField(source="id_usuario.email", read_only=True)
     recomendacion = RecomendacionCatalogoSerializer(source="id_recomendacion", read_only=True)
     resultados_factor = ResultadoFactorSerializer(many=True, read_only=True)
+    resultados_foda = ResultadoFodaSerializer(many=True, read_only=True)
 
     total_factores_relevantes = serializers.SerializerMethodField()
     total_factores_irrelevantes = serializers.SerializerMethodField()
+    resumen_foda = serializers.SerializerMethodField()
+    progreso_porcentaje = serializers.SerializerMethodField()
 
     class Meta:
         model = Evaluacion
@@ -156,7 +198,10 @@ class EvaluacionDetalleSerializer(serializers.ModelSerializer):
             "dictamen_texto",
             "total_factores_relevantes",
             "total_factores_irrelevantes",
+            "resumen_foda",
+            "progreso_porcentaje",
             "resultados_factor",
+            "resultados_foda",
         ]
         read_only_fields = [
             "id",
@@ -179,6 +224,33 @@ class EvaluacionDetalleSerializer(serializers.ModelSerializer):
         return obj.resultados_factor.filter(
             importancia_relativa=ResultadoFactor.ImportanciaRelativaTexto.IRRELEVANTE
         ).count()
+
+    def get_resumen_foda(self, obj):
+        fodas = list(obj.resultados_foda.all())
+        if not fodas:
+            return None
+        return {
+            "fortalezas": sum(1 for f in fodas if f.categoria == ResultadoFoda.CategoriaFoda.FORTALEZA),
+            "oportunidades": sum(1 for f in fodas if f.categoria == ResultadoFoda.CategoriaFoda.OPORTUNIDAD),
+            "debilidades": sum(1 for f in fodas if f.categoria == ResultadoFoda.CategoriaFoda.DEBILIDAD),
+            "amenazas": sum(1 for f in fodas if f.categoria == ResultadoFoda.CategoriaFoda.AMENAZA),
+            "criticos": sum(1 for f in fodas if f.critico),
+            "total_clasificados": len(fodas),
+        }
+
+    def get_progreso_porcentaje(self, obj):
+        if obj.estado == Evaluacion.EstadoEvaluacion.COMPLETADA:
+            return 100
+        total_factores = obj.resultados_factor.count()
+        if total_factores == 0:
+            return 10  
+        total_subfactores_calificados = obj.resultados_subfactor.filter(
+            calificacion__isnull=False
+        ).count()
+        if total_subfactores_calificados == 0:
+            return 40  # Paso 1 completado
+        # Paso 2 en progreso o listo para dictamen
+        return min(95, 40 + int((total_subfactores_calificados / 61.0) * 55))
 
 
 class CrearEvaluacionSerializer(serializers.ModelSerializer):
@@ -217,43 +289,4 @@ class GuardarPaso2Serializer(serializers.Serializer):
         if len(sf_ids) != len(set(sf_ids)):
             raise serializers.ValidationError("No puede enviar subfactores duplicados en el lote.")
         return subfactores
-
-
-class ResultadoSubfactorSerializer(serializers.ModelSerializer):
-    codigo = serializers.CharField(source="id_subfactor.codigo", read_only=True)
-    descripcion = serializers.CharField(source="id_subfactor.descripcion", read_only=True)
-    id_factor = serializers.IntegerField(source="id_subfactor.id_factor_id", read_only=True)
-
-    class Meta:
-        model = ResultadoSubfactor
-        fields = [
-            "id",
-            "id_evaluacion",
-            "id_subfactor",
-            "codigo",
-            "descripcion",
-            "id_factor",
-            "calificacion",
-            "observacion",
-        ]
-        read_only_fields = ["id", "id_evaluacion"]
-
-
-class ResultadoFodaSerializer(serializers.ModelSerializer):
-    nombre_factor = serializers.CharField(source="id_factor.nombre", read_only=True)
-    dimension = serializers.CharField(source="id_factor.id_dimension.nombre", read_only=True)
-
-    class Meta:
-        model = ResultadoFoda
-        fields = [
-            "id",
-            "id_evaluacion",
-            "id_factor",
-            "nombre_factor",
-            "dimension",
-            "ponderacion_media",
-            "categoria",
-            "critico",
-        ]
-        read_only_fields = ["id", "id_evaluacion"]
 

@@ -106,3 +106,35 @@ class EvaluacionApiFlowTestCase(TestCase):
         self.assertEqual(res_p3.data["recomendacion_tipo"], "A")
         self.assertEqual(res_p3.data["indice_viabilidad"], 100.0)
         self.assertEqual(res_p3.data["estado"], "completada")
+
+    def test_hu07_historial_y_comparador(self):
+        """Valida HU-07: Listado filtrable de evaluaciones y comparativa en paralelo."""
+        # 1. Crear 2 evaluaciones
+        res1 = self.client.post("/api/v1/guios/evaluations/", {"nombre_software": "Moodle 4.x"})
+        id1 = res1.data["id"]
+
+        res2 = self.client.post("/api/v1/guios/evaluations/", {"nombre_software": "Canvas LMS"})
+        id2 = res2.data["id"]
+
+        # 2. Listar historial con filtros
+        list_res = self.client.get("/api/v1/guios/evaluations/?estado=en_progreso")
+        self.assertEqual(list_res.status_code, status.HTTP_200_OK)
+        nombres = [e["nombre_software"] for e in list_res.data]
+        self.assertIn("Moodle 4.x", nombres)
+        self.assertIn("Canvas LMS", nombres)
+
+        # Filtro por software
+        filter_res = self.client.get("/api/v1/guios/evaluations/?software=Canvas")
+        self.assertEqual(filter_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(filter_res.data), 1)
+        self.assertEqual(filter_res.data[0]["nombre_software"], "Canvas LMS")
+
+        # 3. Comparador lado a lado
+        compare_res = self.client.get(f"/api/v1/guios/evaluations/comparar/?eval1={id1}&eval2={id2}")
+        self.assertEqual(compare_res.status_code, status.HTTP_200_OK)
+        self.assertIn("evaluacion_1", compare_res.data)
+        self.assertIn("evaluacion_2", compare_res.data)
+        self.assertIn("comparativa_factores", compare_res.data)
+        self.assertEqual(compare_res.data["evaluacion_1"]["nombre_software"], "Moodle 4.x")
+        self.assertEqual(compare_res.data["evaluacion_2"]["nombre_software"], "Canvas LMS")
+

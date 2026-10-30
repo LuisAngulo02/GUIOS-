@@ -68,11 +68,23 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = Evaluacion.objects.select_related("id_usuario", "id_recomendacion").prefetch_related(
-            "resultados_factor__id_factor"
+            "resultados_factor__id_factor",
+            "resultados_foda__id_factor",
+            "resultados_subfactor__id_subfactor",
         )
-        if user.is_superuser or (user.id_rol and user.id_rol.nombre == "administrador"):
-            return qs.order_by("-fecha_inicio")
-        return qs.filter(id_usuario=user).order_by("-fecha_inicio")
+        if not (user.is_superuser or (user.id_rol and user.id_rol.nombre == "administrador")):
+            qs = qs.filter(id_usuario=user)
+
+        # Filtros opcionales por query parameters (HU-07)
+        estado = self.request.query_params.get("estado")
+        if estado and estado != "todos":
+            qs = qs.filter(estado=estado)
+
+        busqueda = self.request.query_params.get("search") or self.request.query_params.get("software")
+        if busqueda:
+            qs = qs.filter(nombre_software__icontains=busqueda.strip())
+
+        return qs.order_by("-fecha_inicio")
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -497,4 +509,116 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+    @action(detail=False, methods=["get"], url_path="comparar")
+    def comparar(self, request):
+        """
+        HU-07: Comparación en paralelo de dos evaluaciones (Side-by-Side Comparison).
+        Parámetros requeridos en query: ?eval1=<id>&eval2=<id>
+        Retorna las métricas globales, FODA y desglose comparativo de factores.
+        """
+        eval1_id = request.query_params.get("eval1")
+        eval2_id = request.query_params.get("eval2")
+
+        if not eval1_id or not eval2_id:
+            return Response(
+                {"detail": "Debe especificar los parámetros 'eval1' y 'eval2' para realizar la comparación."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if eval1_id == eval2_id:
+            return Response(
+                {"detail": "Seleccione dos evaluaciones distintas para comparar."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        qs = self.get_queryset()
+        eval1 = get_object_or_404(qs, id=eval1_id)
+        eval2 = get_object_or_404(qs, id=eval2_id)
+
+        ser1 = EvaluacionDetalleSerializer(eval1).data
+        ser2 = EvaluacionDetalleSerializer(eval2).data
+
+        # Mapear factores de ambas evaluaciones
+        mapa_rf1 = {rf["id_factor"]: rf for rf in ser1.get("resultados_factor", [])}
+        mapa_rf2 = {rf["id_factor"]: rf for rf in ser2.get("resultados_factor", [])}
+        mapa_foda1 = {f["id_factor"]: f for f in ser1.get("resultados_foda", [])}
+        mapa_foda2 = {f["id_factor"]: f for f in ser2.get("resultados_foda", [])}
+
+        factores_catalogo = Factor.objects.filter(activo=True).select_related("id_dimension").order_by("id")
+        comparativa_factores = []
+
+        for f in factores_catalogo:
+            rf1 = mapa_rf1.get(f.id, {})
+            rf2 = mapa_rf2.get(f.id, {})
+            fd1 = mapa_foda1.get(f.id, {})
+            fd2 = mapa_foda2.get(f.id, {})
+
+            comparativa_factores.append({
+                "id_factor": f.id,
+                "nombre_factor": f.nombre,
+                "dimension": f.id_dimension.nombre,
+                "alcance_base": f.alcance,
+                "eval1": {
+                    "importancia_decisor": rf1.get("importancia_decisor"),
+                    "importancia_relativa": rf1.get("importancia_relativa", "—"),
+                    "alcance": rf1.get("alcance_aplicado") or f.alcance,
+                    "foda": fd1.get("categoria", "—"),
+                    "pm": fd1.get("ponderacion_media"),
+                    "critico": fd1.get("critico", False),
+                },
+                "eval2": {
+                    "importancia_decisor": rf2.get("importancia_decisor"),
+                    "importancia_relativa": rf2.get("importancia_relativa", "—"),
+                    "alcance": rf2.get("alcance_aplicado") or f.alcance,
+                    "foda": fd2.get("categoria", "—"),
+                    "pm": fd2.get("ponderacion_media"),
+                    "critico": fd2.get("critico", False),
+                },
+            })
+
+        # Resumen comparativo de ventajas relativas
+        v1 = float(eval1.indice_viabilidad or 0)
+        v2 = float(eval2.indice_viabilidad or 0)
+        crit1 = sum(1 for f in mapa_foda1.values() if f.get("critico"))
+        crit2 = sum(1 for f in mapa_foda2.values() if f.get("critico"))
+
+        diferencias = []
+        if v1 > v2:
+            diferencias.append(f"{eval1.nombre_software} tiene mayor índice de viabilidad ({v1:.1f}% vs {v2:.1f}%).")
+        elif v2 > v1:
+            diferencias.append(f"{eval2.nombre_software} tiene mayor índice de viabilidad ({v2:.1f}% vs {v1:.1f}%).")
+        else:
+            diferencias.append("Ambas soluciones presentan el mismo índice de viabilidad.")
+
+        if crit1 < crit2:
+            diferencias.append(f"{eval1.nombre_software} tiene menos factores críticos ({crit1} vs {crit2}).")
+        elif crit2 < crit1:
+            diferencias.append(f"{eval2.nombre_software} tiene menos factores críticos ({crit2} vs {crit1}).")
+
+        return Response({
+            "evaluacion_1": ser1,
+            "evaluacion_2": ser2,
+            "comparativa_factores": comparativa_factores,
+            "resumen_diferencias": diferencias,
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["get"], url_path="cargar_activa")
+    def cargar_activa(self, request, pk=None):
+        """
+        Carga el estado completo de una evaluación para reanudarla en el frontend.
+        """
+        evaluacion = self.get_object()
+        serializer = EvaluacionDetalleSerializer(evaluacion)
+
+        # Mapeo de subfactores calificados
+        subfactores_calificados = ResultadoSubfactorSerializer(
+            evaluacion.resultados_subfactor.all(), many=True
+        ).data
+
+        return Response({
+            "evaluacion": serializer.data,
+            "subfactores": subfactores_calificados,
+        }, status=status.HTTP_200_OK)
+
 

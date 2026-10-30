@@ -175,11 +175,17 @@ export const apiService = {
   },
 
   // ---------------------------------------------------------------------------
-  // 4. Gestión de Evaluaciones y Persistencia Real (Django + PostgreSQL)
+  // 4. Gestión de Evaluaciones 
   // ---------------------------------------------------------------------------
-  async getEvaluaciones() {
+  async getEvaluaciones(params = {}) {
     try {
-      return await request("/guios/evaluations/");
+      const cleanParams = {};
+      if (params.estado && params.estado !== "todos") cleanParams.estado = params.estado;
+      if (params.search) cleanParams.search = params.search;
+      if (params.software) cleanParams.software = params.software;
+      const queryStr = new URLSearchParams(cleanParams).toString();
+      const endpoint = queryStr ? `/guios/evaluations/?${queryStr}` : "/guios/evaluations/";
+      return await request(endpoint);
     } catch (err) {
       console.warn("getEvaluaciones offline:", err.message);
       const saved = localStorage.getItem("guios_evaluaciones_cache");
@@ -193,6 +199,24 @@ export const apiService = {
     } catch (err) {
       console.warn(`getEvaluacion ${id} offline:`, err.message);
       return null;
+    }
+  },
+
+  async cargarEvaluacionActiva(id) {
+    try {
+      return await request(`/guios/evaluations/${id}/cargar_activa/`);
+    } catch (err) {
+      console.warn(`cargarEvaluacionActiva ${id} offline:`, err.message);
+      return null;
+    }
+  },
+
+  async compararEvaluaciones(eval1Id, eval2Id) {
+    try {
+      return await request(`/guios/evaluations/comparar/?eval1=${eval1Id}&eval2=${eval2Id}`);
+    } catch (err) {
+      console.warn(`compararEvaluaciones offline:`, err.message);
+      throw err;
     }
   },
 

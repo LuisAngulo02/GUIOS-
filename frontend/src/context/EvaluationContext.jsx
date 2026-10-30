@@ -32,6 +32,8 @@ export const EvaluationProvider = ({ children }) => {
   });
 
   const [isBackendConnected, setIsBackendConnected] = useState(false);
+  const [evaluacionesList, setEvaluacionesList] = useState([]);
+  const [cargandoEvaluaciones, setCargandoEvaluaciones] = useState(false);
 
   // 3. Indicador de Guardado
   const [saveStatus, setSaveStatus] = useState("Guardado");
@@ -93,6 +95,118 @@ export const EvaluationProvider = ({ children }) => {
       localStorage.setItem("guios_evaluacion_id", evaluacionId.toString());
     }
   }, [evaluacionId]);
+
+  // Cargar historial de evaluaciones (HU-07)
+  const fetchEvaluaciones = useCallback(async (params = {}) => {
+    setCargandoEvaluaciones(true);
+    try {
+      const data = await apiService.getEvaluaciones(params);
+      if (Array.isArray(data)) {
+        setEvaluacionesList(data);
+      }
+    } catch (err) {
+      console.warn("Error al cargar historial de evaluaciones:", err);
+    } finally {
+      setCargandoEvaluaciones(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchEvaluaciones();
+  }, [fetchEvaluaciones]);
+
+  // Crear una nueva evaluación y ponerla como activa (HU-07)
+  const crearNuevaEvaluacion = async ({ nombre_software, contexto_uso, objetivo }) => {
+    setSaveStatus("Creando evaluación...");
+    try {
+      const nueva = await apiService.createEvaluation({ nombre_software, contexto_uso, objetivo });
+      if (nueva && nueva.id) {
+        setEvaluacionId(nueva.id.toString());
+        setSoftwareActivo(nueva.nombre_software || nombre_software);
+        setContextoActivo(contexto_uso || "Contexto institucional");
+        setDescripcionCaso(objetivo || "");
+
+        // Reiniciar factores y subfactores para la nueva instancia
+        setFactores(MOCK_FACTORES);
+        setSubfactoresState(MOCK_SUBFACTORES);
+        localStorage.removeItem("guios_factores");
+        localStorage.removeItem("guios_subfactores");
+
+        await fetchEvaluaciones();
+        return nueva;
+      }
+    } catch (err) {
+      console.warn("Error creando evaluación:", err);
+      throw err;
+    } finally {
+      setSaveStatus("Guardado");
+    }
+  };
+
+  // Reanudar una evaluación guardada en PostgreSQL (HU-07)
+  const cargarEvaluacionParaContinuar = async (id) => {
+    setSaveStatus("Cargando evaluación...");
+    try {
+      const data = await apiService.cargarEvaluacionActiva(id);
+      if (data && data.evaluacion) {
+        const ev = data.evaluacion;
+        setEvaluacionId(ev.id.toString());
+        setSoftwareActivo(ev.nombre_software);
+
+        if (ev.resultados_factor && ev.resultados_factor.length > 0) {
+          const mapaRf = {};
+          ev.resultados_factor.forEach((rf) => {
+            mapaRf[rf.id_factor] = rf;
+          });
+
+          setFactores(
+            MOCK_FACTORES.map((mf) => {
+              const rf = mapaRf[mf.id];
+              if (!rf) return mf;
+              const idVal = rf.importancia_decisor !== undefined ? rf.importancia_decisor : mf.ID;
+              const irNum = Math.floor((mf.IS + idVal) / 2);
+              const irTexto = MAPA_NUMERO_A_TEXTO_IR[irNum] || "Irrelevante";
+              return {
+                ...mf,
+                ID: idVal,
+                IR: `${irNum} · ${irTexto}`,
+                relevante: irNum > 1,
+                alcance: rf.alcance_aplicado || mf.alcance,
+              };
+            })
+          );
+        }
+
+        if (data.subfactores && data.subfactores.length > 0) {
+          setSubfactoresState((prev) => {
+            const next = JSON.parse(JSON.stringify(prev));
+            data.subfactores.forEach((sf) => {
+              const factorId = sf.id_factor;
+              if (next[factorId]) {
+                next[factorId] = next[factorId].map((item) => {
+                  if (item.id === sf.id_subfactor || item.codigo === sf.codigo) {
+                    return {
+                      ...item,
+                      calificacion: sf.calificacion,
+                      observacion: sf.observacion || "",
+                    };
+                  }
+                  return item;
+                });
+              }
+            });
+            return next;
+          });
+        }
+        return ev;
+      }
+    } catch (err) {
+      console.warn("Error cargando evaluación para continuar:", err);
+      throw err;
+    } finally {
+      setSaveStatus("Guardado");
+    }
+  };
 
   // Sincronizar Paso 1 con Backend DRF
   const sincronizarPaso1ConBackend = useCallback(async (factoresParaGuardar) => {
@@ -357,6 +471,11 @@ export const EvaluationProvider = ({ children }) => {
         updateSubfactorScore,
         sincronizarPaso1ConBackend,
         sincronizarPaso2ConBackend,
+        evaluacionesList,
+        cargandoEvaluaciones,
+        fetchEvaluaciones,
+        crearNuevaEvaluacion,
+        cargarEvaluacionParaContinuar,
         ...calculationSummary,
       }}
     >
