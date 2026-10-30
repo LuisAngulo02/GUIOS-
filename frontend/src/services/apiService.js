@@ -279,6 +279,21 @@ export const apiService = {
     }
   },
 
+  async updateEvaluation(id, data) {
+    try {
+      const payload = {};
+      if (data.nombre_software) payload.nombre_software = data.nombre_software;
+      const result = await request(`/guios/evaluations/${id}/`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      return { ...result, isLiveApi: true };
+    } catch (err) {
+      console.warn("updateEvaluation offline fallback:", err.message);
+      return null;
+    }
+  },
+
   // Paso 1: Guardar ponderaciones ID, calcular IR y alcance
   async savePaso1(evaluacionId, items) {
     try {

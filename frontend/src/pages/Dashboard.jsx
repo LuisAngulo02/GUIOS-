@@ -174,7 +174,7 @@ export const Dashboard = () => {
           className="px-4 py-2.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm shrink-0 self-start sm:self-auto cursor-pointer"
         >
           <PlusCircle size={15} />
-          <span>+ Nueva evaluación</span>
+          <span> Nueva evaluación</span>
         </button>
       </div>
 

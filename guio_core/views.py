@@ -87,7 +87,7 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
         return qs.order_by("-fecha_inicio")
 
     def get_serializer_class(self):
-        if self.action == "create":
+        if self.action in ["create", "update", "partial_update"]:
             return CrearEvaluacionSerializer
         return EvaluacionDetalleSerializer
 

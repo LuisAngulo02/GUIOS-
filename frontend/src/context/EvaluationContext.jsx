@@ -38,12 +38,35 @@ export const EvaluationProvider = ({ children }) => {
   // 3. Indicador de Guardado
   const [saveStatus, setSaveStatus] = useState("Guardado");
 
-  // 4. Estado de la Evaluación Activa
-  const [softwareActivo, setSoftwareActivo] = useState("Moodle");
-  const [contextoActivo, setContextoActivo] = useState("Educación · Plataforma de aprendizaje virtual");
-  const [descripcionCaso, setDescripcionCaso] = useState(
-    "Evaluación de viabilidad para migrar el campus virtual institucional hacia Moodle 4.x garantizando interoperabilidad con LDAP y Office 365."
-  );
+  // 4. Estado de la Evaluación Activa (Persistido en LocalStorage)
+  const [softwareActivo, setSoftwareActivo] = useState(() => {
+    return localStorage.getItem("guios_software_activo") || "Moodle";
+  });
+  const [contextoActivo, setContextoActivo] = useState(() => {
+    return (
+      localStorage.getItem("guios_contexto_activo") ||
+      "Educación · Plataforma de aprendizaje virtual"
+    );
+  });
+  const [descripcionCaso, setDescripcionCaso] = useState(() => {
+    return (
+      localStorage.getItem("guios_descripcion_caso") ||
+      "Evaluación de viabilidad para migrar el campus virtual institucional hacia Moodle 4.x garantizando interoperabilidad con LDAP y Office 365."
+    );
+  });
+
+  // Persistir metadatos activos en LocalStorage
+  useEffect(() => {
+    localStorage.setItem("guios_software_activo", softwareActivo);
+  }, [softwareActivo]);
+
+  useEffect(() => {
+    localStorage.setItem("guios_contexto_activo", contextoActivo);
+  }, [contextoActivo]);
+
+  useEffect(() => {
+    localStorage.setItem("guios_descripcion_caso", descripcionCaso);
+  }, [descripcionCaso]);
 
   // 5. Lista de Factores con sus Importancias y Evidencia
   const [factores, setFactores] = useState(() => {
@@ -121,10 +144,19 @@ export const EvaluationProvider = ({ children }) => {
     try {
       const nueva = await apiService.createEvaluation({ nombre_software, contexto_uso, objetivo });
       if (nueva && nueva.id) {
+        const softName = nueva.nombre_software || nombre_software;
+        const contName = contexto_uso || "Contexto institucional";
+        const descName = objetivo || "";
+
+        localStorage.setItem("guios_evaluacion_id", nueva.id.toString());
+        localStorage.setItem("guios_software_activo", softName);
+        localStorage.setItem("guios_contexto_activo", contName);
+        localStorage.setItem("guios_descripcion_caso", descName);
+
         setEvaluacionId(nueva.id.toString());
-        setSoftwareActivo(nueva.nombre_software || nombre_software);
-        setContextoActivo(contexto_uso || "Contexto institucional");
-        setDescripcionCaso(objetivo || "");
+        setSoftwareActivo(softName);
+        setContextoActivo(contName);
+        setDescripcionCaso(descName);
 
         // Reiniciar factores y subfactores para la nueva instancia
         setFactores(MOCK_FACTORES);
@@ -143,6 +175,33 @@ export const EvaluationProvider = ({ children }) => {
     }
   };
 
+  // Actualizar metadatos de la evaluación activa
+  const actualizarMetadatosEvaluacion = async ({ nombre_software, contexto_uso, objetivo }) => {
+    if (nombre_software) {
+      setSoftwareActivo(nombre_software);
+      localStorage.setItem("guios_software_activo", nombre_software);
+    }
+    if (contexto_uso) {
+      setContextoActivo(contexto_uso);
+      localStorage.setItem("guios_contexto_activo", contexto_uso);
+    }
+    if (objetivo) {
+      setDescripcionCaso(objetivo);
+      localStorage.setItem("guios_descripcion_caso", objetivo);
+    }
+
+    if (evaluacionId) {
+      try {
+        await apiService.updateEvaluation(evaluacionId, {
+          ...(nombre_software ? { nombre_software } : {}),
+        });
+        await fetchEvaluaciones();
+      } catch (e) {
+        console.warn("Fallo actualizando evaluacion activa en backend:", e);
+      }
+    }
+  };
+
   // Reanudar una evaluación guardada en PostgreSQL (HU-07)
   const cargarEvaluacionParaContinuar = async (id) => {
     setSaveStatus("Cargando evaluación...");
@@ -150,6 +209,9 @@ export const EvaluationProvider = ({ children }) => {
       const data = await apiService.cargarEvaluacionActiva(id);
       if (data && data.evaluacion) {
         const ev = data.evaluacion;
+        localStorage.setItem("guios_evaluacion_id", ev.id.toString());
+        localStorage.setItem("guios_software_activo", ev.nombre_software);
+
         setEvaluacionId(ev.id.toString());
         setSoftwareActivo(ev.nombre_software);
 
@@ -476,6 +538,7 @@ export const EvaluationProvider = ({ children }) => {
         fetchEvaluaciones,
         crearNuevaEvaluacion,
         cargarEvaluacionParaContinuar,
+        actualizarMetadatosEvaluacion,
         ...calculationSummary,
       }}
     >
