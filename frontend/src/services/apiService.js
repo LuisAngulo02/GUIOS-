@@ -10,17 +10,37 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-let isRefreshingToken = false;
+function getStoredToken() {
+  return localStorage.getItem("guios_access_token") || "";
+}
+
+/**
+ * Fetch con reintento automático entre localhost y 127.0.0.1 para evitar problemas de IPv6 en Windows
+ */
+async function doFetch(url, config) {
+  try {
+    return await fetch(url, config);
+  } catch (err) {
+    if (url.includes("localhost:8000")) {
+      const altUrl = url.replace("localhost:8000", "127.0.0.1:8000");
+      return await fetch(altUrl, config);
+    } else if (url.includes("127.0.0.1:8000")) {
+      const altUrl = url.replace("127.0.0.1:8000", "localhost:8000");
+      return await fetch(altUrl, config);
+    }
+    throw err;
+  }
+}
 
 async function ensureValidToken() {
-  const currentToken = localStorage.getItem("guios_access_token");
+  const currentToken = getStoredToken();
   if (currentToken && !currentToken.startsWith("mock-")) {
     return currentToken;
   }
 
   // Si no hay token o es un mock, obtener token JWT real de Django
   try {
-    const res = await fetch(`${API_BASE_URL}/users/auth/login/`, {
+    const res = await doFetch(`${API_BASE_URL}/users/auth/login/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "admin@guiosplus.org", password: "demo2026" }),
@@ -62,7 +82,7 @@ async function request(endpoint, options = {}, isRetry = false) {
     headers,
   };
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+  const response = await doFetch(`${API_BASE_URL}${endpoint}`, config);
 
   // Si responde 401 y no es petición de auth, intentar recuperar token y reintentar una vez
   if (response.status === 401 && !isAuthEndpoint && !isRetry) {
@@ -218,7 +238,15 @@ export const apiService = {
       if (params.software) cleanParams.software = params.software;
       const queryStr = new URLSearchParams(cleanParams).toString();
       const endpoint = queryStr ? `/guios/evaluations/?${queryStr}` : "/guios/evaluations/";
-      return await request(endpoint);
+      const data = await request(endpoint);
+      if (Array.isArray(data)) {
+        try {
+          localStorage.setItem("guios_evaluaciones_cache", JSON.stringify(data));
+        } catch {
+          // ignore localStorage error
+        }
+      }
+      return data;
     } catch (err) {
       console.warn("getEvaluaciones offline:", err.message);
       const saved = localStorage.getItem("guios_evaluaciones_cache");
@@ -263,6 +291,21 @@ export const apiService = {
           objetivo: objetivo || "Evaluación de viabilidad y madurez OSS",
         }),
       });
+      // Sincronizar en cache local
+      try {
+        const cache = JSON.parse(localStorage.getItem("guios_evaluaciones_cache") || "[]");
+        const entry = {
+          ...result,
+          evaluador_nombre: "Admin Usuario",
+          fecha_inicio: new Date().toISOString(),
+          estado: result.estado || "en_progreso",
+          progreso_porcentaje: 10,
+        };
+        const updatedCache = [entry, ...cache.filter((e) => String(e.id) !== String(result.id))];
+        localStorage.setItem("guios_evaluaciones_cache", JSON.stringify(updatedCache));
+      } catch (e) {
+        console.warn("Error actualizando cache:", e);
+      }
       return { ...result, isLiveApi: true };
     } catch (err) {
       console.warn("createEvaluation offline fallback:", err.message);
@@ -271,10 +314,19 @@ export const apiService = {
         nombre_software,
         contexto_uso,
         objetivo,
-        estado: "borrador",
+        estado: "en_progreso",
         fecha_creacion: new Date().toISOString(),
+        fecha_inicio: new Date().toISOString(),
+        evaluador_nombre: "Admin Usuario",
+        progreso_porcentaje: 10,
         isLiveApi: false,
       };
+      try {
+        const cache = JSON.parse(localStorage.getItem("guios_evaluaciones_cache") || "[]");
+        localStorage.setItem("guios_evaluaciones_cache", JSON.stringify([mockEval, ...cache]));
+      } catch (e) {
+        console.warn("Error guardando mock en cache:", e);
+      }
       return mockEval;
     }
   },
@@ -354,10 +406,32 @@ export const apiService = {
       const result = await request(`/guios/evaluations/${evaluacionId}/resultado/`, {
         method: "POST",
       });
-      return { ...result, isLiveApi: true };
+      try {
+        const cache = JSON.parse(localStorage.getItem("guios_evaluaciones_cache") || "[]");
+        const updated = cache.map((e) =>
+          String(e.id) === String(evaluacionId)
+            ? { ...e, estado: "completada", fecha_fin: new Date().toISOString() }
+            : e
+        );
+        localStorage.setItem("guios_evaluaciones_cache", JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Error actualizando cache tras calcularResultado:", e);
+      }
+      return { ...result, estado: result?.estado || "completada", isLiveApi: true };
     } catch (err) {
       console.warn("calcularResultado offline:", err.message);
-      return { isLiveApi: false };
+      try {
+        const cache = JSON.parse(localStorage.getItem("guios_evaluaciones_cache") || "[]");
+        const updated = cache.map((e) =>
+          String(e.id) === String(evaluacionId)
+            ? { ...e, estado: "completada", fecha_fin: new Date().toISOString() }
+            : e
+        );
+        localStorage.setItem("guios_evaluaciones_cache", JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Error actualizando cache tras calcularResultado offline:", e);
+      }
+      return { estado: "completada", isLiveApi: false };
     }
   },
 

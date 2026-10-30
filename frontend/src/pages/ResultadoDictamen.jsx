@@ -30,11 +30,19 @@ export const ResultadoDictamen = () => {
     setEstadoEvaluacionActiva,
   } = useEvaluation();
 
+  const [finalizando, setFinalizando] = React.useState(false);
+
   React.useEffect(() => {
     if (evaluacionId) {
       apiService.calcularResultado(evaluacionId)
         .then((resp) => {
-          if (resp && resp.estado === "completada") {
+          if (
+            resp &&
+            (resp.estado === "completada" ||
+              resp.evaluacion?.estado === "completada" ||
+              resp.message?.includes("completad") ||
+              resp.recomendacion_tipo)
+          ) {
             if (setEstadoEvaluacionActiva) setEstadoEvaluacionActiva("completada");
             localStorage.setItem("guios_evaluacion_estado", "completada");
           }
@@ -43,6 +51,30 @@ export const ResultadoDictamen = () => {
         .catch(console.warn);
     }
   }, [evaluacionId, fetchEvaluaciones, setEstadoEvaluacionActiva]);
+
+  const handleFinalizarYVerDashboard = async () => {
+    setFinalizando(true);
+    try {
+      if (evaluacionId) {
+        const resp = await apiService.calcularResultado(evaluacionId);
+        if (resp) {
+          if (setEstadoEvaluacionActiva) setEstadoEvaluacionActiva("completada");
+          localStorage.setItem("guios_evaluacion_estado", "completada");
+        }
+      }
+      if (fetchEvaluaciones) {
+        await fetchEvaluaciones();
+      }
+      navigate("/dashboard");
+    } catch (e) {
+      console.warn("Error al finalizar evaluación:", e);
+      if (setEstadoEvaluacionActiva) setEstadoEvaluacionActiva("completada");
+      localStorage.setItem("guios_evaluacion_estado", "completada");
+      navigate("/dashboard");
+    } finally {
+      setFinalizando(false);
+    }
+  };
 
   // Filtrar factores por cuadrante FODA
   const listaFortalezas = factoresEvaluados.filter((f) => f.foda === "Fortaleza");
@@ -74,11 +106,12 @@ export const ResultadoDictamen = () => {
 
         <div className="flex flex-wrap items-center gap-3">
           <button
-            onClick={() => navigate("/dashboard")}
+            onClick={handleFinalizarYVerDashboard}
+            disabled={finalizando}
             className="px-4 py-2 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-medium text-xs transition-colors flex items-center gap-2 shadow-sm shrink-0 cursor-pointer"
           >
             <Check size={14} />
-            <span>Finalizar y ver en Dashboard</span>
+            <span>{finalizando ? "Finalizando..." : "Finalizar y ver en Dashboard"}</span>
           </button>
           <button
             onClick={handleExportarPDF}

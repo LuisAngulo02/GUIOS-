@@ -111,13 +111,19 @@ export const EvaluationProvider = ({ children }) => {
     if (!saved) return MOCK_SUBFACTORES;
     try {
       const parsed = JSON.parse(saved);
+      // Fusionar con MOCK_SUBFACTORES para asegurar que SIEMPRE existan los 18 factores y 61 subfactores
+      const merged = JSON.parse(JSON.stringify(MOCK_SUBFACTORES));
       Object.keys(parsed).forEach((k) => {
-        parsed[k] = parsed[k].map((sf) => ({
-          ...sf,
-          id: sf.id || (sf.codigo ? parseInt(sf.codigo.replace("SF-", ""), 10) : undefined),
-        }));
+        if (merged[k]) {
+          merged[k] = merged[k].map((defaultSf) => {
+            const found = parsed[k].find(
+              (p) => p.codigo === defaultSf.codigo || p.id === defaultSf.id
+            );
+            return found ? { ...defaultSf, ...found, id: defaultSf.id } : defaultSf;
+          });
+        }
       });
-      return parsed;
+      return merged;
     } catch {
       return MOCK_SUBFACTORES;
     }
@@ -142,16 +148,56 @@ export const EvaluationProvider = ({ children }) => {
   const fetchEvaluaciones = useCallback(async (params = {}) => {
     setCargandoEvaluaciones(true);
     try {
-      const data = await apiService.getEvaluaciones(params);
-      if (Array.isArray(data)) {
-        setEvaluacionesList(data);
+      let data = await apiService.getEvaluaciones(params);
+      if (!Array.isArray(data)) data = [];
+
+      // Recuperar metadatos de la evaluación activa en sesión
+      const activeId = localStorage.getItem("guios_evaluacion_id");
+      const activeSoftware = localStorage.getItem("guios_software_activo");
+      const activeEstado = localStorage.getItem("guios_evaluacion_estado") || "en_progreso";
+      const activeContexto = localStorage.getItem("guios_contexto_activo") || "";
+      const activeDesc = localStorage.getItem("guios_descripcion_caso") || "";
+
+      // Si la evaluación activa no está en la lista devuelta por la API (por ejemplo si fue creada offline),
+      // incluirla sintéticamente para que el usuario nunca vea la lista vacía ni pierda su evaluación activa
+      if (activeId && !data.some((e) => String(e.id) === String(activeId))) {
+        const itemActivo = {
+          id: isNaN(Number(activeId)) ? activeId : Number(activeId),
+          nombre_software: activeSoftware || "Evaluación FLOSS",
+          contexto_uso: activeContexto,
+          objetivo: activeDesc,
+          evaluador_nombre: currentUser?.nombre || "Admin Usuario",
+          fecha_inicio: new Date().toISOString(),
+          fecha_fin: activeEstado === "completada" ? new Date().toISOString() : null,
+          estado: activeEstado,
+          id_recomendacion: activeEstado === "completada" ? 3 : null,
+          recomendacion: activeEstado === "completada" ? { id: 3, tipo: "C", nombre: "Favorablemente Condicionada" } : null,
+          indice_viabilidad: activeEstado === "completada" ? 100 : 50,
+          progreso_porcentaje: activeEstado === "completada" ? 100 : 50,
+          resumen_foda: { fortalezas: 0, oportunidades: 0, debilidades: 0, amenazas: 0, criticos: 0, total_clasificados: 0 },
+        };
+        data = [itemActivo, ...data];
+      } else if (activeId) {
+        // Si está en la lista pero el estado local es 'completada', asegurar que figure como completada
+        data = data.map((item) => {
+          if (String(item.id) === String(activeId) && activeEstado === "completada") {
+            return {
+              ...item,
+              estado: "completada",
+              fecha_fin: item.fecha_fin || new Date().toISOString(),
+            };
+          }
+          return item;
+        });
       }
+
+      setEvaluacionesList(data);
     } catch (err) {
       console.warn("Error al cargar historial de evaluaciones:", err);
     } finally {
       setCargandoEvaluaciones(false);
     }
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     fetchEvaluaciones();

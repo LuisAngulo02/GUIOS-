@@ -217,7 +217,7 @@ export const Dashboard = () => {
           title="Evaluaciones registradas"
           value={evaluacionesList.length.toString()}
           percentage={evaluacionesList.length > 0 ? 100 : 0}
-          subtitle={`${evaluacionesList.filter((e) => e.estado === "completada").length} completadas`}
+          subtitle={`${evaluacionesList.filter((e) => e.estado === "completada" || (String(e.id) === String(evaluacionId) && esCompletadaActiva)).length} completadas`}
         />
       </div>
 
@@ -453,8 +453,8 @@ export const Dashboard = () => {
               <tbody className="divide-y divide-gray-50">
                 {evaluacionesFiltradas.map((ev) => {
                   const isChecked = selectedForCompare.includes(ev.id);
-                  const isActiva = Number(evaluacionId) === ev.id;
-                  const isCompletada = ev.estado === "completada";
+                  const isActiva = String(evaluacionId) === String(ev.id);
+                  const isCompletada = ev.estado === "completada" || (isActiva && esCompletadaActiva);
 
                   return (
                     <tr

@@ -449,28 +449,74 @@ export const MOCK_SUBFACTORES = {
   ],
   // Factor 7: Mantenibilidad (1 subfactor)
   7: [
-    { codigo: "SF-27", descripcion: "El software es mantenido activamente por los desarrolladores.", calificacion: 4, observacion: "Moodle HQ publica commits diarios." },
+    { id: 27, codigo: "SF-27", descripcion: "El software es mantenido activamente por los desarrolladores.", calificacion: 4, observacion: "Moodle HQ publica commits diarios." },
+  ],
+  // Factor 8: Portabilidad (2 subfactores)
+  8: [
+    { id: 28, codigo: "SF-28", descripcion: "Una versión de aplicación móvil de este software está disponible.", calificacion: 4, observacion: "Apps móviles para iOS y Android disponibles." },
+    { id: 29, codigo: "SF-29", descripcion: "El software es independiente del sistema de administración de base de datos (DBMS).", calificacion: 4, observacion: "Soporta PostgreSQL, MariaDB, MySQL y Oracle." },
+  ],
+  // Factor 9: Documentación (11 subfactores)
+  9: [
+    { id: 30, codigo: "SF-30", descripcion: "La documentación de desarrollo cubre todas las características.", calificacion: 3, observacion: "" },
+    { id: 31, codigo: "SF-31", descripcion: "El software está bien documentado.", calificacion: 4, observacion: "Documentación oficial completa y guías paso a paso." },
+    { id: 32, codigo: "SF-32", descripcion: "La documentación está disponible en múltiples formatos.", calificacion: 4, observacion: "Formatos web, PDF y repositorios wiki." },
+    { id: 33, codigo: "SF-33", descripcion: "La documentación es fácil de entender.", calificacion: 3, observacion: "" },
+    { id: 34, codigo: "SF-34", descripcion: "La documentación está actualizada.", calificacion: 4, observacion: "Actualizaciones sincronizadas con cada versión mayor." },
+    { id: 35, codigo: "SF-35", descripcion: "La documentación está escrita por escritores especializados (no desarrolladores).", calificacion: 4, observacion: "" },
+    { id: 36, codigo: "SF-36", descripcion: "La documentación del software es de alta calidad.", calificacion: 3, observacion: "" },
+    { id: 37, codigo: "SF-37", descripcion: "El software viene con documentación de desarrollo.", calificacion: 4, observacion: "Documentación de APIs y arquitectura de plugins." },
+    { id: 38, codigo: "SF-38", descripcion: "El software viene con documentación de usuario.", calificacion: 4, observacion: "Manuales para administradores y docentes." },
+    { id: 39, codigo: "SF-39", descripcion: "La documentación del usuario cubre todas las características.", calificacion: 3, observacion: "" },
+    { id: 40, codigo: "SF-40", descripcion: "Los formatos de datos están bien documentados.", calificacion: 4, observacion: "Esquema relacional y formatos JSON/XML documentados." },
   ],
   // Factor 10: Formación (4 subfactores)
   10: [
-    { codigo: "SF-41", descripcion: "La adopción de este software permite a los usuarios mejorar las habilidades técnicas de TI.", calificacion: 4, observacion: "" },
-    { codigo: "SF-42", descripcion: "El personal de la organización puede aprender fácilmente por sí mismo a utilizar este software.", calificacion: 2, observacion: "Requiere inducción guiada." },
-    { codigo: "SF-43", descripcion: "El personal de la organización está capacitado para resolver problemas tecnológicos.", calificacion: 3, observacion: "" },
-    { codigo: "SF-44", descripcion: "Los planes de entrenamiento de este software están disponibles.", calificacion: 4, observacion: "Cursos de Moodle Academy gratuitos." },
+    { id: 41, codigo: "SF-41", descripcion: "La adopción de este software permite a los usuarios mejorar las habilidades técnicas de TI.", calificacion: 4, observacion: "" },
+    { id: 42, codigo: "SF-42", descripcion: "El personal de la organización puede aprender fácilmente por sí mismo a utilizar este software.", calificacion: 2, observacion: "Requiere inducción guiada." },
+    { id: 43, codigo: "SF-43", descripcion: "El personal de la organización está capacitado para resolver problemas tecnológicos.", calificacion: 3, observacion: "" },
+    { id: 44, codigo: "SF-44", descripcion: "Los planes de entrenamiento de este software están disponibles.", calificacion: 4, observacion: "Cursos de Moodle Academy gratuitos." },
+  ],
+  // Factor 11: Tiempo de adopción (2 subfactores)
+  11: [
+    { id: 45, codigo: "SF-45", descripcion: "Los requisitos de instalación y despliegue del software son fáciles de cumplir.", calificacion: 3, observacion: "Despliegue estándar sobre servidores Linux o contenedores." },
+    { id: 46, codigo: "SF-46", descripcion: "El tiempo requerido para adoptar este software es bajo.", calificacion: 4, observacion: "Puesta en marcha rápida con configuración asistida." },
+  ],
+  // Factor 12: Casos de estudio de adopción FLOSS (1 subfactor)
+  12: [
+    { id: 47, codigo: "SF-47", descripcion: "Hay informes públicos de organizaciones similares disponibles en Internet que describen el éxito de la adopción de este software.", calificacion: 4, observacion: "Casos de éxito documentados en múltiples universidades e instituciones." },
+  ],
+  // Factor 13: Centralidad de la tecnología de la información (2 subfactores)
+  13: [
+    { id: 48, codigo: "SF-48", descripcion: "La adopción de este software mejora el entorno de trabajo de los usuarios.", calificacion: 3, observacion: "Facilita la colaboración institucional." },
+    { id: 49, codigo: "SF-49", descripcion: "Centralizar la infraestructura de TI ayuda a acelerar la adopción de este software.", calificacion: 4, observacion: "Infraestructura centralizada de TI para soporte institucional." },
+  ],
+  // Factor 14: Apoyo de la alta dirección (1 subfactor)
+  14: [
+    { id: 50, codigo: "SF-50", descripcion: "La alta dirección apoya la adopción exitosa de este software.", calificacion: 4, observacion: "Respaldo directivo y asignación de presupuesto." },
+  ],
+  // Factor 15: Bloqueo de proveedores (1 subfactor)
+  15: [
+    { id: 51, codigo: "SF-51", descripcion: "El software reduce las dependencias de los proveedores en su entorno.", calificacion: 4, observacion: "Sin vendor lock-in gracias a licencias abiertas y estándares." },
   ],
   // Factor 16: Soporte (6 subfactores)
   16: [
-    { codigo: "SF-52", descripcion: "El soporte de la comunidad para este software está disponible.", calificacion: 4, observacion: "Foros activos en moodle.org con millones de posts." },
-    { codigo: "SF-53", descripcion: "Soporte de expertos y consultores externos para consultas específicas está disponible.", calificacion: 4, observacion: "" },
-    { codigo: "SF-54", descripcion: "El soporte comercial de este software está disponible 24/7/365.", calificacion: 4, observacion: "Moodle Certified Partners a nivel mundial." },
-    { codigo: "SF-55", descripcion: "Es fácil contratar personal informático en la comunidad que conozca este software.", calificacion: 3, observacion: "" },
-    { codigo: "SF-56", descripcion: "Hay desarrolladores en su organización que saben cómo desarrollar este software.", calificacion: 2, observacion: "Se requiere capacitar al equipo interno en PHP/Moodle." },
-    { codigo: "SF-57", descripcion: "Soporte comercial para la personalización de software está disponible.", calificacion: 4, observacion: "" },
+    { id: 52, codigo: "SF-52", descripcion: "El soporte de la comunidad para este software está disponible.", calificacion: 4, observacion: "Foros activos en moodle.org con millones de posts." },
+    { id: 53, codigo: "SF-53", descripcion: "Soporte de expertos y consultores externos para consultas específicas está disponible.", calificacion: 4, observacion: "" },
+    { id: 54, codigo: "SF-54", descripcion: "El soporte comercial de este software está disponible 24/7/365.", calificacion: 4, observacion: "Moodle Certified Partners a nivel mundial." },
+    { id: 55, codigo: "SF-55", descripcion: "Es fácil contratar personal informático en la comunidad que conozca este software.", calificacion: 3, observacion: "" },
+    { id: 56, codigo: "SF-56", descripcion: "Hay desarrolladores en su organización que saben cómo desarrollar este software.", calificacion: 2, observacion: "Se requiere capacitar al equipo interno en PHP/Moodle." },
+    { id: 57, codigo: "SF-57", descripcion: "Soporte comercial para la personalización de software está disponible.", calificacion: 4, observacion: "" },
+  ],
+  // Factor 17: Actitud hacia el cambio (2 subfactores)
+  17: [
+    { id: 58, codigo: "SF-58", descripcion: "El personal técnico encargado del despliegue y soporte en la organización respalda la adopción de este software.", calificacion: 4, observacion: "Equipo técnico motivado para la adopción FLOSS." },
+    { id: 59, codigo: "SF-59", descripcion: "El personal de la organización muestra poca resistencia al cambio tecnológico.", calificacion: 4, observacion: "Disposición positiva hacia la modernización digital." },
   ],
   // Factor 18: Coste total de propiedad (2 subfactores)
   18: [
-    { codigo: "SF-60", descripcion: "Es poco probable que haya costos ocultos al adoptar este software.", calificacion: 3, observacion: "Costes previsibles de alojamiento y mantenimiento." },
-    { codigo: "SF-61", descripcion: "La adopción de este software es menos costosa que la alternativa propietaria (patentada).", calificacion: 4, observacion: "Ahorro del 65% en licencias de Blackboard." },
+    { id: 60, codigo: "SF-60", descripcion: "Es poco probable que haya costos ocultos al adoptar este software.", calificacion: 3, observacion: "Costes previsibles de alojamiento y mantenimiento." },
+    { id: 61, codigo: "SF-61", descripcion: "La adopción de este software es menos costosa que la alternativa propietaria (patentada).", calificacion: 4, observacion: "Ahorro del 65% en licencias de Blackboard." },
   ],
 };
 
