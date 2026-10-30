@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Sparkles, RotateCcw, Check, Database, Info, Calendar, Globe } from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
 import Toggle from "../components/Toggle";
@@ -9,6 +10,7 @@ import { apiService } from "../services/apiService";
  * Pantalla 3: Paso 0 · Configuración automática (/configuracion)
  */
 export const Configuracion = () => {
+  const navigate = useNavigate();
   const {
     softwareActivo,
     setSoftwareActivo,
@@ -16,6 +18,7 @@ export const Configuracion = () => {
     setContextoActivo,
     descripcionCaso,
     setDescripcionCaso,
+    actualizarMetadatosEvaluacion,
   } = useEvaluation();
 
   // Estados de fuentes bibliográficas
@@ -36,6 +39,13 @@ export const Configuracion = () => {
     setProgreso(0);
 
     try {
+      if (actualizarMetadatosEvaluacion) {
+        await actualizarMetadatosEvaluacion({
+          nombre_software: softwareActivo,
+          contexto_uso: contextoActivo,
+          objetivo: descripcionCaso,
+        });
+      }
       await apiService.calcularImportanciaSugerida((p) => setProgreso(p));
       setCalculoExitoso(true);
     } finally {
@@ -74,42 +84,49 @@ export const Configuracion = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Select Software FLOSS */}
+            {/* Input Software FLOSS con sugerencias */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                 Software FLOSS
               </label>
-              <select
+              <input
+                type="text"
+                list="software-suggestions"
                 value={softwareActivo}
                 onChange={(e) => setSoftwareActivo(e.target.value)}
+                placeholder="Ej. Moodle, GitLab, PostgreSQL, Nextcloud..."
                 className="w-full px-3.5 py-2 text-xs rounded-lg border border-[#DDE7E1] bg-white focus:outline-none focus:ring-2 focus:ring-[#3F6F58]"
-              >
-                <option value="Moodle">Moodle (LMS Educativo)</option>
-                <option value="PostgreSQL">PostgreSQL (Base de Datos)</option>
-                <option value="Nextcloud">Nextcloud (Colaboración en Nube)</option>
-                <option value="LibreOffice">LibreOffice (Ofimática)</option>
-              </select>
+              />
+              <datalist id="software-suggestions">
+                <option value="Moodle" />
+                <option value="PostgreSQL" />
+                <option value="Nextcloud" />
+                <option value="LibreOffice" />
+                <option value="GitLab CE" />
+                <option value="Canvas LMS" />
+              </datalist>
             </div>
 
-            {/* Select Área o contexto */}
+            {/* Input Área o contexto con sugerencias */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                 Área o contexto
               </label>
-              <select
+              <input
+                type="text"
+                list="context-suggestions"
                 value={contextoActivo}
                 onChange={(e) => setContextoActivo(e.target.value)}
+                placeholder="Ej. Educación · Plataforma de aprendizaje virtual..."
                 className="w-full px-3.5 py-2 text-xs rounded-lg border border-[#DDE7E1] bg-white focus:outline-none focus:ring-2 focus:ring-[#3F6F58]"
-              >
-                <option value="Educación · Plataforma de aprendizaje virtual">
-                  Educación · Plataforma de aprendizaje virtual
-                </option>
-                <option value="Gobierno y Administración Pública">
-                  Gobierno y Administración Pública
-                </option>
-                <option value="Salud y Hospitales">Salud y Hospitales</option>
-                <option value="Sector Financiero / Banca">Sector Financiero / Banca</option>
-              </select>
+              />
+              <datalist id="context-suggestions">
+                <option value="Educación · Plataforma de aprendizaje virtual" />
+                <option value="Gobierno y Administración Pública" />
+                <option value="Salud y Hospitales" />
+                <option value="Sector Financiero / Banca" />
+                <option value="Infraestructura y Telecomunicaciones" />
+              </datalist>
             </div>
           </div>
 
@@ -137,34 +154,48 @@ export const Configuracion = () => {
                 { key: "scopus", name: "Scopus (Elsevier)", desc: "54 estudios primarios indexados" },
                 { key: "openAlex", name: "OpenAlex", desc: "Metadatos abiertos globales y citas" },
                 { key: "semanticScholar", name: "Semantic Scholar", desc: "Análisis semántico de citas e influencia" },
-              ].map((src) => (
-                <div
-                  key={src.key}
-                  className="flex items-center justify-between p-3 rounded-lg border border-[#DDE7E1] bg-[#F8FAF9]"
-                >
-                  <div className="flex items-center gap-3">
-                    <Database size={16} className="text-[#3F6F58]" />
-                    <div>
-                      <span className="text-xs font-semibold text-gray-800 block">
-                        {src.name}
-                      </span>
-                      <span className="text-[11px] text-gray-400">
-                        {src.desc}
-                      </span>
+              ].map((src) => {
+                const conectada = !!fuentes[src.key];
+                return (
+                  <div
+                    key={src.key}
+                    className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                      conectada
+                        ? "border-[#DDE7E1] bg-[#F8FAF9]"
+                        : "border-gray-200 bg-gray-50/70 opacity-80"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Database
+                        size={16}
+                        className={conectada ? "text-[#3F6F58]" : "text-gray-400"}
+                      />
+                      <div>
+                        <span
+                          className={`text-xs font-semibold block ${
+                            conectada ? "text-gray-800" : "text-gray-500"
+                          }`}
+                        >
+                          {src.name}
+                        </span>
+                        <span className="text-[11px] text-gray-400">
+                          {src.desc}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Badge variant={conectada ? "green" : "neutral"} size="sm">
+                        {conectada ? "Conectada" : "Desconectada"}
+                      </Badge>
+                      <Toggle
+                        enabled={conectada}
+                        onChange={(val) => setFuentes({ ...fuentes, [src.key]: val })}
+                      />
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-3">
-                    <Badge variant="green" size="sm">
-                      Conectada
-                    </Badge>
-                    <Toggle
-                      enabled={fuentes[src.key]}
-                      onChange={(val) => setFuentes({ ...fuentes, [src.key]: val })}
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -290,7 +321,7 @@ export const Configuracion = () => {
           </div>
 
           <button
-            onClick={() => window.location.href = "/factores"}
+            onClick={() => navigate("/factores")}
             className="px-4 py-2 rounded-lg bg-white text-[#2F5444] hover:bg-gray-100 font-semibold text-xs transition-colors shrink-0 shadow cursor-pointer"
           >
             Ir al Paso 1 · Factores relevantes →

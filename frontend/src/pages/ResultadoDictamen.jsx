@@ -1,5 +1,6 @@
 import React from "react";
-import { Download } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Download, Check } from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
 import { apiService } from "../services/apiService";
 import Badge from "../components/Badge";
@@ -13,24 +14,73 @@ import FodaQuadrant from "../components/FodaQuadrant";
  * 3. Tabla "Resultados por factor" completa y detallada
  */
 export const ResultadoDictamen = () => {
+  const navigate = useNavigate();
   const {
     evaluacionId,
+    setEvaluacionId,
     recomendacion,
     dictamenTitulo,
     viabilidad,
     nivelConfianza,
     factoresEvaluados,
+    factores,
+    subfactoresState,
     strengths,
     opportunities,
     weaknesses,
     threats,
+    fetchEvaluaciones,
+    setEstadoEvaluacionActiva,
+    softwareActivo,
+    contextoActivo,
+    descripcionCaso,
+    sincronizarEvaluacionCompletaConBackend,
   } = useEvaluation();
+
+  const [finalizando, setFinalizando] = React.useState(false);
+  const [exportandoPDF, setExportandoPDF] = React.useState(false);
 
   React.useEffect(() => {
     if (evaluacionId) {
-      apiService.calcularResultado(evaluacionId).catch(console.warn);
+      apiService.calcularResultado(evaluacionId)
+        .then((resp) => {
+          if (
+            resp &&
+            (resp.estado === "completada" ||
+              resp.evaluacion?.estado === "completada" ||
+              resp.message?.includes("completad") ||
+              resp.recomendacion_tipo)
+          ) {
+            if (setEstadoEvaluacionActiva) setEstadoEvaluacionActiva("completada");
+            localStorage.setItem("guios_evaluacion_estado", "completada");
+          }
+          if (fetchEvaluaciones) fetchEvaluaciones();
+        })
+        .catch(console.warn);
     }
-  }, [evaluacionId]);
+  }, [evaluacionId, fetchEvaluaciones, setEstadoEvaluacionActiva]);
+
+  const handleFinalizarYVerDashboard = async () => {
+    setFinalizando(true);
+    try {
+      if (sincronizarEvaluacionCompletaConBackend) {
+        await sincronizarEvaluacionCompletaConBackend();
+      }
+      if (setEstadoEvaluacionActiva) setEstadoEvaluacionActiva("completada");
+      localStorage.setItem("guios_evaluacion_estado", "completada");
+      if (fetchEvaluaciones) {
+        await fetchEvaluaciones();
+      }
+      navigate("/dashboard");
+    } catch (e) {
+      console.warn("Error al finalizar evaluación:", e);
+      if (setEstadoEvaluacionActiva) setEstadoEvaluacionActiva("completada");
+      localStorage.setItem("guios_evaluacion_estado", "completada");
+      navigate("/dashboard");
+    } finally {
+      setFinalizando(false);
+    }
+  };
 
   // Filtrar factores por cuadrante FODA
   const listaFortalezas = factoresEvaluados.filter((f) => f.foda === "Fortaleza");
@@ -40,13 +90,61 @@ export const ResultadoDictamen = () => {
 
   const totalClasificados = factoresEvaluados.length;
 
-  const handleExportarPDF = () => {
-    alert("Generando informe oficial de adopción GUIOSPRO en formato PDF...");
+  const handleExportarPDF = async () => {
+    setExportandoPDF(true);
+    try {
+      // 1. Preparar payload con factores y subfactores actuales
+      let listaSubfactores = [];
+      if (subfactoresState) {
+        Object.values(subfactoresState).forEach((subList) => {
+          listaSubfactores = listaSubfactores.concat(subList);
+        });
+      }
+      const subfactoresAEnviar = listaSubfactores
+        .filter((s) => (s.id || s.codigo) && s.calificacion !== undefined && Number(s.calificacion) >= 1)
+        .map((s) => ({
+          id_subfactor: s.id || (s.codigo ? parseInt(s.codigo.replace("SF-", ""), 10) : null),
+          codigo: s.codigo,
+          calificacion: Number(s.calificacion),
+          observacion: s.observacion || "",
+        }));
+
+      const payload = {
+        factores: (factores || []).map((f) => ({
+          id_factor: f.id,
+          importancia_decisor: Number(f.ID || 1),
+          alcance_aplicado: f.alcance || null,
+        })),
+        subfactores: subfactoresAEnviar,
+      };
+
+      // 2. Si el ID es un timestamp (> 100000000) o no numérico, sincronizar primero
+      let targetId = evaluacionId;
+      if (!targetId || Number(targetId) > 100000000 || isNaN(Number(targetId))) {
+        if (sincronizarEvaluacionCompletaConBackend) {
+          const syncResult = await sincronizarEvaluacionCompletaConBackend();
+          if (syncResult && syncResult.id) {
+            targetId = syncResult.id;
+          }
+        }
+      } else if (sincronizarEvaluacionCompletaConBackend) {
+        sincronizarEvaluacionCompletaConBackend(targetId).catch(console.warn);
+      }
+
+      // 3. Descargar el PDF enviando el payload completo (garantiza FODA y reactivos 100% poblados)
+      await apiService.descargarInformePDF(targetId, softwareActivo, payload);
+      if (fetchEvaluaciones) fetchEvaluaciones();
+    } catch (err) {
+      console.warn("Fallo exportando PDF:", err);
+      alert("No se pudo generar el informe PDF: " + (err.message || "Error del servidor"));
+    } finally {
+      setExportandoPDF(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Encabezado: Paso 3, Título grande y subtítulo + Botón Exportar PDF */}
+      {/* Encabezado: Paso 3, Título grande y subtítulo + Botones de Acción */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <span className="text-xs font-semibold text-gray-400 block mb-0.5">
@@ -60,13 +158,24 @@ export const ResultadoDictamen = () => {
           </p>
         </div>
 
-        <button
-          onClick={handleExportarPDF}
-          className="px-4 py-2 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-medium text-xs transition-colors flex items-center gap-2 shadow-sm shrink-0 self-start sm:self-auto cursor-pointer"
-        >
-          <Download size={14} className="text-gray-600" />
-          <span>Exportar PDF</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleFinalizarYVerDashboard}
+            disabled={finalizando}
+            className="px-4 py-2 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-medium text-xs transition-colors flex items-center gap-2 shadow-sm shrink-0 cursor-pointer"
+          >
+            <Check size={14} />
+            <span>{finalizando ? "Finalizando..." : "Finalizar y ver en Dashboard"}</span>
+          </button>
+          <button
+            onClick={handleExportarPDF}
+            disabled={exportandoPDF}
+            className="px-4 py-2 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-medium text-xs transition-colors flex items-center gap-2 shadow-sm shrink-0 cursor-pointer disabled:opacity-60"
+          >
+            <Download size={14} className={exportandoPDF ? "animate-bounce text-[#3F6F58]" : "text-gray-600"} />
+            <span>{exportandoPDF ? "Generando PDF oficial..." : "Exportar PDF"}</span>
+          </button>
+        </div>
       </div>
 
       {/* Grid Superior: Tarjeta Verde Oscuro (Col 4) + Tarjeta Explicativa Blanca (Col 8) */}

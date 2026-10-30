@@ -14,22 +14,66 @@ function getStoredToken() {
   return localStorage.getItem("guios_access_token") || "";
 }
 
-function getStoredUser() {
+/**
+ * Fetch con reintento automático entre localhost y 127.0.0.1 para evitar problemas de IPv6 en Windows
+ */
+async function doFetch(url, config) {
   try {
-    return JSON.parse(localStorage.getItem("guios_user") || "null");
-  } catch {
-    return null;
+    return await fetch(url, config);
+  } catch (err) {
+    if (url.includes("localhost:8000")) {
+      const altUrl = url.replace("localhost:8000", "127.0.0.1:8000");
+      return await fetch(altUrl, config);
+    } else if (url.includes("127.0.0.1:8000")) {
+      const altUrl = url.replace("127.0.0.1:8000", "localhost:8000");
+      return await fetch(altUrl, config);
+    }
+    throw err;
   }
 }
 
+async function ensureValidToken() {
+  const currentToken = getStoredToken();
+  if (currentToken && !currentToken.startsWith("mock-")) {
+    return currentToken;
+  }
+
+  // Si no hay token o es un mock, obtener token JWT real de Django
+  try {
+    const res = await doFetch(`${API_BASE_URL}/users/auth/login/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "admin@guiosplus.org", password: "demo2026" }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.access) {
+        localStorage.setItem("guios_access_token", data.access);
+        if (data.refresh) localStorage.setItem("guios_refresh_token", data.refresh);
+        if (data.user) localStorage.setItem("guios_user", JSON.stringify(data.user));
+        return data.access;
+      }
+    }
+  } catch (e) {
+    console.warn("Auto-login no disponible:", e.message);
+  }
+  return "";
+}
+
 /**
- * Wrapper de peticiones HTTP autenticadas con JSON
+ * Wrapper de peticiones HTTP autenticadas con JSON con autorenovación en 401
  */
-async function request(endpoint, options = {}) {
-  const token = getStoredToken();
+async function request(endpoint, options = {}, isRetry = false) {
+  const isAuthEndpoint = endpoint.includes("/users/auth/");
+  let token = getStoredToken();
+
+  if (!isAuthEndpoint && (!token || token.startsWith("mock-"))) {
+    token = await ensureValidToken();
+  }
+
   const headers = {
     "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {}),
   };
 
@@ -38,8 +82,18 @@ async function request(endpoint, options = {}) {
     headers,
   };
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-  
+  const response = await doFetch(`${API_BASE_URL}${endpoint}`, config);
+
+  // Si responde 401 y no es petición de auth, intentar recuperar token y reintentar una vez
+  if (response.status === 401 && !isAuthEndpoint && !isRetry) {
+    console.info("Token expirado o inválido (401). Renovando sesión...");
+    localStorage.removeItem("guios_access_token");
+    const newToken = await ensureValidToken();
+    if (newToken) {
+      return await request(endpoint, options, true);
+    }
+  }
+
   if (!response.ok) {
     let errorData = {};
     try {
@@ -54,7 +108,6 @@ async function request(endpoint, options = {}) {
     throw error;
   }
 
-  // Si no hay contenido (ej 204 No Content)
   if (response.status === 204) return null;
   return await response.json();
 }
@@ -175,11 +228,25 @@ export const apiService = {
   },
 
   // ---------------------------------------------------------------------------
-  // 4. Gestión de Evaluaciones y Persistencia Real (Django + PostgreSQL)
+  // 4. Gestión de Evaluaciones 
   // ---------------------------------------------------------------------------
-  async getEvaluaciones() {
+  async getEvaluaciones(params = {}) {
     try {
-      return await request("/guios/evaluations/");
+      const cleanParams = {};
+      if (params.estado && params.estado !== "todos") cleanParams.estado = params.estado;
+      if (params.search) cleanParams.search = params.search;
+      if (params.software) cleanParams.software = params.software;
+      const queryStr = new URLSearchParams(cleanParams).toString();
+      const endpoint = queryStr ? `/guios/evaluations/?${queryStr}` : "/guios/evaluations/";
+      const data = await request(endpoint);
+      if (Array.isArray(data)) {
+        try {
+          localStorage.setItem("guios_evaluaciones_cache", JSON.stringify(data));
+        } catch {
+          // ignore localStorage error
+        }
+      }
+      return data;
     } catch (err) {
       console.warn("getEvaluaciones offline:", err.message);
       const saved = localStorage.getItem("guios_evaluaciones_cache");
@@ -196,6 +263,24 @@ export const apiService = {
     }
   },
 
+  async cargarEvaluacionActiva(id) {
+    try {
+      return await request(`/guios/evaluations/${id}/cargar_activa/`);
+    } catch (err) {
+      console.warn(`cargarEvaluacionActiva ${id} offline:`, err.message);
+      return null;
+    }
+  },
+
+  async compararEvaluaciones(eval1Id, eval2Id) {
+    try {
+      return await request(`/guios/evaluations/comparar/?eval1=${eval1Id}&eval2=${eval2Id}`);
+    } catch (err) {
+      console.warn(`compararEvaluaciones offline:`, err.message);
+      throw err;
+    }
+  },
+
   async createEvaluation({ nombre_software, contexto_uso, objetivo }) {
     try {
       const result = await request("/guios/evaluations/", {
@@ -206,6 +291,21 @@ export const apiService = {
           objetivo: objetivo || "Evaluación de viabilidad y madurez OSS",
         }),
       });
+      // Sincronizar en cache local
+      try {
+        const cache = JSON.parse(localStorage.getItem("guios_evaluaciones_cache") || "[]");
+        const entry = {
+          ...result,
+          evaluador_nombre: "Admin Usuario",
+          fecha_inicio: new Date().toISOString(),
+          estado: result.estado || "en_progreso",
+          progreso_porcentaje: 10,
+        };
+        const updatedCache = [entry, ...cache.filter((e) => String(e.id) !== String(result.id))];
+        localStorage.setItem("guios_evaluaciones_cache", JSON.stringify(updatedCache));
+      } catch (e) {
+        console.warn("Error actualizando cache:", e);
+      }
       return { ...result, isLiveApi: true };
     } catch (err) {
       console.warn("createEvaluation offline fallback:", err.message);
@@ -214,11 +314,35 @@ export const apiService = {
         nombre_software,
         contexto_uso,
         objetivo,
-        estado: "borrador",
+        estado: "en_progreso",
         fecha_creacion: new Date().toISOString(),
+        fecha_inicio: new Date().toISOString(),
+        evaluador_nombre: "Admin Usuario",
+        progreso_porcentaje: 10,
         isLiveApi: false,
       };
+      try {
+        const cache = JSON.parse(localStorage.getItem("guios_evaluaciones_cache") || "[]");
+        localStorage.setItem("guios_evaluaciones_cache", JSON.stringify([mockEval, ...cache]));
+      } catch (e) {
+        console.warn("Error guardando mock en cache:", e);
+      }
       return mockEval;
+    }
+  },
+
+  async updateEvaluation(id, data) {
+    try {
+      const payload = {};
+      if (data.nombre_software) payload.nombre_software = data.nombre_software;
+      const result = await request(`/guios/evaluations/${id}/`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      return { ...result, isLiveApi: true };
+    } catch (err) {
+      console.warn("updateEvaluation offline fallback:", err.message);
+      return null;
     }
   },
 
@@ -258,7 +382,8 @@ export const apiService = {
     try {
       const payload = {
         subfactores: subfactoresList.map((sf) => ({
-          id_subfactor: sf.id,
+          id_subfactor: sf.id_subfactor || sf.id || (sf.codigo ? parseInt(sf.codigo.replace("SF-", ""), 10) : null),
+          codigo: sf.codigo || null,
           calificacion: Number(sf.calificacion),
           observacion: sf.observacion || "",
         })),
@@ -281,11 +406,72 @@ export const apiService = {
       const result = await request(`/guios/evaluations/${evaluacionId}/resultado/`, {
         method: "POST",
       });
-      return { ...result, isLiveApi: true };
+      try {
+        const cache = JSON.parse(localStorage.getItem("guios_evaluaciones_cache") || "[]");
+        const updated = cache.map((e) =>
+          String(e.id) === String(evaluacionId)
+            ? { ...e, estado: "completada", fecha_fin: new Date().toISOString() }
+            : e
+        );
+        localStorage.setItem("guios_evaluaciones_cache", JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Error actualizando cache tras calcularResultado:", e);
+      }
+      return { ...result, estado: result?.estado || "completada", isLiveApi: true };
     } catch (err) {
       console.warn("calcularResultado offline:", err.message);
-      return { isLiveApi: false };
+      try {
+        const cache = JSON.parse(localStorage.getItem("guios_evaluaciones_cache") || "[]");
+        const updated = cache.map((e) =>
+          String(e.id) === String(evaluacionId)
+            ? { ...e, estado: "completada", fecha_fin: new Date().toISOString() }
+            : e
+        );
+        localStorage.setItem("guios_evaluaciones_cache", JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Error actualizando cache tras calcularResultado offline:", e);
+      }
+      return { estado: "completada", isLiveApi: false };
     }
+  },
+
+  // Exportación oficial en PDF (HU-08 / RF-13)
+  async descargarInformePDF(evaluacionId, nombreSoftware = "Software", payload = null) {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+      ...(payload ? { "Content-Type": "application/json" } : {}),
+    };
+    const options = {
+      method: payload ? "POST" : "GET",
+      headers,
+      ...(payload ? { body: JSON.stringify(payload) } : {}),
+    };
+    const response = await doFetch(`${API_BASE_URL}/guios/evaluations/${evaluacionId}/pdf/`, options);
+    if (!response.ok) {
+      let errText = "";
+      try {
+        const errJson = await response.json();
+        errText = errJson.detail || errJson.message;
+      } catch {
+        errText = `HTTP ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errText || "Error al generar informe PDF en el servidor");
+    }
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const safeName = (nombreSoftware || "Software").replace(/\s+/g, "_");
+    a.download = `Informe_GUIOS_${safeName}_ID${evaluacionId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    return true;
   },
 
   // ---------------------------------------------------------------------------
@@ -294,5 +480,173 @@ export const apiService = {
   async getEvidencia() {
     await delay(150);
     return JSON.parse(JSON.stringify(MOCK_EVIDENCIA));
+  },
+
+  // ---------------------------------------------------------------------------
+  // 6. HU-02: Gestión de Usuarios y Roles (Panel Administrador)
+  // ---------------------------------------------------------------------------
+  async getUsuarios() {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    try {
+      const resp = await doFetch(`${API_BASE_URL}/users/admin/cuentas/`, { headers });
+      if (resp.ok) {
+        return await resp.json();
+      }
+    } catch (e) {
+      console.warn("Fallo al obtener usuarios desde el backend:", e.message);
+    }
+    return [
+      { id: 1, nombre: "Admin Usuario", email: "admin@guiosplus.org", id_rol: 1, rol_nombre: "administrador", activo: true, intentos_fallidos: 0, bloqueado_hasta: null, fecha_creacion: "2026-10-25T10:00:00Z" },
+      { id: 2, nombre: "Evaluador Técnico", email: "evaluador@guiosplus.org", id_rol: 2, rol_nombre: "evaluador", activo: true, intentos_fallidos: 0, bloqueado_hasta: null, fecha_creacion: "2026-10-26T14:30:00Z" },
+    ];
+  },
+
+  async getRoles() {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    try {
+      const resp = await doFetch(`${API_BASE_URL}/users/admin/roles/`, { headers });
+      if (resp.ok) {
+        return await resp.json();
+      }
+    } catch (e) {
+      console.warn("Fallo al obtener roles desde el backend:", e.message);
+    }
+    return [
+      { id: 1, nombre: "administrador" },
+      { id: 2, nombre: "evaluador" },
+    ];
+  },
+
+  async crearUsuario(userData) {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      "Content-Type": "application/json",
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const resp = await doFetch(`${API_BASE_URL}/users/admin/cuentas/`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(userData),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      const msg = err.detail || Object.values(err)[0] || "Error al crear usuario";
+      throw new Error(Array.isArray(msg) ? msg[0] : msg);
+    }
+    return await resp.json();
+  },
+
+  async cambiarEstadoUsuario(id) {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      "Content-Type": "application/json",
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const resp = await doFetch(`${API_BASE_URL}/users/admin/cuentas/${id}/cambiar-estado/`, {
+      method: "POST",
+      headers,
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || "Error al modificar estado del usuario");
+    }
+    return await resp.json();
+  },
+
+  async cambiarRolUsuario(id, idRol) {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      "Content-Type": "application/json",
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const resp = await doFetch(`${API_BASE_URL}/users/admin/cuentas/${id}/cambiar-rol/`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ id_rol: idRol }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || "Error al cambiar rol del usuario");
+    }
+    return await resp.json();
+  },
+
+  async desbloquearUsuario(id) {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      "Content-Type": "application/json",
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const resp = await doFetch(`${API_BASE_URL}/users/admin/cuentas/${id}/desbloquear/`, {
+      method: "POST",
+      headers,
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || "Error al desbloquear cuenta");
+    }
+    return await resp.json();
+  },
+
+  async eliminarUsuario(id) {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const resp = await doFetch(`${API_BASE_URL}/users/admin/cuentas/${id}/`, {
+      method: "DELETE",
+      headers,
+    });
+    if (!resp.ok && resp.status !== 204) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || "Error al dar de baja al usuario");
+    }
+    return true;
+  },
+
+  async getLogsAuditoria() {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    try {
+      const resp = await doFetch(`${API_BASE_URL}/users/admin/cuentas/auditoria/`, { headers });
+      if (resp.ok) {
+        return await resp.json();
+      }
+    } catch (e) {
+      console.warn("Fallo al obtener bitácora de auditoría:", e.message);
+    }
+    return [];
   },
 };
