@@ -473,3 +473,11 @@ export const MOCK_SUBFACTORES = {
     { codigo: "SF-61", descripcion: "La adopción de este software es menos costosa que la alternativa propietaria (patentada).", calificacion: 4, observacion: "Ahorro del 65% en licencias de Blackboard." },
   ],
 };
+
+// Asegurar que cada subfactor en el catálogo maestro tenga su ID numérico relacional (1..61)
+Object.keys(MOCK_SUBFACTORES).forEach((factorId) => {
+  MOCK_SUBFACTORES[factorId] = MOCK_SUBFACTORES[factorId].map((sf) => ({
+    ...sf,
+    id: sf.id || parseInt(sf.codigo.replace("SF-", ""), 10),
+  }));
+});

@@ -273,9 +273,15 @@ class CrearEvaluacionSerializer(serializers.ModelSerializer):
 # ==============================================================================
 class EvaluacionItemPaso2Serializer(serializers.Serializer):
     """Calificación individual de un subfactor (1 a 4) con observación."""
-    id_subfactor = serializers.IntegerField(required=True)
+    id_subfactor = serializers.IntegerField(required=False, allow_null=True)
+    codigo = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     calificacion = serializers.IntegerField(required=True, min_value=1, max_value=4)
     observacion = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate(self, attrs):
+        if not attrs.get("id_subfactor") and not attrs.get("codigo"):
+            raise serializers.ValidationError("Debe indicar 'id_subfactor' o 'codigo'.")
+        return attrs
 
 
 class GuardarPaso2Serializer(serializers.Serializer):
@@ -285,8 +291,8 @@ class GuardarPaso2Serializer(serializers.Serializer):
     def validate_subfactores(self, subfactores):
         if not subfactores:
             raise serializers.ValidationError("Debe enviar las calificaciones de los subfactores.")
-        sf_ids = [s["id_subfactor"] for s in subfactores]
-        if len(sf_ids) != len(set(sf_ids)):
+        keys = [s.get("id_subfactor") or s.get("codigo") for s in subfactores]
+        if len(keys) != len(set(keys)):
             raise serializers.ValidationError("No puede enviar subfactores duplicados en el lote.")
         return subfactores
 

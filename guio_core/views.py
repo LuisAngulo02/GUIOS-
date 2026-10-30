@@ -238,14 +238,22 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             items_subfactores = serializer.validated_data["subfactores"]
 
-            sf_ids = [item["id_subfactor"] for item in items_subfactores]
-            subfactores_dict = {
+            sf_ids = [item.get("id_subfactor") for item in items_subfactores if item.get("id_subfactor")]
+            sf_codigos = [item.get("codigo") for item in items_subfactores if item.get("codigo")]
+            subfactores_dict_id = {
                 sf.id: sf for sf in Subfactor.objects.filter(id__in=sf_ids, activo=True)
+            }
+            subfactores_dict_cod = {
+                sf.codigo: sf for sf in Subfactor.objects.filter(codigo__in=sf_codigos, activo=True)
             }
 
             with transaction.atomic():
                 for item in items_subfactores:
-                    sf_obj = subfactores_dict.get(item["id_subfactor"])
+                    sf_obj = None
+                    if item.get("id_subfactor"):
+                        sf_obj = subfactores_dict_id.get(item["id_subfactor"])
+                    if not sf_obj and item.get("codigo"):
+                        sf_obj = subfactores_dict_cod.get(item["codigo"])
                     if not sf_obj:
                         continue
                     ResultadoSubfactor.objects.update_or_create(

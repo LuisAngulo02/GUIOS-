@@ -330,7 +330,8 @@ export const apiService = {
     try {
       const payload = {
         subfactores: subfactoresList.map((sf) => ({
-          id_subfactor: sf.id,
+          id_subfactor: sf.id_subfactor || sf.id || (sf.codigo ? parseInt(sf.codigo.replace("SF-", ""), 10) : null),
+          codigo: sf.codigo || null,
           calificacion: Number(sf.calificacion),
           observacion: sf.observacion || "",
         })),

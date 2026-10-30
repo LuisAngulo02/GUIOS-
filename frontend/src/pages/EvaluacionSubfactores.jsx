@@ -68,7 +68,7 @@ export const EvaluacionSubfactores = () => {
       alert("Faltan subfactores por calificar en los factores relevantes. Complete la evaluación de todos los factores para emitir el dictamen.");
       return;
     }
-    sincronizarPaso2ConBackend();
+    await sincronizarPaso2ConBackend();
     navigate("/resultado");
   };
 

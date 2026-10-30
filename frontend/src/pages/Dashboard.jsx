@@ -40,11 +40,17 @@ export const Dashboard = () => {
     fetchEvaluaciones,
     crearNuevaEvaluacion,
     cargarEvaluacionParaContinuar,
+    estadoEvaluacionActiva,
     totalFactores,
     totalRelevantes,
   } = useEvaluation();
 
   const navigate = useNavigate();
+
+  // Recargar evaluaciones automáticamente al entrar al Dashboard
+  React.useEffect(() => {
+    fetchEvaluaciones();
+  }, [fetchEvaluaciones]);
 
   // Estados de filtros para el Historial
   const [searchTerm, setSearchTerm] = useState("");
@@ -62,6 +68,15 @@ export const Dashboard = () => {
   const [nuevoContexto, setNuevoContexto] = useState("");
   const [nuevoObjetivo, setNuevoObjetivo] = useState("");
   const [creandoNueva, setCreandoNueva] = useState(false);
+
+  // Determinar si la evaluación activa actual está completada
+  const evaluacionActualObj = useMemo(() => {
+    return evaluacionesList.find((e) => String(e.id) === String(evaluacionId));
+  }, [evaluacionesList, evaluacionId]);
+
+  const esCompletadaActiva =
+    evaluacionActualObj?.estado === "completada" ||
+    estadoEvaluacionActiva === "completada";
 
   // Saludo según la hora local
   const getSaludo = () => {
@@ -216,8 +231,8 @@ export const Dashboard = () => {
                 <Sparkles size={13} className="text-[#3F6F58]" />
                 EVALUACIÓN ACTIVA #{evaluacionId}
               </span>
-              <Badge variant="green" size="md">
-                En sesión
+              <Badge variant={esCompletadaActiva ? "green" : "amber"} size="md">
+                {esCompletadaActiva ? "Completada" : "En sesión"}
               </Badge>
             </div>
 
@@ -240,12 +255,18 @@ export const Dashboard = () => {
                     <span className="font-semibold text-[#2F5444]">Tesis Doctoral GUIOS</span>
                   </div>
                   <div>
-                    <span className="text-gray-400 block text-[11px]">Fuentes bibliográficas</span>
-                    <span className="font-semibold text-gray-700">Scopus, OpenAlex, Semantic</span>
+                    <span className="text-gray-400 block text-[11px]">Resultado Dictamen</span>
+                    <span className="font-semibold text-[#25633C]">
+                      {esCompletadaActiva
+                        ? `Rec. ${evaluacionActualObj?.recomendacion?.tipo || "C"} (${evaluacionActualObj?.indice_viabilidad || 100}%)`
+                        : "En proceso de cálculo"}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-gray-400 block text-[11px]">Persistencia</span>
-                    <span className="font-semibold text-gray-700">PostgreSQL (Relacional)</span>
+                    <span className="text-gray-400 block text-[11px]">Estado Persistencia</span>
+                    <span className="font-semibold text-gray-700">
+                      {esCompletadaActiva ? "Completada en PostgreSQL" : "En sesión activa"}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -254,25 +275,52 @@ export const Dashboard = () => {
 
           {/* Botones de Navegación Rápida */}
           <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-gray-100">
-            <button
-              onClick={() => navigate("/factores")}
-              className="px-5 py-2.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
-            >
-              <span>Ir a Paso 1 (Factores)</span>
-              <ArrowRight size={14} />
-            </button>
-            <button
-              onClick={() => navigate("/subfactores")}
-              className="px-4 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
-            >
-              <span>Paso 2 (Subfactores)</span>
-            </button>
-            <button
-              onClick={() => navigate("/resultado")}
-              className="px-4 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
-            >
-              <span>Paso 3 (Resultado)</span>
-            </button>
+            {esCompletadaActiva ? (
+              <>
+                <button
+                  onClick={() => navigate("/resultado")}
+                  className="px-5 py-2.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
+                >
+                  <CheckCircle2 size={14} />
+                  <span>Ver Dictamen Final (Paso 3)</span>
+                  <ArrowRight size={14} />
+                </button>
+                <button
+                  onClick={() => navigate("/factores")}
+                  className="px-4 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  <span>Revisar Paso 1</span>
+                </button>
+                <button
+                  onClick={() => navigate("/subfactores")}
+                  className="px-4 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  <span>Revisar Paso 2</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => navigate("/factores")}
+                  className="px-5 py-2.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
+                >
+                  <span>Ir a Paso 1 (Factores)</span>
+                  <ArrowRight size={14} />
+                </button>
+                <button
+                  onClick={() => navigate("/subfactores")}
+                  className="px-4 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  <span>Paso 2 (Subfactores)</span>
+                </button>
+                <button
+                  onClick={() => navigate("/resultado")}
+                  className="px-4 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  <span>Paso 3 (Resultado)</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
 

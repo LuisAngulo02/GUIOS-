@@ -54,6 +54,9 @@ export const EvaluationProvider = ({ children }) => {
       "Evaluación de viabilidad para migrar el campus virtual institucional hacia Moodle 4.x garantizando interoperabilidad con LDAP y Office 365."
     );
   });
+  const [estadoEvaluacionActiva, setEstadoEvaluacionActiva] = useState(() => {
+    return localStorage.getItem("guios_evaluacion_estado") || "en_progreso";
+  });
 
   // Persistir metadatos activos en LocalStorage
   useEffect(() => {
@@ -67,6 +70,10 @@ export const EvaluationProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem("guios_descripcion_caso", descripcionCaso);
   }, [descripcionCaso]);
+
+  useEffect(() => {
+    localStorage.setItem("guios_evaluacion_estado", estadoEvaluacionActiva);
+  }, [estadoEvaluacionActiva]);
 
   // 5. Lista de Factores con sus Importancias y Evidencia
   const [factores, setFactores] = useState(() => {
@@ -101,7 +108,19 @@ export const EvaluationProvider = ({ children }) => {
   // 6. Calificaciones de Subfactores por cada Factor
   const [subfactoresState, setSubfactoresState] = useState(() => {
     const saved = localStorage.getItem("guios_subfactores");
-    return saved ? JSON.parse(saved) : MOCK_SUBFACTORES;
+    if (!saved) return MOCK_SUBFACTORES;
+    try {
+      const parsed = JSON.parse(saved);
+      Object.keys(parsed).forEach((k) => {
+        parsed[k] = parsed[k].map((sf) => ({
+          ...sf,
+          id: sf.id || (sf.codigo ? parseInt(sf.codigo.replace("SF-", ""), 10) : undefined),
+        }));
+      });
+      return parsed;
+    } catch {
+      return MOCK_SUBFACTORES;
+    }
   });
 
   // Persistir en LocalStorage
@@ -152,11 +171,13 @@ export const EvaluationProvider = ({ children }) => {
         localStorage.setItem("guios_software_activo", softName);
         localStorage.setItem("guios_contexto_activo", contName);
         localStorage.setItem("guios_descripcion_caso", descName);
+        localStorage.setItem("guios_evaluacion_estado", "en_progreso");
 
         setEvaluacionId(nueva.id.toString());
         setSoftwareActivo(softName);
         setContextoActivo(contName);
         setDescripcionCaso(descName);
+        setEstadoEvaluacionActiva("en_progreso");
 
         // Reiniciar factores y subfactores para la nueva instancia
         setFactores(MOCK_FACTORES);
@@ -211,9 +232,11 @@ export const EvaluationProvider = ({ children }) => {
         const ev = data.evaluacion;
         localStorage.setItem("guios_evaluacion_id", ev.id.toString());
         localStorage.setItem("guios_software_activo", ev.nombre_software);
+        localStorage.setItem("guios_evaluacion_estado", ev.estado || "en_progreso");
 
         setEvaluacionId(ev.id.toString());
         setSoftwareActivo(ev.nombre_software);
+        setEstadoEvaluacionActiva(ev.estado || "en_progreso");
 
         if (ev.resultados_factor && ev.resultados_factor.length > 0) {
           const mapaRf = {};
@@ -303,12 +326,13 @@ export const EvaluationProvider = ({ children }) => {
         });
       }
 
-      // Solo enviar los que tienen id y calificacion
+      // Solo enviar los que tienen id o codigo y calificacion valida
       const subfactoresAEnviar = lista
-        .filter((s) => s.id && s.calificacion !== undefined)
+        .filter((s) => (s.id || s.codigo) && s.calificacion !== undefined && Number(s.calificacion) >= 1)
         .map((s) => ({
-          id: s.id,
-          calificacion: s.calificacion,
+          id_subfactor: s.id || (s.codigo ? parseInt(s.codigo.replace("SF-", ""), 10) : null),
+          codigo: s.codigo,
+          calificacion: Number(s.calificacion),
           observacion: s.observacion || "",
         }));
 
@@ -539,6 +563,8 @@ export const EvaluationProvider = ({ children }) => {
         crearNuevaEvaluacion,
         cargarEvaluacionParaContinuar,
         actualizarMetadatosEvaluacion,
+        estadoEvaluacionActiva,
+        setEstadoEvaluacionActiva,
         ...calculationSummary,
       }}
     >

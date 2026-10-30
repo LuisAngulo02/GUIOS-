@@ -1,5 +1,6 @@
 import React from "react";
-import { Download } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Download, Check } from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
 import { apiService } from "../services/apiService";
 import Badge from "../components/Badge";
@@ -13,6 +14,7 @@ import FodaQuadrant from "../components/FodaQuadrant";
  * 3. Tabla "Resultados por factor" completa y detallada
  */
 export const ResultadoDictamen = () => {
+  const navigate = useNavigate();
   const {
     evaluacionId,
     recomendacion,
@@ -24,13 +26,23 @@ export const ResultadoDictamen = () => {
     opportunities,
     weaknesses,
     threats,
+    fetchEvaluaciones,
+    setEstadoEvaluacionActiva,
   } = useEvaluation();
 
   React.useEffect(() => {
     if (evaluacionId) {
-      apiService.calcularResultado(evaluacionId).catch(console.warn);
+      apiService.calcularResultado(evaluacionId)
+        .then((resp) => {
+          if (resp && resp.estado === "completada") {
+            if (setEstadoEvaluacionActiva) setEstadoEvaluacionActiva("completada");
+            localStorage.setItem("guios_evaluacion_estado", "completada");
+          }
+          if (fetchEvaluaciones) fetchEvaluaciones();
+        })
+        .catch(console.warn);
     }
-  }, [evaluacionId]);
+  }, [evaluacionId, fetchEvaluaciones, setEstadoEvaluacionActiva]);
 
   // Filtrar factores por cuadrante FODA
   const listaFortalezas = factoresEvaluados.filter((f) => f.foda === "Fortaleza");
@@ -46,7 +58,7 @@ export const ResultadoDictamen = () => {
 
   return (
     <div className="space-y-6">
-      {/* Encabezado: Paso 3, Título grande y subtítulo + Botón Exportar PDF */}
+      {/* Encabezado: Paso 3, Título grande y subtítulo + Botones de Acción */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <span className="text-xs font-semibold text-gray-400 block mb-0.5">
@@ -60,13 +72,22 @@ export const ResultadoDictamen = () => {
           </p>
         </div>
 
-        <button
-          onClick={handleExportarPDF}
-          className="px-4 py-2 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-medium text-xs transition-colors flex items-center gap-2 shadow-sm shrink-0 self-start sm:self-auto cursor-pointer"
-        >
-          <Download size={14} className="text-gray-600" />
-          <span>Exportar PDF</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="px-4 py-2 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-medium text-xs transition-colors flex items-center gap-2 shadow-sm shrink-0 cursor-pointer"
+          >
+            <Check size={14} />
+            <span>Finalizar y ver en Dashboard</span>
+          </button>
+          <button
+            onClick={handleExportarPDF}
+            className="px-4 py-2 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-medium text-xs transition-colors flex items-center gap-2 shadow-sm shrink-0 cursor-pointer"
+          >
+            <Download size={14} className="text-gray-600" />
+            <span>Exportar PDF</span>
+          </button>
+        </div>
       </div>
 
       {/* Grid Superior: Tarjeta Verde Oscuro (Col 4) + Tarjeta Explicativa Blanca (Col 8) */}

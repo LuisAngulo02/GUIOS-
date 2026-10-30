@@ -154,34 +154,48 @@ export const Configuracion = () => {
                 { key: "scopus", name: "Scopus (Elsevier)", desc: "54 estudios primarios indexados" },
                 { key: "openAlex", name: "OpenAlex", desc: "Metadatos abiertos globales y citas" },
                 { key: "semanticScholar", name: "Semantic Scholar", desc: "Análisis semántico de citas e influencia" },
-              ].map((src) => (
-                <div
-                  key={src.key}
-                  className="flex items-center justify-between p-3 rounded-lg border border-[#DDE7E1] bg-[#F8FAF9]"
-                >
-                  <div className="flex items-center gap-3">
-                    <Database size={16} className="text-[#3F6F58]" />
-                    <div>
-                      <span className="text-xs font-semibold text-gray-800 block">
-                        {src.name}
-                      </span>
-                      <span className="text-[11px] text-gray-400">
-                        {src.desc}
-                      </span>
+              ].map((src) => {
+                const conectada = !!fuentes[src.key];
+                return (
+                  <div
+                    key={src.key}
+                    className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                      conectada
+                        ? "border-[#DDE7E1] bg-[#F8FAF9]"
+                        : "border-gray-200 bg-gray-50/70 opacity-80"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Database
+                        size={16}
+                        className={conectada ? "text-[#3F6F58]" : "text-gray-400"}
+                      />
+                      <div>
+                        <span
+                          className={`text-xs font-semibold block ${
+                            conectada ? "text-gray-800" : "text-gray-500"
+                          }`}
+                        >
+                          {src.name}
+                        </span>
+                        <span className="text-[11px] text-gray-400">
+                          {src.desc}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Badge variant={conectada ? "green" : "neutral"} size="sm">
+                        {conectada ? "Conectada" : "Desconectada"}
+                      </Badge>
+                      <Toggle
+                        enabled={conectada}
+                        onChange={(val) => setFuentes({ ...fuentes, [src.key]: val })}
+                      />
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-3">
-                    <Badge variant="green" size="sm">
-                      Conectada
-                    </Badge>
-                    <Toggle
-                      enabled={fuentes[src.key]}
-                      onChange={(val) => setFuentes({ ...fuentes, [src.key]: val })}
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
