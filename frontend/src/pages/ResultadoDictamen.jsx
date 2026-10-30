@@ -17,20 +17,28 @@ export const ResultadoDictamen = () => {
   const navigate = useNavigate();
   const {
     evaluacionId,
+    setEvaluacionId,
     recomendacion,
     dictamenTitulo,
     viabilidad,
     nivelConfianza,
     factoresEvaluados,
+    factores,
+    subfactoresState,
     strengths,
     opportunities,
     weaknesses,
     threats,
     fetchEvaluaciones,
     setEstadoEvaluacionActiva,
+    softwareActivo,
+    contextoActivo,
+    descripcionCaso,
+    sincronizarEvaluacionCompletaConBackend,
   } = useEvaluation();
 
   const [finalizando, setFinalizando] = React.useState(false);
+  const [exportandoPDF, setExportandoPDF] = React.useState(false);
 
   React.useEffect(() => {
     if (evaluacionId) {
@@ -55,13 +63,11 @@ export const ResultadoDictamen = () => {
   const handleFinalizarYVerDashboard = async () => {
     setFinalizando(true);
     try {
-      if (evaluacionId) {
-        const resp = await apiService.calcularResultado(evaluacionId);
-        if (resp) {
-          if (setEstadoEvaluacionActiva) setEstadoEvaluacionActiva("completada");
-          localStorage.setItem("guios_evaluacion_estado", "completada");
-        }
+      if (sincronizarEvaluacionCompletaConBackend) {
+        await sincronizarEvaluacionCompletaConBackend();
       }
+      if (setEstadoEvaluacionActiva) setEstadoEvaluacionActiva("completada");
+      localStorage.setItem("guios_evaluacion_estado", "completada");
       if (fetchEvaluaciones) {
         await fetchEvaluaciones();
       }
@@ -84,8 +90,56 @@ export const ResultadoDictamen = () => {
 
   const totalClasificados = factoresEvaluados.length;
 
-  const handleExportarPDF = () => {
-    alert("Generando informe oficial de adopción GUIOSPRO en formato PDF...");
+  const handleExportarPDF = async () => {
+    setExportandoPDF(true);
+    try {
+      // 1. Preparar payload con factores y subfactores actuales
+      let listaSubfactores = [];
+      if (subfactoresState) {
+        Object.values(subfactoresState).forEach((subList) => {
+          listaSubfactores = listaSubfactores.concat(subList);
+        });
+      }
+      const subfactoresAEnviar = listaSubfactores
+        .filter((s) => (s.id || s.codigo) && s.calificacion !== undefined && Number(s.calificacion) >= 1)
+        .map((s) => ({
+          id_subfactor: s.id || (s.codigo ? parseInt(s.codigo.replace("SF-", ""), 10) : null),
+          codigo: s.codigo,
+          calificacion: Number(s.calificacion),
+          observacion: s.observacion || "",
+        }));
+
+      const payload = {
+        factores: (factores || []).map((f) => ({
+          id_factor: f.id,
+          importancia_decisor: Number(f.ID || 1),
+          alcance_aplicado: f.alcance || null,
+        })),
+        subfactores: subfactoresAEnviar,
+      };
+
+      // 2. Si el ID es un timestamp (> 100000000) o no numérico, sincronizar primero
+      let targetId = evaluacionId;
+      if (!targetId || Number(targetId) > 100000000 || isNaN(Number(targetId))) {
+        if (sincronizarEvaluacionCompletaConBackend) {
+          const syncResult = await sincronizarEvaluacionCompletaConBackend();
+          if (syncResult && syncResult.id) {
+            targetId = syncResult.id;
+          }
+        }
+      } else if (sincronizarEvaluacionCompletaConBackend) {
+        sincronizarEvaluacionCompletaConBackend(targetId).catch(console.warn);
+      }
+
+      // 3. Descargar el PDF enviando el payload completo (garantiza FODA y reactivos 100% poblados)
+      await apiService.descargarInformePDF(targetId, softwareActivo, payload);
+      if (fetchEvaluaciones) fetchEvaluaciones();
+    } catch (err) {
+      console.warn("Fallo exportando PDF:", err);
+      alert("No se pudo generar el informe PDF: " + (err.message || "Error del servidor"));
+    } finally {
+      setExportandoPDF(false);
+    }
   };
 
   return (
@@ -115,10 +169,11 @@ export const ResultadoDictamen = () => {
           </button>
           <button
             onClick={handleExportarPDF}
-            className="px-4 py-2 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-medium text-xs transition-colors flex items-center gap-2 shadow-sm shrink-0 cursor-pointer"
+            disabled={exportandoPDF}
+            className="px-4 py-2 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-medium text-xs transition-colors flex items-center gap-2 shadow-sm shrink-0 cursor-pointer disabled:opacity-60"
           >
-            <Download size={14} className="text-gray-600" />
-            <span>Exportar PDF</span>
+            <Download size={14} className={exportandoPDF ? "animate-bounce text-[#3F6F58]" : "text-gray-600"} />
+            <span>{exportandoPDF ? "Generando PDF oficial..." : "Exportar PDF"}</span>
           </button>
         </div>
       </div>

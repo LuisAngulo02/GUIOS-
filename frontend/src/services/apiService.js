@@ -435,6 +435,45 @@ export const apiService = {
     }
   },
 
+  // Exportación oficial en PDF (HU-08 / RF-13)
+  async descargarInformePDF(evaluacionId, nombreSoftware = "Software", payload = null) {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+      ...(payload ? { "Content-Type": "application/json" } : {}),
+    };
+    const options = {
+      method: payload ? "POST" : "GET",
+      headers,
+      ...(payload ? { body: JSON.stringify(payload) } : {}),
+    };
+    const response = await doFetch(`${API_BASE_URL}/guios/evaluations/${evaluacionId}/pdf/`, options);
+    if (!response.ok) {
+      let errText = "";
+      try {
+        const errJson = await response.json();
+        errText = errJson.detail || errJson.message;
+      } catch {
+        errText = `HTTP ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errText || "Error al generar informe PDF en el servidor");
+    }
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const safeName = (nombreSoftware || "Software").replace(/\s+/g, "_");
+    a.download = `Informe_GUIOS_${safeName}_ID${evaluacionId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    return true;
+  },
+
   // ---------------------------------------------------------------------------
   // 5. Evidencia Académica
   // ---------------------------------------------------------------------------

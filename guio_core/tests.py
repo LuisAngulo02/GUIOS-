@@ -138,3 +138,32 @@ class EvaluacionApiFlowTestCase(TestCase):
         self.assertEqual(compare_res.data["evaluacion_1"]["nombre_software"], "Moodle 4.x")
         self.assertEqual(compare_res.data["evaluacion_2"]["nombre_software"], "Canvas LMS")
 
+    def test_hu08_exportar_informe_pdf(self):
+        """Valida HU-08 (RF-13): Generación y descarga oficial del informe en PDF."""
+        # 1. Crear y completar una evaluación
+        res_crear = self.client.post("/api/v1/guios/evaluations/", {"nombre_software": "PostgreSQL Live Test"})
+        eval_id = res_crear.data["id"]
+
+        self.client.post(f"/api/v1/guios/evaluations/{eval_id}/paso1/", {
+            "factores": [
+                {"id_factor": self.f_compat.id, "importancia_decisor": 4, "alcance_aplicado": "Externo"},
+            ]
+        }, format="json")
+
+        self.client.post(f"/api/v1/guios/evaluations/{eval_id}/paso2/", {
+            "subfactores": [
+                {"id_subfactor": self.sf1.id, "calificacion": 4, "observacion": "Cumple plenamente"},
+                {"id_subfactor": self.sf2.id, "calificacion": 4, "observacion": "Estándar abierto"},
+            ]
+        }, format="json")
+
+        self.client.post(f"/api/v1/guios/evaluations/{eval_id}/resultado/")
+
+        # 2. Descargar PDF oficial
+        res_pdf = self.client.get(f"/api/v1/guios/evaluations/{eval_id}/pdf/")
+        self.assertEqual(res_pdf.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_pdf["Content-Type"], "application/pdf")
+        self.assertIn("attachment; filename=", res_pdf["Content-Disposition"])
+        self.assertTrue(len(res_pdf.content) > 1000)
+        self.assertTrue(res_pdf.content.startswith(b"%PDF"))
+

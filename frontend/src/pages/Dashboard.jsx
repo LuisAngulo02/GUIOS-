@@ -15,6 +15,7 @@ import {
   RotateCcw,
   Sparkles,
   Layers,
+  Download,
 } from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
 import { apiService } from "../services/apiService";
@@ -61,6 +62,7 @@ export const Dashboard = () => {
   const [comparacionData, setComparacionData] = useState(null);
   const [loadingComparacion, setLoadingComparacion] = useState(false);
   const [modalComparacionOpen, setModalComparacionOpen] = useState(false);
+  const [descargandoPdfId, setDescargandoPdfId] = useState(null);
 
   // Estado para el modal de Nueva Evaluación
   const [modalNuevaOpen, setModalNuevaOpen] = useState(false);
@@ -128,6 +130,18 @@ export const Dashboard = () => {
       alert("No se pudo cargar la comparación: " + (err.message || "Error del servidor"));
     } finally {
       setLoadingComparacion(false);
+    }
+  };
+
+  // Descargar informe en PDF
+  const handleDescargarPDF = async (ev) => {
+    setDescargandoPdfId(ev.id);
+    try {
+      await apiService.descargarInformePDF(ev.id, ev.nombre_software);
+    } catch (err) {
+      alert("No se pudo descargar el informe PDF: " + (err.message || "Error del servidor"));
+    } finally {
+      setDescargandoPdfId(null);
     }
   };
 
@@ -540,12 +554,24 @@ export const Dashboard = () => {
 
                       {/* Botón Acción */}
                       <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => handleReanudarEvaluacion(ev)}
-                          className="px-3 py-1.5 rounded-lg bg-[#EBF4EE] hover:bg-[#DDEFE3] text-[#2F5444] font-semibold text-xs transition-colors cursor-pointer"
-                        >
-                          {isCompletada ? "Ver dictamen" : "Continuar"}
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isCompletada && (
+                            <button
+                              onClick={() => handleDescargarPDF(ev)}
+                              disabled={descargandoPdfId === ev.id}
+                              title="Descargar Informe Oficial en PDF"
+                              className="p-1.5 rounded-lg border border-[#DDE7E1] hover:bg-[#EBF4EE] text-[#2F5444] transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              <Download size={13} className={descargandoPdfId === ev.id ? "animate-bounce text-[#3F6F58]" : "text-gray-600"} />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleReanudarEvaluacion(ev)}
+                            className="px-3 py-1.5 rounded-lg bg-[#EBF4EE] hover:bg-[#DDEFE3] text-[#2F5444] font-semibold text-xs transition-colors cursor-pointer"
+                          >
+                            {isCompletada ? "Ver dictamen" : "Continuar"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

@@ -401,6 +401,62 @@ export const EvaluationProvider = ({ children }) => {
     }
   }, [evaluacionId, subfactoresState]);
 
+  // Sincronizar evaluación completa (Paso 1, Paso 2 y Dictamen Paso 3) con Backend
+  const sincronizarEvaluacionCompletaConBackend = useCallback(async (targetId) => {
+    let idToUse = targetId || evaluacionId;
+    if (!idToUse || Number(idToUse) > 100000000 || isNaN(Number(idToUse))) {
+      const softName = localStorage.getItem("guios_software_activo") || softwareActivo;
+      const contName = localStorage.getItem("guios_contexto_activo") || contextoActivo;
+      const descName = localStorage.getItem("guios_descripcion_caso") || descripcionCaso;
+      const nueva = await apiService.createEvaluation({
+        nombre_software: softName,
+        contexto_uso: contName,
+        objetivo: descName,
+      });
+      if (nueva && nueva.id) {
+        idToUse = nueva.id.toString();
+        setEvaluacionId(idToUse);
+        localStorage.setItem("guios_evaluacion_id", idToUse);
+      }
+    }
+
+    setSaveStatus("Sincronizando evaluación completa...");
+    try {
+      // 1. Guardar Paso 1 (Factores)
+      await apiService.savePaso1(idToUse, factores);
+
+      // 2. Guardar Paso 2 (Subfactores)
+      let lista = [];
+      Object.values(subfactoresState).forEach((subList) => {
+        lista = lista.concat(subList);
+      });
+      const aEnviar = lista
+        .filter((s) => (s.id || s.codigo) && s.calificacion !== undefined && Number(s.calificacion) >= 1)
+        .map((s) => ({
+          id_subfactor: s.id || (s.codigo ? parseInt(s.codigo.replace("SF-", ""), 10) : null),
+          codigo: s.codigo,
+          calificacion: Number(s.calificacion),
+          observacion: s.observacion || "",
+        }));
+
+      if (aEnviar.length > 0) {
+        await apiService.savePaso2(idToUse, aEnviar);
+      }
+
+      // 3. Calcular resultado en PostgreSQL
+      const resp = await apiService.calcularResultado(idToUse);
+      setIsBackendConnected(true);
+      setSaveStatus("Guardado en PostgreSQL");
+      return { id: idToUse, resultado: resp };
+    } catch (e) {
+      console.warn("Fallo sincronización completa:", e);
+      setSaveStatus("Guardado local");
+      return { id: idToUse, error: e };
+    } finally {
+      setTimeout(() => setSaveStatus("Guardado"), 2000);
+    }
+  }, [evaluacionId, factores, subfactoresState, softwareActivo, contextoActivo, descripcionCaso]);
+
   // Actualizar "Tu importancia" (ID) de un factor con recálculo en vivo
   const updateFactorID = (factorId, nuevoID) => {
     setFactores((prev) =>
@@ -603,6 +659,7 @@ export const EvaluationProvider = ({ children }) => {
         updateSubfactorScore,
         sincronizarPaso1ConBackend,
         sincronizarPaso2ConBackend,
+        sincronizarEvaluacionCompletaConBackend,
         evaluacionesList,
         cargandoEvaluaciones,
         fetchEvaluaciones,
