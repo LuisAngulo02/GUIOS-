@@ -7,6 +7,7 @@ matriz FODA, tablas de factores y anexo de trazabilidad de subfactores.
 
 import io
 from datetime import datetime
+from xml.sax.saxutils import escape as xml_escape
 from reportlab.lib import colors
 from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import A4
@@ -25,6 +26,11 @@ from reportlab.platypus import (
 )
 
 
+def safe_text(val):
+    """Escapa de forma segura entidades XML para evitar excepciones y tag injections en ReportLab."""
+    return xml_escape(str(val if val is not None else ""))
+
+
 class NumberedCanvas(canvas.Canvas):
     """
     Canvas de doble pasada para calcular el total exacto de páginas (Página X de Y),
@@ -34,8 +40,9 @@ class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._saved_page_states = []
-        self.evaluacion_id = kwargs.get("evaluacion_id", "")
-        self.nombre_software = kwargs.get("nombre_software", "FLOSS")
+        self.evaluacion_id = str(kwargs.get("evaluacion_id", ""))
+        raw_software = kwargs.get("nombre_software", "FLOSS")
+        self.nombre_software = str(raw_software).replace("\r", " ").replace("\n", " ")[:40]
 
     def showPage(self):
         self._saved_page_states.append(dict(self.__dict__))
@@ -242,13 +249,13 @@ def generar_informe_pdf(evaluacion):
     info_data = [
         [
             Paragraph("<b>Software FLOSS:</b>", style_small),
-            Paragraph(f"<b>{evaluacion.nombre_software}</b>", style_body),
+            Paragraph(f"<b>{safe_text(evaluacion.nombre_software)}</b>", style_body),
             Paragraph("<b>Código / ID:</b>", style_small),
             Paragraph(f"#{evaluacion.id}", style_body),
         ],
         [
             Paragraph("<b>Evaluador Responsable:</b>", style_small),
-            Paragraph(f"{evaluador_str} ({evaluador_email})", style_body),
+            Paragraph(f"{safe_text(evaluador_str)} ({safe_text(evaluador_email)})", style_body),
             Paragraph("<b>Fecha Emisión:</b>", style_small),
             Paragraph(fecha_emision, style_body),
         ],
@@ -260,9 +267,9 @@ def generar_informe_pdf(evaluacion):
         ],
         [
             Paragraph("<b>Estado de Persistencia:</b>", style_small),
-            Paragraph(f"<font color='#25633C'><b>{evaluacion.get_estado_display()} en PostgreSQL</b></font>", style_body),
+            Paragraph(f"<font color='#25633C'><b>{safe_text(evaluacion.get_estado_display())} en PostgreSQL</b></font>", style_body),
             Paragraph("<b>Nivel de Confianza:</b>", style_small),
-            Paragraph(f"<b>{evaluacion.nivel_confianza or 'Alto'}</b>", style_body),
+            Paragraph(f"<b>{safe_text(evaluacion.nivel_confianza or 'Alto')}</b>", style_body),
         ],
     ]
 
@@ -312,15 +319,15 @@ def generar_informe_pdf(evaluacion):
     dictamen_table_data = [
         [
             Paragraph(
-                f"<font size=18 color='{badge_color}'><b>{rec_tipo}</b></font><br/>"
-                f"<font size=8 color='{badge_color}'><b>{texto_letra}</b></font>",
+                f"<font size=18 color='{badge_color}'><b>{safe_text(rec_tipo)}</b></font><br/>"
+                f"<font size=8 color='{badge_color}'><b>{safe_text(texto_letra)}</b></font>",
                 ParagraphStyle("RecBadge", alignment=1, leading=15)
             ),
             Paragraph(
-                f"<font size=12 color='{color_primary}'><b>{rec_titulo}</b></font><br/>"
-                f"<font size=8.5 color='#374151'>{dictamen_texto}</font><br/><br/>"
+                f"<font size=12 color='{color_primary}'><b>{safe_text(rec_titulo)}</b></font><br/>"
+                f"<font size=8.5 color='#374151'>{safe_text(dictamen_texto)}</font><br/><br/>"
                 f"<font size=8 color='#6B7280'><b>Índice de Viabilidad FLOSS:</b> {viabilidad_val:.1f}% &nbsp;&nbsp;|&nbsp;&nbsp; "
-                f"<b>Nivel de Confianza:</b> {evaluacion.nivel_confianza or 'Alto'} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"<b>Nivel de Confianza:</b> {safe_text(evaluacion.nivel_confianza or 'Alto')} &nbsp;&nbsp;|&nbsp;&nbsp; "
                 f"<b>Umbral Decisorio:</b> Ponderación Media mínima de 3.00 / 4.00</font>",
                 ParagraphStyle("RecDesc", leading=12)
             ),
@@ -512,11 +519,11 @@ def generar_informe_pdf(evaluacion):
             sf = rs.id_subfactor
             obs_text = rs.observacion.strip() if rs.observacion else "—"
             sfs_rows.append([
-                Paragraph(f"<b>{sf.codigo}</b>", style_table_cell_center),
-                Paragraph(sf.id_factor.nombre[:18], style_table_cell),
-                Paragraph(sf.descripcion, style_table_cell),
+                Paragraph(f"<b>{safe_text(sf.codigo)}</b>", style_table_cell_center),
+                Paragraph(safe_text(sf.id_factor.nombre[:18]), style_table_cell),
+                Paragraph(safe_text(sf.descripcion), style_table_cell),
                 Paragraph(f"<b>{rs.calificacion}</b> / 4", style_table_cell_center),
-                Paragraph(obs_text, style_table_cell),
+                Paragraph(safe_text(obs_text), style_table_cell),
             ])
 
         t_sfs = Table(
@@ -544,7 +551,7 @@ def generar_informe_pdf(evaluacion):
     firma_data = [
         [
             Paragraph("____________________________________________<br/><b>Firma del Evaluador / Decisor</b><br/>"
-                      f"<font color='#6B7280'>{evaluador_str}</font>", ParagraphStyle("Firma1", alignment=1, leading=12)),
+                      f"<font color='#6B7280'>{safe_text(evaluador_str)}</font>", ParagraphStyle("Firma1", alignment=1, leading=12)),
             Paragraph("____________________________________________<br/><b>Sello Institucional / Validez</b><br/>"
                       "<font color='#6B7280'>GUIOS+ Adopción FLOSS Verificada</font>", ParagraphStyle("Firma2", alignment=1, leading=12)),
         ]

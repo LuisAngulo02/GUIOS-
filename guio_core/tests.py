@@ -167,3 +167,74 @@ class EvaluacionApiFlowTestCase(TestCase):
         self.assertTrue(len(res_pdf.content) > 1000)
         self.assertTrue(res_pdf.content.startswith(b"%PDF"))
 
+    def test_rechazo_resultado_si_faltan_subfactores(self):
+        """No se debe permitir calcular resultado si faltan subfactores por calificar en factores relevantes."""
+        res_crear = self.client.post("/api/v1/guios/evaluations/", {"nombre_software": "Linux Kernel"})
+        eval_id = res_crear.data["id"]
+
+        # Paso 1: marcar compatibilidad como relevante
+        self.client.post(f"/api/v1/guios/evaluations/{eval_id}/paso1/", {
+            "factores": [
+                {"id_factor": self.f_compat.id, "importancia_decisor": 4, "alcance_aplicado": "Externo"},
+            ]
+        }, format="json")
+
+        # Intentar calcular resultado SIN haber calificado los subfactores sf1 y sf2
+        res_calc = self.client.post(f"/api/v1/guios/evaluations/{eval_id}/resultado/")
+        self.assertEqual(res_calc.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("incompleta", res_calc.data["detail"].lower())
+
+    def test_inmutabilidad_evaluacion_completada(self):
+        """Una evaluación completada no puede ser recalculada ni modificada."""
+        res_crear = self.client.post("/api/v1/guios/evaluations/", {"nombre_software": "Nginx"})
+        eval_id = res_crear.data["id"]
+
+        self.client.post(f"/api/v1/guios/evaluations/{eval_id}/paso1/", {
+            "factores": [
+                {"id_factor": self.f_compat.id, "importancia_decisor": 4, "alcance_aplicado": "Externo"},
+            ]
+        }, format="json")
+
+        self.client.post(f"/api/v1/guios/evaluations/{eval_id}/paso2/", {
+            "subfactores": [
+                {"id_subfactor": self.sf1.id, "calificacion": 4, "observacion": "Optimo"},
+                {"id_subfactor": self.sf2.id, "calificacion": 4, "observacion": "Optimo"},
+            ]
+        }, format="json")
+
+        res_calc1 = self.client.post(f"/api/v1/guios/evaluations/{eval_id}/resultado/")
+        self.assertEqual(res_calc1.status_code, status.HTTP_200_OK)
+
+        # Intentar recalcular debe ser bloqueado por inmutabilidad
+        res_calc2 = self.client.post(f"/api/v1/guios/evaluations/{eval_id}/resultado/")
+        self.assertEqual(res_calc2.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("congelada", res_calc2.data["detail"].lower())
+
+    def test_exportar_pdf_con_caracteres_especiales_y_tags(self):
+        """Verifica que caracteres como <, >, &, y comillas no causen excepciones XML en ReportLab ni corrompan el header."""
+        res_crear = self.client.post("/api/v1/guios/evaluations/", {"nombre_software": "App <script>alert(1)</script> & \"Tools\""})
+        eval_id = res_crear.data["id"]
+
+        self.client.post(f"/api/v1/guios/evaluations/{eval_id}/paso1/", {
+            "factores": [
+                {"id_factor": self.f_compat.id, "importancia_decisor": 4, "alcance_aplicado": "Externo"},
+            ]
+        }, format="json")
+
+        self.client.post(f"/api/v1/guios/evaluations/{eval_id}/paso2/", {
+            "subfactores": [
+                {"id_subfactor": self.sf1.id, "calificacion": 4, "observacion": "Latencia < 10ms & escalabilidad > 99%"},
+                {"id_subfactor": self.sf2.id, "calificacion": 4, "observacion": "Cumple con formato JSON & XML <tag>"},
+            ]
+        }, format="json")
+
+        self.client.post(f"/api/v1/guios/evaluations/{eval_id}/resultado/")
+
+        res_pdf = self.client.get(f"/api/v1/guios/evaluations/{eval_id}/pdf/")
+        self.assertEqual(res_pdf.status_code, status.HTTP_200_OK)
+        self.assertTrue(res_pdf.content.startswith(b"%PDF"))
+        # El nombre del archivo en Content-Disposition debe estar saneado sin comillas intermedias
+        content_disp = res_pdf["Content-Disposition"]
+        self.assertNotIn("<script>", content_disp)
+        self.assertIn("attachment; filename=", content_disp)
+

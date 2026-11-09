@@ -258,6 +258,14 @@ class CrearEvaluacionSerializer(serializers.ModelSerializer):
         model = Evaluacion
         fields = ["id", "nombre_software"]
 
+    def validate_nombre_software(self, value):
+        val = value.strip()
+        if not val:
+            raise serializers.ValidationError("El nombre del software no puede estar vacío ni contener solo espacios.")
+        if len(val) < 2:
+            raise serializers.ValidationError("El nombre del software debe tener al menos 2 caracteres.")
+        return val
+
     def create(self, validated_data):
         user = self.context["request"].user
         evaluacion = Evaluacion.objects.create(

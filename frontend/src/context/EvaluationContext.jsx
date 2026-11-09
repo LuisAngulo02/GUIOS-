@@ -12,18 +12,14 @@ const MAPA_NUMERO_A_TEXTO_IR = {
 };
 
 export const EvaluationProvider = ({ children }) => {
-  // 1. Estado de Usuario y Sesión
+  // 1. Estado de Usuario y Sesión (Sin valores por defecto inseguros)
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem("guios_user");
-    return saved
-      ? JSON.parse(saved)
-      : {
-          id: 1,
-          nombre: "Admin Usuario",
-          email: "admin@guiosplus.org",
-          rol: "administrador",
-          avatar: "AU",
-        };
+    try {
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
 
   // 2. Identificador de Evaluación en Base de Datos PostgreSQL

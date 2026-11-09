@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.views import TokenRefreshView
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from django.db import transaction
 
 from guio_core.models import Usuario, Rol, LogAuditoria
@@ -21,8 +22,10 @@ class LoginView(views.APIView):
     """
     HU-01: Autenticación de usuario con email y contraseña (Bcrypt).
     Maneja límite de 5 intentos fallidos y bloqueo temporal (RNF-02).
+    Rate-limiting aplicado para mitigar ataques de fuerza bruta y DoS de bloqueo.
     """
     permission_classes = [AllowAny]
+    throttle_scope = "auth_login"
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -30,12 +33,41 @@ class LoginView(views.APIView):
         return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
 
+class LogoutView(views.APIView):
+    """
+    Cierre de sesión seguro con invalidación de Refresh Token en SimpleJWT blacklist.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        refresh_token = request.data.get("refresh")
+        if not refresh_token:
+            return Response(
+                {"detail": "Se requiere el refresh token para cerrar sesión."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response(
+                {"message": "Sesión cerrada e invalidada exitosamente."},
+                status=status.HTTP_200_OK,
+            )
+        except TokenError:
+            return Response(
+                {"detail": "Token inválido o ya revocado."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
 class RegistroView(views.APIView):
     """
     HU-01: Registro público de evaluadores.
     Asigna rol 'evaluador' por defecto y hashea con Bcrypt.
+    Rate-limiting aplicado para mitigar spam de cuentas.
     """
     permission_classes = [AllowAny]
+    throttle_scope = "auth_register"
 
     def post(self, request):
         serializer = RegistroUsuarioSerializer(data=request.data)
@@ -95,6 +127,17 @@ class AdminUsuariosViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError(
                 {"detail": "No puedes desactivar tu propia cuenta de administrador activo."}
             )
+
+        if instance.id_rol.nombre == Rol.TipoRol.ADMINISTRADOR and instance.activo:
+            otros_admins = Usuario.objects.filter(
+                id_rol__nombre=Rol.TipoRol.ADMINISTRADOR,
+                activo=True
+            ).exclude(id=instance.id).count()
+            if otros_admins == 0:
+                raise serializers.ValidationError(
+                    {"detail": "No se puede desactivar al único Administrador activo del sistema."}
+                )
+
         instance.activo = False
         instance.save(update_fields=["activo"])
 
@@ -117,6 +160,19 @@ class AdminUsuariosViewSet(viewsets.ModelViewSet):
             )
 
         nuevo_estado = not usuario.activo
+
+        # Si se va a desactivar a un administrador, asegurar que quede al menos uno activo
+        if not nuevo_estado and usuario.id_rol.nombre == Rol.TipoRol.ADMINISTRADOR:
+            otros_admins = Usuario.objects.filter(
+                id_rol__nombre=Rol.TipoRol.ADMINISTRADOR,
+                activo=True
+            ).exclude(id=usuario.id).count()
+            if otros_admins == 0:
+                return Response(
+                    {"detail": "No se puede desactivar al único Administrador activo del sistema."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         usuario.activo = nuevo_estado
         if nuevo_estado:
             # Si se reactiva, desbloquear y limpiar intentos fallidos
@@ -155,6 +211,25 @@ class AdminUsuariosViewSet(viewsets.ModelViewSet):
                 {"detail": "El rol especificado no existe."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # Prevenir auto-degradación de privilegios de administrador
+        if usuario.id == request.user.id and rol.nombre != Rol.TipoRol.ADMINISTRADOR:
+            return Response(
+                {"detail": "No puedes revocar tus propios privilegios de Administrador."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Prevenir degradar al último administrador activo del sistema
+        if usuario.id_rol.nombre == Rol.TipoRol.ADMINISTRADOR and rol.nombre != Rol.TipoRol.ADMINISTRADOR:
+            otros_admins = Usuario.objects.filter(
+                id_rol__nombre=Rol.TipoRol.ADMINISTRADOR,
+                activo=True
+            ).exclude(id=usuario.id).count()
+            if otros_admins == 0:
+                return Response(
+                    {"detail": "No se puede degradar al único Administrador activo del sistema."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         rol_anterior = usuario.id_rol.nombre
         usuario.id_rol = rol

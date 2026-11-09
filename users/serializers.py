@@ -1,5 +1,7 @@
+import secrets
 from datetime import timedelta
 from django.utils import timezone
+from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 from guio_core.models import Usuario, Rol, LogAuditoria
@@ -41,6 +43,10 @@ class RegistroUsuarioSerializer(serializers.ModelSerializer):
         model = Usuario
         fields = ["id", "nombre", "email", "password"]
 
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
     def validate_email(self, value):
         if Usuario.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError("Ya existe un usuario registrado con este correo electrónico.")
@@ -72,6 +78,8 @@ class LoginSerializer(serializers.Serializer):
         try:
             usuario = Usuario.objects.get(email__iexact=email)
         except Usuario.DoesNotExist:
+            # Mitigación de timing attack: computar hash ficticio
+            Usuario().set_password(password)
             raise serializers.ValidationError({"detail": "Credenciales inválidas."})
 
         # 1. Comprobar baja lógica
@@ -87,13 +95,13 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {
                     "detail": (
-                        f"Cuenta bloqueada temporalmente por seguridad tras 5 intentos fallidos. "
+                        f"Cuenta temporalmente bloqueada por seguridad tras exceder el límite de intentos fallidos. "
                         f"Intente nuevamente en {minutos_restantes} minuto(s)."
                     )
                 }
             )
 
-        # 3. Validar contraseña cifrada con Bcrypt
+        # 3. Validar contraseña cifrada con Bcrypt / PBKDF2
         if not usuario.check_password(password):
             usuario.intentos_fallidos += 1
             if usuario.intentos_fallidos >= 5:
@@ -110,11 +118,9 @@ class LoginSerializer(serializers.Serializer):
                 )
             else:
                 usuario.save(update_fields=["intentos_fallidos"])
-                intentos_restantes = 5 - usuario.intentos_fallidos
+                # Mensaje unificado para evitar enumeración de usuarios
                 raise serializers.ValidationError(
-                    {
-                        "detail": f"Credenciales inválidas. Le quedan {intentos_restantes} intento(s) antes del bloqueo."
-                    }
+                    {"detail": "Credenciales inválidas."}
                 )
 
         # 4. Éxito: restablecer intentos fallidos y bloqueo
@@ -163,6 +169,11 @@ class AdminUsuarioSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "fecha_creacion", "intentos_fallidos", "bloqueado_hasta"]
 
+    def validate_password(self, value):
+        if value:
+            validate_password(value)
+        return value
+
     def validate_email(self, value):
         user_id = self.instance.id if self.instance else None
         if Usuario.objects.filter(email__iexact=value).exclude(id=user_id).exists():
@@ -175,7 +186,9 @@ class AdminUsuarioSerializer(serializers.ModelSerializer):
         if password:
             user.set_password(password)
         else:
-            user.set_password("Guios2026!")
+            # Generar contraseña temporal criptográficamente segura en lugar de clave predecible
+            temp_password = secrets.token_urlsafe(12)
+            user.set_password(temp_password)
         user.save()
         return user
 

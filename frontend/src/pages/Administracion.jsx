@@ -230,14 +230,21 @@ export const Administracion = () => {
       return;
     }
 
+    if (nuevoUsuarioData.password.trim() && nuevoUsuarioData.password.trim().length < 8) {
+      setErrorCreacion("La contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+
     setCreandoUsuario(true);
     try {
       const payload = {
         nombre: nuevoUsuarioData.nombre.trim(),
         email: nuevoUsuarioData.email.trim(),
         id_rol: Number(nuevoUsuarioData.id_rol),
-        password: nuevoUsuarioData.password.trim() || "Guios2026!",
       };
+      if (nuevoUsuarioData.password.trim()) {
+        payload.password = nuevoUsuarioData.password.trim();
+      }
       const res = await apiService.crearUsuario(payload);
       setUsuarios((prev) => [res, ...prev]);
       setModalCrearAbierto(false);

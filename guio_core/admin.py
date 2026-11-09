@@ -27,6 +27,15 @@ class UsuarioAdmin(admin.ModelAdmin):
     search_fields = ("email", "nombre")
     readonly_fields = ("fecha_creacion", "last_login")
 
+    def save_model(self, request, obj, form, change):
+        if change:
+            orig = Usuario.objects.filter(pk=obj.pk).first()
+            if orig and obj.password != orig.password and not obj.password.startswith(('bcrypt$', 'pbkdf2_')):
+                obj.set_password(obj.password)
+        elif obj.password and not obj.password.startswith(('bcrypt$', 'pbkdf2_')):
+            obj.set_password(obj.password)
+        super().save_model(request, obj, form, change)
+
 
 @admin.register(Dimension)
 class DimensionAdmin(admin.ModelAdmin):
