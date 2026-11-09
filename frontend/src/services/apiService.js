@@ -182,7 +182,7 @@ export const apiService = {
   },
 
   // ---------------------------------------------------------------------------
-  // 2. Catálogo Oficial (Dimensiones, Factores, Subfactores)
+  // 2. Catálogo Oficial & Administración (HU-03)
   // ---------------------------------------------------------------------------
   async getCatalogo() {
     try {
@@ -195,6 +195,78 @@ export const apiService = {
         factores: MOCK_FACTORES,
       };
     }
+  },
+
+  async getAdminDimensiones() {
+    return await request("/guios/admin/dimensiones/");
+  },
+
+  async crearDimension(data) {
+    return await request("/guios/admin/dimensiones/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async actualizarDimension(id, data) {
+    return await request(`/guios/admin/dimensiones/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async toggleDimensionEstado(id) {
+    return await request(`/guios/admin/dimensiones/${id}/cambiar-estado/`, {
+      method: "POST",
+    });
+  },
+
+  async getAdminFactores() {
+    return await request("/guios/admin/factores/");
+  },
+
+  async crearFactor(data) {
+    return await request("/guios/admin/factores/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async actualizarFactor(id, data) {
+    return await request(`/guios/admin/factores/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async toggleFactorEstado(id) {
+    return await request(`/guios/admin/factores/${id}/cambiar-estado/`, {
+      method: "POST",
+    });
+  },
+
+  async getAdminSubfactores() {
+    return await request("/guios/admin/subfactores/");
+  },
+
+  async crearSubfactor(data) {
+    return await request("/guios/admin/subfactores/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async actualizarSubfactor(id, data) {
+    return await request(`/guios/admin/subfactores/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async toggleSubfactorEstado(id) {
+    return await request(`/guios/admin/subfactores/${id}/cambiar-estado/`, {
+      method: "POST",
+    });
   },
 
   async getFactores() {

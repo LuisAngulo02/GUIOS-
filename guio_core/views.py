@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.http import HttpResponse
 
+from users.permissions import EsAdministrador
 from guio_core.pdf_generator import generar_informe_pdf
 from guio_core.models import (
     Dimension,
@@ -21,6 +22,7 @@ from guio_core.models import (
     LogAuditoria,
 )
 from guio_core.serializers import (
+    SubfactorCatalogoSerializer,
     DimensionCatalogoSerializer,
     FactorCatalogoSerializer,
     RecomendacionCatalogoSerializer,
@@ -57,6 +59,171 @@ class CatalogoView(views.APIView):
                 "dimensiones": data,
                 "recomendaciones": recomendaciones_data,
             },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminDimensionesViewSet(viewsets.ModelViewSet):
+    """HU-03: CRUD administrativo de Dimensiones con baja lógica."""
+    permission_classes = [IsAuthenticated, EsAdministrador]
+    queryset = Dimension.objects.all().order_by("id")
+    serializer_class = DimensionCatalogoSerializer
+
+    def perform_create(self, serializer):
+        dim = serializer.save()
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="crear_dimension",
+            entidad="dimension",
+            id_entidad=str(dim.id),
+            detalle=f"Creación de dimensión '{dim.nombre}'",
+        )
+
+    def perform_update(self, serializer):
+        dim = serializer.save()
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="actualizar_dimension",
+            entidad="dimension",
+            id_entidad=str(dim.id),
+            detalle=f"Actualización de dimensión '{dim.nombre}'",
+        )
+
+    def perform_destroy(self, instance):
+        instance.activo = False
+        instance.save(update_fields=["activo"])
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="desactivar_dimension",
+            entidad="dimension",
+            id_entidad=str(instance.id),
+            detalle=f"Baja lógica de dimensión '{instance.nombre}'",
+        )
+
+    @action(detail=True, methods=["post"], url_path="cambiar-estado")
+    def cambiar_estado(self, request, pk=None):
+        dim = self.get_object()
+        dim.activo = not dim.activo
+        dim.save(update_fields=["activo"])
+        LogAuditoria.objects.create(
+            id_usuario=request.user,
+            accion="activar_dimension" if dim.activo else "desactivar_dimension",
+            entidad="dimension",
+            id_entidad=str(dim.id),
+            detalle=f"Dimensión '{dim.nombre}' {'activada' if dim.activo else 'desactivada'}",
+        )
+        return Response(
+            {"message": f"Dimensión '{dim.nombre}' actualizada.", "data": DimensionCatalogoSerializer(dim).data},
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminFactoresViewSet(viewsets.ModelViewSet):
+    """HU-03: CRUD administrativo de Factores con baja lógica."""
+    permission_classes = [IsAuthenticated, EsAdministrador]
+    queryset = Factor.objects.select_related("id_dimension").prefetch_related("subfactores").order_by("id")
+    serializer_class = FactorCatalogoSerializer
+
+    def perform_create(self, serializer):
+        factor = serializer.save()
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="crear_factor",
+            entidad="factor",
+            id_entidad=str(factor.id),
+            detalle=f"Creación de factor '{factor.nombre}' en dimensión {factor.id_dimension.nombre}",
+        )
+
+    def perform_update(self, serializer):
+        factor = serializer.save()
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="actualizar_factor",
+            entidad="factor",
+            id_entidad=str(factor.id),
+            detalle=f"Actualización de factor '{factor.nombre}'",
+        )
+
+    def perform_destroy(self, instance):
+        instance.activo = False
+        instance.save(update_fields=["activo"])
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="desactivar_factor",
+            entidad="factor",
+            id_entidad=str(instance.id),
+            detalle=f"Baja lógica de factor '{instance.nombre}'",
+        )
+
+    @action(detail=True, methods=["post"], url_path="cambiar-estado")
+    def cambiar_estado(self, request, pk=None):
+        factor = self.get_object()
+        factor.activo = not factor.activo
+        factor.save(update_fields=["activo"])
+        LogAuditoria.objects.create(
+            id_usuario=request.user,
+            accion="activar_factor" if factor.activo else "desactivar_factor",
+            entidad="factor",
+            id_entidad=str(factor.id),
+            detalle=f"Factor '{factor.nombre}' {'activado' if factor.activo else 'desactivado'}",
+        )
+        return Response(
+            {"message": f"Factor '{factor.nombre}' actualizado.", "data": FactorCatalogoSerializer(factor).data},
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminSubfactoresViewSet(viewsets.ModelViewSet):
+    """HU-03: CRUD administrativo de Subfactores con baja lógica."""
+    permission_classes = [IsAuthenticated, EsAdministrador]
+    queryset = Subfactor.objects.select_related("id_factor").order_by("codigo")
+    serializer_class = SubfactorCatalogoSerializer
+
+    def perform_create(self, serializer):
+        sf = serializer.save()
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="crear_subfactor",
+            entidad="subfactor",
+            id_entidad=str(sf.id),
+            detalle=f"Creación de subfactor '{sf.codigo}' en factor {sf.id_factor.nombre}",
+        )
+
+    def perform_update(self, serializer):
+        sf = serializer.save()
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="actualizar_subfactor",
+            entidad="subfactor",
+            id_entidad=str(sf.id),
+            detalle=f"Actualización de subfactor '{sf.codigo}'",
+        )
+
+    def perform_destroy(self, instance):
+        instance.activo = False
+        instance.save(update_fields=["activo"])
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="desactivar_subfactor",
+            entidad="subfactor",
+            id_entidad=str(instance.id),
+            detalle=f"Baja lógica de subfactor '{instance.codigo}'",
+        )
+
+    @action(detail=True, methods=["post"], url_path="cambiar-estado")
+    def cambiar_estado(self, request, pk=None):
+        sf = self.get_object()
+        sf.activo = not sf.activo
+        sf.save(update_fields=["activo"])
+        LogAuditoria.objects.create(
+            id_usuario=request.user,
+            accion="activar_subfactor" if sf.activo else "desactivar_subfactor",
+            entidad="subfactor",
+            id_entidad=str(sf.id),
+            detalle=f"Subfactor '{sf.codigo}' {'activado' if sf.activo else 'desactivado'}",
+        )
+        return Response(
+            {"message": f"Subfactor '{sf.codigo}' actualizado.", "data": SubfactorCatalogoSerializer(sf).data},
             status=status.HTTP_200_OK,
         )
 

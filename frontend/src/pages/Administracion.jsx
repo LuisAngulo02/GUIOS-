@@ -22,6 +22,13 @@ import {
   X,
   FileText,
   CheckCircle2,
+  Edit2,
+  Layers,
+  ChevronDown,
+  ChevronUp,
+  FolderPlus,
+  AlertCircle,
+  Hash,
 } from "lucide-react";
 import { MOCK_FACTORES } from "../data/mockCatalog";
 import Badge from "../components/Badge";
@@ -344,6 +351,238 @@ export const Administracion = () => {
   const booleanQuery = `TITLE-ABS-KEY ("${factorActual.nombre}" AND (${currentKeywords
     .map((k) => `"${k}"`)
     .join(" OR ")}))`;
+
+  // ===========================================================================
+  // ESTADOS Y HANDLERS PARA HU-03: GESTIÓN DEL CATÁLOGO GUIOS (FACTORES Y SUBFACTORES)
+  // ===========================================================================
+  const [factoresAdmin, setFactoresAdmin] = useState([]);
+  const [dimensionesAdmin, setDimensionesAdmin] = useState([]);
+  const [cargandoCatalogo, setCargandoCatalogo] = useState(false);
+  const [busquedaCatalogo, setBusquedaCatalogo] = useState("");
+  const [filtroDimensionCatalogo, setFiltroDimensionCatalogo] = useState("todas");
+  const [filtroEstadoCatalogo, setFiltroEstadoCatalogo] = useState("todos");
+  const [factorExpandido, setFactorExpandido] = useState(null);
+
+  // Modal Factor (Crear / Editar)
+  const [modalFactor, setModalFactor] = useState({
+    abierto: false,
+    modo: "crear",
+    id: null,
+    nombre: "",
+    descripcion: "",
+    id_dimension: 1,
+    importancia_literatura: 3,
+    alcance: "Externo",
+    cargando: false,
+    error: "",
+  });
+
+  // Modal Subfactor (Crear / Editar)
+  const [modalSubfactor, setModalSubfactor] = useState({
+    abierto: false,
+    modo: "crear",
+    id: null,
+    codigo: "",
+    descripcion: "",
+    id_factor: null,
+    factorNombre: "",
+    cargando: false,
+    error: "",
+  });
+
+  const cargarCatalogoAdmin = async () => {
+    setCargandoCatalogo(true);
+    try {
+      const [dataFactores, dataDimensiones] = await Promise.all([
+        apiService.getAdminFactores(),
+        apiService.getAdminDimensiones(),
+      ]);
+      setFactoresAdmin(Array.isArray(dataFactores) ? dataFactores : []);
+      setDimensionesAdmin(Array.isArray(dataDimensiones) ? dataDimensiones : []);
+    } catch (err) {
+      console.error("Error al cargar catálogo admin:", err);
+      mostrarToast("No se pudo cargar el catálogo administrativo desde el backend.", "error");
+    } finally {
+      setCargandoCatalogo(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "Factores GUIOS") {
+      cargarCatalogoAdmin();
+    }
+  }, [activeTab]);
+
+  const handleAbrirModalFactor = (factor = null) => {
+    if (factor) {
+      setModalFactor({
+        abierto: true,
+        modo: "editar",
+        id: factor.id,
+        nombre: factor.nombre,
+        descripcion: factor.descripcion || "",
+        id_dimension: factor.id_dimension,
+        importancia_literatura: factor.importancia_literatura,
+        alcance: factor.alcance,
+        cargando: false,
+        error: "",
+      });
+    } else {
+      setModalFactor({
+        abierto: true,
+        modo: "crear",
+        id: null,
+        nombre: "",
+        descripcion: "",
+        id_dimension: dimensionesAdmin[0]?.id || 1,
+        importancia_literatura: 3,
+        alcance: "Externo",
+        cargando: false,
+        error: "",
+      });
+    }
+  };
+
+  const handleGuardarFactor = async (e) => {
+    e.preventDefault();
+    setModalFactor((prev) => ({ ...prev, cargando: true, error: "" }));
+    try {
+      const payload = {
+        nombre: modalFactor.nombre.trim(),
+        descripcion: modalFactor.descripcion.trim(),
+        id_dimension: Number(modalFactor.id_dimension),
+        importancia_literatura: Number(modalFactor.importancia_literatura),
+        alcance: modalFactor.alcance,
+      };
+      if (modalFactor.modo === "crear") {
+        await apiService.crearFactor(payload);
+        mostrarToast("Factor creado exitosamente en el catálogo oficial.");
+      } else {
+        await apiService.actualizarFactor(modalFactor.id, payload);
+        mostrarToast("Factor actualizado con éxito.");
+      }
+      setModalFactor((prev) => ({ ...prev, abierto: false }));
+      cargarCatalogoAdmin();
+    } catch (err) {
+      setModalFactor((prev) => ({ ...prev, error: err.message || "Error al guardar el factor." }));
+    } finally {
+      setModalFactor((prev) => ({ ...prev, cargando: false }));
+    }
+  };
+
+  const handleToggleFactorEstado = (factor) => {
+    const accion = factor.activo ? "desactivar" : "activar";
+    setModalConfirm({
+      abierto: true,
+      titulo: `${factor.activo ? "Desactivar" : "Activar"} Factor Metodológico`,
+      mensaje: `¿Estás seguro de que deseas ${accion} el factor "${factor.nombre}"?`,
+      subtexto: factor.activo
+        ? "El factor quedará deshabilitado por baja lógica (activo = false). No se eliminará físicamente para preservar la integridad de las evaluaciones históricas."
+        : "El factor volverá a estar disponible para nuevas evaluaciones.",
+      tipo: factor.activo ? "danger" : "success",
+      textoConfirmar: factor.activo ? "Desactivar" : "Activar",
+      onConfirm: async () => {
+        await apiService.toggleFactorEstado(factor.id);
+        mostrarToast(`Factor "${factor.nombre}" ${factor.activo ? "desactivado" : "activado"}.`);
+        cargarCatalogoAdmin();
+      },
+    });
+  };
+
+  const handleAbrirModalSubfactor = (factor, subfactor = null) => {
+    if (subfactor) {
+      setModalSubfactor({
+        abierto: true,
+        modo: "editar",
+        id: subfactor.id,
+        codigo: subfactor.codigo,
+        descripcion: subfactor.descripcion,
+        id_factor: factor.id,
+        factorNombre: factor.nombre,
+        cargando: false,
+        error: "",
+      });
+    } else {
+      setModalSubfactor({
+        abierto: true,
+        modo: "crear",
+        id: null,
+        codigo: "",
+        descripcion: "",
+        id_factor: factor.id,
+        factorNombre: factor.nombre,
+        cargando: false,
+        error: "",
+      });
+    }
+  };
+
+  const handleGuardarSubfactor = async (e) => {
+    e.preventDefault();
+    setModalSubfactor((prev) => ({ ...prev, cargando: true, error: "" }));
+    try {
+      const payload = {
+        codigo: modalSubfactor.codigo.trim().toUpperCase(),
+        descripcion: modalSubfactor.descripcion.trim(),
+        id_factor: modalSubfactor.id_factor,
+      };
+      if (modalSubfactor.modo === "crear") {
+        await apiService.crearSubfactor(payload);
+        mostrarToast(`Subfactor ${payload.codigo} creado exitosamente.`);
+      } else {
+        await apiService.actualizarSubfactor(modalSubfactor.id, payload);
+        mostrarToast(`Subfactor ${payload.codigo} actualizado con éxito.`);
+      }
+      setModalSubfactor((prev) => ({ ...prev, abierto: false }));
+      cargarCatalogoAdmin();
+    } catch (err) {
+      setModalSubfactor((prev) => ({ ...prev, error: err.message || "Error al guardar el subfactor." }));
+    } finally {
+      setModalSubfactor((prev) => ({ ...prev, cargando: false }));
+    }
+  };
+
+  const handleToggleSubfactorEstado = (subfactor) => {
+    const accion = subfactor.activo ? "desactivar" : "activar";
+    setModalConfirm({
+      abierto: true,
+      titulo: `${subfactor.activo ? "Desactivar" : "Activar"} Subfactor`,
+      mensaje: `¿Estás seguro de que deseas ${accion} el reactivo "${subfactor.codigo}"?`,
+      subtexto: subfactor.activo
+        ? "El subfactor se desactiva por baja lógica. Las evaluaciones finalizadas mantendrán su snapshot histórico intacto."
+        : "El subfactor volverá a estar disponible para ser evaluado en nuevas evaluaciones.",
+      tipo: subfactor.activo ? "danger" : "success",
+      textoConfirmar: subfactor.activo ? "Desactivar" : "Activar",
+      onConfirm: async () => {
+        await apiService.toggleSubfactorEstado(subfactor.id);
+        mostrarToast(`Subfactor ${subfactor.codigo} ${subfactor.activo ? "desactivado" : "activado"}.`);
+        cargarCatalogoAdmin();
+      },
+    });
+  };
+
+  const factoresAdminFiltrados = useMemo(() => {
+    return factoresAdmin.filter((f) => {
+      const matchBusqueda =
+        f.nombre.toLowerCase().includes(busquedaCatalogo.toLowerCase()) ||
+        (f.descripcion || "").toLowerCase().includes(busquedaCatalogo.toLowerCase()) ||
+        (f.subfactores || []).some(
+          (sf) =>
+            sf.codigo.toLowerCase().includes(busquedaCatalogo.toLowerCase()) ||
+            sf.descripcion.toLowerCase().includes(busquedaCatalogo.toLowerCase())
+        );
+
+      const matchDim =
+        filtroDimensionCatalogo === "todas" ||
+        String(f.id_dimension) === String(filtroDimensionCatalogo);
+
+      let matchEstado = true;
+      if (filtroEstadoCatalogo === "activos") matchEstado = f.activo;
+      if (filtroEstadoCatalogo === "inactivos") matchEstado = !f.activo;
+
+      return matchBusqueda && matchDim && matchEstado;
+    });
+  }, [factoresAdmin, busquedaCatalogo, filtroDimensionCatalogo, filtroEstadoCatalogo]);
 
   return (
     <div className="space-y-6">
@@ -929,9 +1168,254 @@ export const Administracion = () => {
       )}
 
       {/* ======================================================================= */}
+      {/* PESTAÑA 3: GESTIÓN DEL CATÁLOGO GUIOS (HU-03, RF-03, RF-04) */}
+      {/* ======================================================================= */}
+      {activeTab === "Factores GUIOS" && (
+        <div className="space-y-6">
+          {/* Tarjeta Superior de Métricas y Acción */}
+          <div className="bg-white rounded-card border border-[#DDE7E1] p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-green-50 text-[#3F6F58] flex items-center justify-center">
+                  <Layers size={18} />
+                </div>
+                <h3 className="font-semibold text-gray-900 text-sm">
+                  Catálogo Metodológico GUIOS (Tesis Doctoral)
+                </h3>
+              </div>
+              <p className="text-xs text-gray-500 mt-1 max-w-2xl">
+                Administración de las 3 Dimensiones, 18 Factores y 61 Subfactores oficiales. Los cambios aplican baja lógica (<code className="text-[#3F6F58]">activo = false</code>) para preservar la inmutabilidad histórica de evaluaciones previas.
+              </p>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={() => handleAbrirModalFactor()}
+                className="px-3.5 py-2 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+              >
+                <Plus size={14} />
+                <span>Nuevo Factor</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Barra de Búsqueda y Filtros */}
+          <div className="bg-white rounded-card border border-[#DDE7E1] p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={busquedaCatalogo}
+                onChange={(e) => setBusquedaCatalogo(e.target.value)}
+                placeholder="Buscar por factor, código (SF-xx) o reactivo..."
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-[#DDE7E1] focus:outline-none focus:ring-2 focus:ring-[#3F6F58] bg-gray-50/50"
+              />
+            </div>
+            <div className="flex items-center gap-2.5">
+              <select
+                value={filtroDimensionCatalogo}
+                onChange={(e) => setFiltroDimensionCatalogo(e.target.value)}
+                className="px-3 py-2 text-xs rounded-lg border border-[#DDE7E1] bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#3F6F58]"
+              >
+                <option value="todas">Todas las Dimensiones</option>
+                {dimensionesAdmin.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.nombre}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={filtroEstadoCatalogo}
+                onChange={(e) => setFiltroEstadoCatalogo(e.target.value)}
+                className="px-3 py-2 text-xs rounded-lg border border-[#DDE7E1] bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#3F6F58]"
+              >
+                <option value="todos">Todos los Estados</option>
+                <option value="activos">Solo Activos</option>
+                <option value="inactivos">Solo Inactivos (Baja Lógica)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Tabla Jerárquica de Factores y Subfactores */}
+          <div className="bg-white rounded-card border border-[#DDE7E1] shadow-sm overflow-hidden">
+            {cargandoCatalogo ? (
+              <div className="p-12 text-center text-gray-500 text-xs flex flex-col items-center justify-center gap-2">
+                <RefreshCw size={20} className="animate-spin text-[#3F6F58]" />
+                <span>Cargando catálogo metodológico desde PostgreSQL...</span>
+              </div>
+            ) : factoresAdminFiltrados.length === 0 ? (
+              <div className="p-12 text-center text-gray-400 text-xs">
+                No se encontraron factores que coincidan con los filtros aplicados.
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {factoresAdminFiltrados.map((factor) => {
+                  const estaExpandido = factorExpandido === factor.id;
+                  const totalSubfactores = factor.subfactores?.length || 0;
+                  return (
+                    <div key={factor.id} className="transition-colors hover:bg-gray-50/40">
+                      {/* Fila Principal del Factor */}
+                      <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div className="flex items-start gap-3 flex-1">
+                          <button
+                            type="button"
+                            onClick={() => setFactorExpandido(estaExpandido ? null : factor.id)}
+                            className="mt-0.5 p-1 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                            title={estaExpandido ? "Colapsar subfactores" : "Ver subfactores"}
+                          >
+                            {estaExpandido ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </button>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-gray-900 text-xs sm:text-sm">
+                                {factor.nombre}
+                              </span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-[#EBF4EE] text-[#2F5444] border border-[#DDE7E1]">
+                                {factor.dimension_nombre || factor.id_dimension}
+                              </span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700">
+                                Alcance: {factor.alcance}
+                              </span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                                IS: {factor.importancia_literatura} / 4
+                              </span>
+                              {!factor.activo && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">
+                                  Inactivo (Baja lógica)
+                                </span>
+                              )}
+                            </div>
+                            {factor.descripcion && (
+                              <p className="text-xs text-gray-500 mt-1 max-w-3xl leading-relaxed">
+                                {factor.descripcion}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Acciones del Factor */}
+                        <div className="flex items-center gap-2 self-end md:self-center">
+                          <button
+                            type="button"
+                            onClick={() => setFactorExpandido(estaExpandido ? null : factor.id)}
+                            className="px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <span>{totalSubfactores} reactivos</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAbrirModalSubfactor(factor)}
+                            className="p-1.5 text-gray-500 hover:text-[#3F6F58] hover:bg-green-50 rounded-lg transition-colors cursor-pointer"
+                            title="Añadir reactivo (subfactor)"
+                          >
+                            <Plus size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAbrirModalFactor(factor)}
+                            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            title="Editar factor"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleFactorEstado(factor)}
+                            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                              factor.activo
+                                ? "text-red-500 hover:text-red-700 hover:bg-red-50"
+                                : "text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50"
+                            }`}
+                            title={factor.activo ? "Desactivar factor" : "Reactivar factor"}
+                          >
+                            {factor.activo ? <UserX size={15} /> : <UserCheck size={15} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Desplegable de Subfactores (Reactivos) */}
+                      {estaExpandido && (
+                        <div className="bg-[#F8FAF9] p-4 border-t border-gray-100 pl-10 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-gray-700 tracking-wide">
+                              SUBFACTORES / REACTIVOS ASOCIADOS ({totalSubfactores})
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleAbrirModalSubfactor(factor)}
+                              className="text-xs text-[#3F6F58] hover:underline font-medium flex items-center gap-1 cursor-pointer"
+                            >
+                              <Plus size={13} />
+                              <span>Agregar reactivo a {factor.nombre}</span>
+                            </button>
+                          </div>
+
+                          {totalSubfactores === 0 ? (
+                            <p className="text-xs text-gray-400 italic">
+                              No hay reactivos registrados para este factor.
+                            </p>
+                          ) : (
+                            <div className="bg-white rounded-lg border border-[#DDE7E1] overflow-hidden divide-y divide-gray-100">
+                              {factor.subfactores.map((sf) => (
+                                <div
+                                  key={sf.id}
+                                  className="p-3 flex items-center justify-between gap-3 text-xs"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <span className="font-mono font-bold text-[#2F5444] bg-green-50 px-2 py-0.5 rounded border border-[#DDE7E1]">
+                                      {sf.codigo}
+                                    </span>
+                                    <span className={sf.activo ? "text-gray-800" : "text-gray-400 line-through"}>
+                                      {sf.descripcion}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    {!sf.activo && (
+                                      <span className="text-[10px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded mr-1">
+                                        Inactivo
+                                      </span>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAbrirModalSubfactor(factor, sf)}
+                                      className="p-1 text-gray-400 hover:text-blue-600 hover:bg-gray-100 rounded cursor-pointer"
+                                      title="Editar reactivo"
+                                    >
+                                      <Edit2 size={13} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleSubfactorEstado(sf)}
+                                      className={`p-1 rounded cursor-pointer ${
+                                        sf.activo
+                                          ? "text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                          : "text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50"
+                                      }`}
+                                      title={sf.activo ? "Desactivar reactivo" : "Activar reactivo"}
+                                    >
+                                      {sf.activo ? <UserX size={13} /> : <UserCheck size={13} />}
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================================= */}
       {/* OTRAS PESTAÑAS (Módulos Informativos) */}
       {/* ======================================================================= */}
-      {activeTab !== "Usuarios" && activeTab !== "Palabras clave por factor" && (
+      {activeTab !== "Usuarios" &&
+        activeTab !== "Palabras clave por factor" &&
+        activeTab !== "Factores GUIOS" && (
         <div className="bg-white rounded-card border border-[#DDE7E1] p-12 text-center shadow-sm space-y-4">
           <div className="w-12 h-12 bg-green-50 text-[#3F6F58] rounded-xl flex items-center justify-center mx-auto">
             <ShieldCheck size={24} />
@@ -1154,6 +1638,233 @@ export const Administracion = () => {
                 Cerrar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================================= */}
+      {/* MODAL HU-03: CREAR / EDITAR FACTOR METODOLÓGICO */}
+      {/* ======================================================================= */}
+      {modalFactor.abierto && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-[#DDE7E1] shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-[#3F6F58] flex items-center justify-center font-bold text-xs border border-emerald-200">
+                  <Layers size={16} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 text-sm">
+                    {modalFactor.modo === "crear" ? "Nuevo Factor Metodológico" : "Editar Factor Metodológico"}
+                  </h3>
+                  <p className="text-[11px] text-gray-400">
+                    Catálogo oficial GUIOS (Escala y ponderación metodológica)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalFactor((prev) => ({ ...prev, abierto: false }))}
+                className="text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {modalFactor.error && (
+              <div className="p-2.5 rounded-lg bg-red-50 text-red-600 text-xs border border-red-200 flex items-center gap-2">
+                <AlertCircle size={14} className="shrink-0" />
+                <span>{modalFactor.error}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleGuardarFactor} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Nombre del Factor *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={modalFactor.nombre}
+                  onChange={(e) => setModalFactor((prev) => ({ ...prev, nombre: e.target.value }))}
+                  placeholder="Ej. Interoperabilidad Semántica"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#DDE7E1] focus:outline-none focus:ring-2 focus:ring-[#3F6F58]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Dimensión GUIOS *
+                  </label>
+                  <select
+                    value={modalFactor.id_dimension}
+                    onChange={(e) => setModalFactor((prev) => ({ ...prev, id_dimension: Number(e.target.value) }))}
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-[#DDE7E1] bg-white focus:outline-none focus:ring-2 focus:ring-[#3F6F58]"
+                  >
+                    {dimensionesAdmin.map((dim) => (
+                      <option key={dim.id} value={dim.id}>
+                        {dim.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Alcance Operativo *
+                  </label>
+                  <select
+                    value={modalFactor.alcance}
+                    onChange={(e) => setModalFactor((prev) => ({ ...prev, alcance: e.target.value }))}
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-[#DDE7E1] bg-white focus:outline-none focus:ring-2 focus:ring-[#3F6F58]"
+                  >
+                    <option value="Externo">Externo</option>
+                    <option value="Interno">Interno</option>
+                    <option value="Ambos">Ambos</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Importancia en Literatura (1 a 4) *
+                </label>
+                <select
+                  value={modalFactor.importancia_literatura}
+                  onChange={(e) =>
+                    setModalFactor((prev) => ({ ...prev, importancia_literatura: Number(e.target.value) }))
+                  }
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#DDE7E1] bg-white focus:outline-none focus:ring-2 focus:ring-[#3F6F58]"
+                >
+                  <option value="1">1 - Baja relevancia teórica</option>
+                  <option value="2">2 - Moderada relevancia</option>
+                  <option value="3">3 - Alta relevancia metodológica</option>
+                  <option value="4">4 - Relevancia Crítica / Fundamental</option>
+                </select>
+                <span className="text-[10px] text-gray-400 mt-0.5 block">
+                  Define el peso ponderado en el cálculo de madurez según la fórmula GUIOS.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Descripción / Definición Teórica
+                </label>
+                <textarea
+                  rows={3}
+                  value={modalFactor.descripcion}
+                  onChange={(e) => setModalFactor((prev) => ({ ...prev, descripcion: e.target.value }))}
+                  placeholder="Detalle el marco conceptual o criterios metodológicos del factor..."
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#DDE7E1] focus:outline-none focus:ring-2 focus:ring-[#3F6F58]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setModalFactor((prev) => ({ ...prev, abierto: false }))}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={modalFactor.cargando}
+                  className="px-4 py-1.5 rounded-lg bg-[#3F6F58] text-white text-xs font-semibold hover:bg-[#325846] disabled:opacity-50 cursor-pointer"
+                >
+                  {modalFactor.cargando ? "Guardando..." : "Guardar Factor"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================================= */}
+      {/* MODAL HU-03: CREAR / EDITAR SUBFACTOR (REACTIVO GUIOS) */}
+      {/* ======================================================================= */}
+      {modalSubfactor.abierto && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full border border-[#DDE7E1] shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center font-bold text-xs border border-teal-200">
+                  <Hash size={16} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 text-sm">
+                    {modalSubfactor.modo === "crear" ? "Nuevo Subfactor (Reactivo)" : "Editar Subfactor"}
+                  </h3>
+                  <p className="text-[11px] text-gray-400">
+                    Asignado a: <span className="font-semibold text-gray-700">{modalSubfactor.factorNombre}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalSubfactor((prev) => ({ ...prev, abierto: false }))}
+                className="text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {modalSubfactor.error && (
+              <div className="p-2.5 rounded-lg bg-red-50 text-red-600 text-xs border border-red-200 flex items-center gap-2">
+                <AlertCircle size={14} className="shrink-0" />
+                <span>{modalSubfactor.error}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleGuardarSubfactor} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Código de Identificación (Único) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={modalSubfactor.codigo}
+                  onChange={(e) => setModalSubfactor((prev) => ({ ...prev, codigo: e.target.value.toUpperCase() }))}
+                  placeholder="Ej. SF-62"
+                  className="w-full px-3 py-2 text-xs font-mono font-bold rounded-lg border border-[#DDE7E1] focus:outline-none focus:ring-2 focus:ring-[#3F6F58]"
+                />
+                <span className="text-[10px] text-gray-400 mt-0.5 block">
+                  Formato estándar: SF-XX (se almacena en mayúsculas).
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Descripción / Enunciado del Reactivo *
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  value={modalSubfactor.descripcion}
+                  onChange={(e) => setModalSubfactor((prev) => ({ ...prev, descripcion: e.target.value }))}
+                  placeholder="Redacte la pregunta o enunciado que el evaluador responderá en la escala 1-4..."
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#DDE7E1] focus:outline-none focus:ring-2 focus:ring-[#3F6F58]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setModalSubfactor((prev) => ({ ...prev, abierto: false }))}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={modalSubfactor.cargando}
+                  className="px-4 py-1.5 rounded-lg bg-[#3F6F58] text-white text-xs font-semibold hover:bg-[#325846] disabled:opacity-50 cursor-pointer"
+                >
+                  {modalSubfactor.cargando ? "Guardando..." : "Guardar Subfactor"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

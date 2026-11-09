@@ -15,14 +15,26 @@ from guio_core.models import (
 # SERIALIZERS DEL CATÁLOGO OFICIAL 
 # ==============================================================================
 class SubfactorCatalogoSerializer(serializers.ModelSerializer):
+    factor_nombre = serializers.CharField(source="id_factor.nombre", read_only=True)
+
     class Meta:
         model = Subfactor
-        fields = ["id", "codigo", "descripcion", "activo"]
+        fields = ["id", "codigo", "descripcion", "id_factor", "factor_nombre", "activo"]
+
+    def validate_codigo(self, value):
+        val = value.strip().upper()
+        qs = Subfactor.objects.filter(codigo__iexact=val)
+        if self.instance:
+            qs = qs.exclude(id=self.instance.id)
+        if qs.exists():
+            raise serializers.ValidationError("Ya existe un subfactor registrado con este código.")
+        return val
 
 
 class FactorCatalogoSerializer(serializers.ModelSerializer):
     subfactores = SubfactorCatalogoSerializer(many=True, read_only=True)
     total_subfactores = serializers.IntegerField(source="subfactores.count", read_only=True)
+    dimension_nombre = serializers.CharField(source="id_dimension.nombre", read_only=True)
 
     class Meta:
         model = Factor
@@ -31,12 +43,22 @@ class FactorCatalogoSerializer(serializers.ModelSerializer):
             "nombre",
             "descripcion",
             "id_dimension",
+            "dimension_nombre",
             "importancia_literatura",
             "alcance",
             "activo",
             "total_subfactores",
             "subfactores",
         ]
+
+    def validate_nombre(self, value):
+        val = value.strip()
+        qs = Factor.objects.filter(nombre__iexact=val)
+        if self.instance:
+            qs = qs.exclude(id=self.instance.id)
+        if qs.exists():
+            raise serializers.ValidationError("Ya existe un factor registrado con este nombre.")
+        return val
 
 
 class DimensionCatalogoSerializer(serializers.ModelSerializer):
@@ -52,6 +74,15 @@ class DimensionCatalogoSerializer(serializers.ModelSerializer):
             "total_factores",
             "factores",
         ]
+
+    def validate_nombre(self, value):
+        val = value.strip()
+        qs = Dimension.objects.filter(nombre__iexact=val)
+        if self.instance:
+            qs = qs.exclude(id=self.instance.id)
+        if qs.exists():
+            raise serializers.ValidationError("Ya existe una dimensión registrada con este nombre.")
+        return val
 
 
 class RecomendacionCatalogoSerializer(serializers.ModelSerializer):

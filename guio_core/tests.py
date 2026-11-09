@@ -238,3 +238,108 @@ class EvaluacionApiFlowTestCase(TestCase):
         self.assertNotIn("<script>", content_disp)
         self.assertIn("attachment; filename=", content_disp)
 
+
+class AdminCatalogoHU03TestCase(TestCase):
+    """Pruebas unitarias para HU-03: Gestión del Catálogo de Evaluación (RF-03, RF-04)."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.rol_admin = Rol.objects.create(nombre=Rol.TipoRol.ADMINISTRADOR)
+        self.rol_eval = Rol.objects.create(nombre=Rol.TipoRol.EVALUADOR)
+
+        self.admin = Usuario.objects.create_user(
+            email="admin.catalogo@guiosplus.org",
+            nombre="Admin Catalogo",
+            password="AdminPassword123!",
+            id_rol=self.rol_admin,
+        )
+
+        self.evaluador = Usuario.objects.create_user(
+            email="eval.catalogo@guiosplus.org",
+            nombre="Eval Catalogo",
+            password="EvalPassword123!",
+            id_rol=self.rol_eval,
+        )
+
+        self.dim = Dimension.objects.create(nombre="Tecnológica")
+        self.factor = Factor.objects.create(
+            nombre="Compatibilidad",
+            id_dimension=self.dim,
+            importancia_literatura=3,
+            alcance="Externo",
+        )
+        self.sf = Subfactor.objects.create(
+            codigo="SF-01",
+            descripcion="Prueba subfactor",
+            id_factor=self.factor,
+        )
+
+    def test_evaluador_no_puede_modificar_catalogo(self):
+        """Un evaluador no debe tener acceso a crear o editar factores."""
+        self.client.force_authenticate(user=self.evaluador)
+        resp = self.client.post("/api/v1/guios/admin/factores/", {
+            "nombre": "Nuevo Factor Malicioso",
+            "id_dimension": self.dim.id,
+            "importancia_literatura": 3,
+            "alcance": "Interno",
+        }, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_crear_editar_baja_logica_factor(self):
+        """El administrador puede crear, editar y aplicar baja lógica a un factor."""
+        self.client.force_authenticate(user=self.admin)
+
+        # 1. Crear nuevo factor
+        resp_crear = self.client.post("/api/v1/guios/admin/factores/", {
+            "nombre": "Seguridad en la Nube",
+            "descripcion": "Evaluación de cifrado y controles cloud.",
+            "id_dimension": self.dim.id,
+            "importancia_literatura": 4,
+            "alcance": "Externo",
+        }, format="json")
+        self.assertEqual(resp_crear.status_code, status.HTTP_201_CREATED)
+        factor_id = resp_crear.data["id"]
+
+        # 2. Editar factor
+        resp_edit = self.client.patch(f"/api/v1/guios/admin/factores/{factor_id}/", {
+            "importancia_literatura": 3,
+        }, format="json")
+        self.assertEqual(resp_edit.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_edit.data["importancia_literatura"], 3)
+
+        # 3. Baja lógica mediante cambiar-estado
+        resp_toggle = self.client.post(f"/api/v1/guios/admin/factores/{factor_id}/cambiar-estado/")
+        self.assertEqual(resp_toggle.status_code, status.HTTP_200_OK)
+        self.assertFalse(resp_toggle.data["data"]["activo"])
+
+        # Verificar persistencia en base de datos
+        factor_db = Factor.objects.get(id=factor_id)
+        self.assertFalse(factor_db.activo)
+
+    def test_admin_crear_y_baja_logica_subfactor(self):
+        """El administrador puede crear y desactivar subfactores con código único."""
+        self.client.force_authenticate(user=self.admin)
+
+        # 1. Crear subfactor
+        resp_crear = self.client.post("/api/v1/guios/admin/subfactores/", {
+            "codigo": "SF-99",
+            "descripcion": "El software soporta autenticación OAuth2 / SAML.",
+            "id_factor": self.factor.id,
+        }, format="json")
+        self.assertEqual(resp_crear.status_code, status.HTTP_201_CREATED)
+        sf_id = resp_crear.data["id"]
+
+        # 2. Rechazar duplicado de código
+        resp_dup = self.client.post("/api/v1/guios/admin/subfactores/", {
+            "codigo": "SF-99",
+            "descripcion": "Duplicado",
+            "id_factor": self.factor.id,
+        }, format="json")
+        self.assertEqual(resp_dup.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # 3. Baja lógica
+        resp_delete = self.client.delete(f"/api/v1/guios/admin/subfactores/{sf_id}/")
+        self.assertEqual(resp_delete.status_code, status.HTTP_204_NO_CONTENT)
+        sf_db = Subfactor.objects.get(id=sf_id)
+        self.assertFalse(sf_db.activo)
+
