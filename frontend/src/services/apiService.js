@@ -38,25 +38,27 @@ async function ensureValidToken() {
     return currentToken;
   }
 
-  // Si no hay token o es un mock, obtener token JWT real de Django
-  try {
-    const res = await doFetch(`${API_BASE_URL}/users/auth/login/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "admin@guiosplus.org", password: "demo2026" }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.access) {
-        localStorage.setItem("guios_access_token", data.access);
-        if (data.refresh) localStorage.setItem("guios_refresh_token", data.refresh);
-        if (data.user) localStorage.setItem("guios_user", JSON.stringify(data.user));
-        return data.access;
+  // Si el access token expiró pero existe un refresh token, renovarlo de forma segura
+  const refreshToken = localStorage.getItem("guios_refresh_token");
+  if (refreshToken && !refreshToken.startsWith("mock-")) {
+    try {
+      const res = await doFetch(`${API_BASE_URL}/users/auth/refresh/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh: refreshToken }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.access) {
+          localStorage.setItem("guios_access_token", data.access);
+          return data.access;
+        }
       }
+    } catch (e) {
+      console.warn("Renovación de token JWT falló:", e.message);
     }
-  } catch (e) {
-    console.warn("Auto-login no disponible:", e.message);
   }
+
   return "";
 }
 
@@ -143,39 +145,44 @@ export const apiService = {
         throw err;
       }
 
-      // Si fue fallo de red / backend apagado, fallback mock:
-      const isAdmin = email.toLowerCase().includes("admin") || email === "admin@guiosplus.org";
-      const fallbackUser = {
-        id: isAdmin ? 1 : 2,
-        nombre: isAdmin ? "Admin Usuario" : "Evaluador Técnico",
-        email: email || "usuario@guiosplus.org",
-        rol: isAdmin ? "administrador" : "evaluador",
-        avatar: isAdmin ? "AU" : "ET",
-      };
-      localStorage.setItem("guios_user", JSON.stringify(fallbackUser));
-      return {
-        user: fallbackUser,
-        token: "mock-jwt-token-fallback",
-        isLiveApi: false,
-      };
+      // Si fue fallo de red o backend no disponible, informar error de conexión seguro
+      throw new Error(
+        "No se pudo conectar con el servidor de autenticación de GUIOS+. Compruebe que el servicio backend esté activo."
+      );
     }
   },
 
   async register(nombre, email, password) {
-    return await request("/users/auth/registro/", {
+    return await request("/users/auth/register/", {
       method: "POST",
       body: JSON.stringify({ nombre, email, password }),
     });
   },
 
-  logout() {
+  async logout() {
+    const refreshToken = localStorage.getItem("guios_refresh_token");
+    const accessToken = getStoredToken();
+    if (refreshToken && !refreshToken.startsWith("mock-")) {
+      try {
+        await doFetch(`${API_BASE_URL}/users/auth/logout/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify({ refresh: refreshToken }),
+        });
+      } catch (e) {
+        console.warn("Aviso al cerrar sesión en servidor:", e.message);
+      }
+    }
     localStorage.removeItem("guios_access_token");
     localStorage.removeItem("guios_refresh_token");
     localStorage.removeItem("guios_user");
   },
 
   // ---------------------------------------------------------------------------
-  // 2. Catálogo Oficial (Dimensiones, Factores, Subfactores)
+  // 2. Catálogo Oficial & Administración (HU-03)
   // ---------------------------------------------------------------------------
   async getCatalogo() {
     try {
@@ -188,6 +195,78 @@ export const apiService = {
         factores: MOCK_FACTORES,
       };
     }
+  },
+
+  async getAdminDimensiones() {
+    return await request("/guios/admin/dimensiones/");
+  },
+
+  async crearDimension(data) {
+    return await request("/guios/admin/dimensiones/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async actualizarDimension(id, data) {
+    return await request(`/guios/admin/dimensiones/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async toggleDimensionEstado(id) {
+    return await request(`/guios/admin/dimensiones/${id}/cambiar-estado/`, {
+      method: "POST",
+    });
+  },
+
+  async getAdminFactores() {
+    return await request("/guios/admin/factores/");
+  },
+
+  async crearFactor(data) {
+    return await request("/guios/admin/factores/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async actualizarFactor(id, data) {
+    return await request(`/guios/admin/factores/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async toggleFactorEstado(id) {
+    return await request(`/guios/admin/factores/${id}/cambiar-estado/`, {
+      method: "POST",
+    });
+  },
+
+  async getAdminSubfactores() {
+    return await request("/guios/admin/subfactores/");
+  },
+
+  async crearSubfactor(data) {
+    return await request("/guios/admin/subfactores/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async actualizarSubfactor(id, data) {
+    return await request(`/guios/admin/subfactores/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async toggleSubfactorEstado(id) {
+    return await request(`/guios/admin/subfactores/${id}/cambiar-estado/`, {
+      method: "POST",
+    });
   },
 
   async getFactores() {

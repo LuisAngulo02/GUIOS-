@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from users.views import (
     LoginView,
+    LogoutView,
     RegistroView,
     PerfilView,
     AdminUsuariosViewSet,
@@ -15,9 +16,11 @@ router = DefaultRouter()
 router.register(r"admin/cuentas", AdminUsuariosViewSet, basename="admin-usuarios")
 
 urlpatterns = [
-    # HU-01: Autenticación JWT
+    # HU-01: Autenticación JWT y revocación
     path("auth/login/", LoginView.as_view(), name="login"),
+    path("auth/logout/", LogoutView.as_view(), name="logout"),
     path("auth/register/", RegistroView.as_view(), name="register"),
+    path("auth/registro/", RegistroView.as_view(), name="registro_alias"),
     path("auth/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/me/", PerfilView.as_view(), name="perfil"),
 

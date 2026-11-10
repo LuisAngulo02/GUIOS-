@@ -1,3 +1,4 @@
+import re
 from rest_framework import status, views, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -7,6 +8,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.http import HttpResponse
 
+from users.permissions import EsAdministrador
 from guio_core.pdf_generator import generar_informe_pdf
 from guio_core.models import (
     Dimension,
@@ -20,6 +22,7 @@ from guio_core.models import (
     LogAuditoria,
 )
 from guio_core.serializers import (
+    SubfactorCatalogoSerializer,
     DimensionCatalogoSerializer,
     FactorCatalogoSerializer,
     RecomendacionCatalogoSerializer,
@@ -56,6 +59,171 @@ class CatalogoView(views.APIView):
                 "dimensiones": data,
                 "recomendaciones": recomendaciones_data,
             },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminDimensionesViewSet(viewsets.ModelViewSet):
+    """HU-03: CRUD administrativo de Dimensiones con baja lógica."""
+    permission_classes = [IsAuthenticated, EsAdministrador]
+    queryset = Dimension.objects.all().order_by("id")
+    serializer_class = DimensionCatalogoSerializer
+
+    def perform_create(self, serializer):
+        dim = serializer.save()
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="crear_dimension",
+            entidad="dimension",
+            id_entidad=str(dim.id),
+            detalle=f"Creación de dimensión '{dim.nombre}'",
+        )
+
+    def perform_update(self, serializer):
+        dim = serializer.save()
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="actualizar_dimension",
+            entidad="dimension",
+            id_entidad=str(dim.id),
+            detalle=f"Actualización de dimensión '{dim.nombre}'",
+        )
+
+    def perform_destroy(self, instance):
+        instance.activo = False
+        instance.save(update_fields=["activo"])
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="desactivar_dimension",
+            entidad="dimension",
+            id_entidad=str(instance.id),
+            detalle=f"Baja lógica de dimensión '{instance.nombre}'",
+        )
+
+    @action(detail=True, methods=["post"], url_path="cambiar-estado")
+    def cambiar_estado(self, request, pk=None):
+        dim = self.get_object()
+        dim.activo = not dim.activo
+        dim.save(update_fields=["activo"])
+        LogAuditoria.objects.create(
+            id_usuario=request.user,
+            accion="activar_dimension" if dim.activo else "desactivar_dimension",
+            entidad="dimension",
+            id_entidad=str(dim.id),
+            detalle=f"Dimensión '{dim.nombre}' {'activada' if dim.activo else 'desactivada'}",
+        )
+        return Response(
+            {"message": f"Dimensión '{dim.nombre}' actualizada.", "data": DimensionCatalogoSerializer(dim).data},
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminFactoresViewSet(viewsets.ModelViewSet):
+    """HU-03: CRUD administrativo de Factores con baja lógica."""
+    permission_classes = [IsAuthenticated, EsAdministrador]
+    queryset = Factor.objects.select_related("id_dimension").prefetch_related("subfactores").order_by("id")
+    serializer_class = FactorCatalogoSerializer
+
+    def perform_create(self, serializer):
+        factor = serializer.save()
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="crear_factor",
+            entidad="factor",
+            id_entidad=str(factor.id),
+            detalle=f"Creación de factor '{factor.nombre}' en dimensión {factor.id_dimension.nombre}",
+        )
+
+    def perform_update(self, serializer):
+        factor = serializer.save()
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="actualizar_factor",
+            entidad="factor",
+            id_entidad=str(factor.id),
+            detalle=f"Actualización de factor '{factor.nombre}'",
+        )
+
+    def perform_destroy(self, instance):
+        instance.activo = False
+        instance.save(update_fields=["activo"])
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="desactivar_factor",
+            entidad="factor",
+            id_entidad=str(instance.id),
+            detalle=f"Baja lógica de factor '{instance.nombre}'",
+        )
+
+    @action(detail=True, methods=["post"], url_path="cambiar-estado")
+    def cambiar_estado(self, request, pk=None):
+        factor = self.get_object()
+        factor.activo = not factor.activo
+        factor.save(update_fields=["activo"])
+        LogAuditoria.objects.create(
+            id_usuario=request.user,
+            accion="activar_factor" if factor.activo else "desactivar_factor",
+            entidad="factor",
+            id_entidad=str(factor.id),
+            detalle=f"Factor '{factor.nombre}' {'activado' if factor.activo else 'desactivado'}",
+        )
+        return Response(
+            {"message": f"Factor '{factor.nombre}' actualizado.", "data": FactorCatalogoSerializer(factor).data},
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminSubfactoresViewSet(viewsets.ModelViewSet):
+    """HU-03: CRUD administrativo de Subfactores con baja lógica."""
+    permission_classes = [IsAuthenticated, EsAdministrador]
+    queryset = Subfactor.objects.select_related("id_factor").order_by("codigo")
+    serializer_class = SubfactorCatalogoSerializer
+
+    def perform_create(self, serializer):
+        sf = serializer.save()
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="crear_subfactor",
+            entidad="subfactor",
+            id_entidad=str(sf.id),
+            detalle=f"Creación de subfactor '{sf.codigo}' en factor {sf.id_factor.nombre}",
+        )
+
+    def perform_update(self, serializer):
+        sf = serializer.save()
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="actualizar_subfactor",
+            entidad="subfactor",
+            id_entidad=str(sf.id),
+            detalle=f"Actualización de subfactor '{sf.codigo}'",
+        )
+
+    def perform_destroy(self, instance):
+        instance.activo = False
+        instance.save(update_fields=["activo"])
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="desactivar_subfactor",
+            entidad="subfactor",
+            id_entidad=str(instance.id),
+            detalle=f"Baja lógica de subfactor '{instance.codigo}'",
+        )
+
+    @action(detail=True, methods=["post"], url_path="cambiar-estado")
+    def cambiar_estado(self, request, pk=None):
+        sf = self.get_object()
+        sf.activo = not sf.activo
+        sf.save(update_fields=["activo"])
+        LogAuditoria.objects.create(
+            id_usuario=request.user,
+            accion="activar_subfactor" if sf.activo else "desactivar_subfactor",
+            entidad="subfactor",
+            id_entidad=str(sf.id),
+            detalle=f"Subfactor '{sf.codigo}' {'activado' if sf.activo else 'desactivado'}",
+        )
+        return Response(
+            {"message": f"Subfactor '{sf.codigo}' actualizado.", "data": SubfactorCatalogoSerializer(sf).data},
             status=status.HTTP_200_OK,
         )
 
@@ -101,6 +269,28 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
             entidad="evaluacion",
             id_entidad=str(evaluacion.id),
             detalle=f"Inicio de evaluación para el software: {evaluacion.nombre_software}",
+        )
+
+    def perform_update(self, serializer):
+        evaluacion = serializer.save()
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="actualizar_evaluacion",
+            entidad="evaluacion",
+            id_entidad=str(evaluacion.id),
+            detalle=f"Actualización de metadatos para evaluación '{evaluacion.nombre_software}'",
+        )
+
+    def perform_destroy(self, instance):
+        eval_id = str(instance.id)
+        eval_nombre = instance.nombre_software
+        instance.delete()
+        LogAuditoria.objects.create(
+            id_usuario=self.request.user,
+            accion="eliminar_evaluacion",
+            entidad="evaluacion",
+            id_entidad=eval_id,
+            detalle=f"Eliminación de la evaluación '{eval_nombre}'",
         )
 
     @action(detail=True, methods=["post"], url_path="paso1")
@@ -249,14 +439,17 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
                 sf.codigo: sf for sf in Subfactor.objects.filter(codigo__in=sf_codigos, activo=True)
             }
 
+            relevantes_factor_ids = set(relevantes_rf.values_list("id_factor_id", flat=True))
+
             with transaction.atomic():
+                guardados_count = 0
                 for item in items_subfactores:
                     sf_obj = None
                     if item.get("id_subfactor"):
                         sf_obj = subfactores_dict_id.get(item["id_subfactor"])
                     if not sf_obj and item.get("codigo"):
                         sf_obj = subfactores_dict_cod.get(item["codigo"])
-                    if not sf_obj:
+                    if not sf_obj or sf_obj.id_factor_id not in relevantes_factor_ids:
                         continue
                     ResultadoSubfactor.objects.update_or_create(
                         id_evaluacion=evaluacion,
@@ -266,13 +459,14 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
                             "observacion": item.get("observacion") or "",
                         },
                     )
+                    guardados_count += 1
 
                 LogAuditoria.objects.create(
                     id_usuario=request.user,
                     accion="evaluacion_paso2",
                     entidad="evaluacion",
                     id_entidad=str(evaluacion.id),
-                    detalle=f"Guardadas {len(items_subfactores)} calificaciones de subfactores.",
+                    detalle=f"Guardadas {guardados_count} calificaciones de subfactores relevantes.",
                 )
 
         # Mapear estado y calificaciones actuales
@@ -346,6 +540,11 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
         )
 
     def _ejecutar_calculo_foda_interno(self, evaluacion, user=None):
+        if evaluacion.estado == Evaluacion.EstadoEvaluacion.COMPLETADA:
+            return None, "Esta evaluación ya fue completada y está congelada contra modificaciones."
+        if evaluacion.estado == Evaluacion.EstadoEvaluacion.CANCELADA:
+            return None, "No se puede emitir dictamen para una evaluación cancelada."
+
         relevantes_rf = evaluacion.resultados_factor.exclude(
             importancia_relativa=ResultadoFactor.ImportanciaRelativaTexto.IRRELEVANTE
         ).select_related("id_factor", "id_factor__id_dimension")
@@ -357,6 +556,20 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
             rs.id_subfactor_id: rs.calificacion
             for rs in evaluacion.resultados_subfactor.all()
         }
+
+        # Validar rigurosamente que todos los subfactores relevantes estén calificados (RNF metodológico)
+        faltantes = []
+        for rf in relevantes_rf:
+            sfs = rf.id_factor.subfactores.filter(activo=True)
+            for sf in sfs:
+                if sf.id not in calificaciones_map:
+                    faltantes.append(sf.codigo)
+
+        if faltantes:
+            return None, (
+                f"Evaluación incompleta: faltan calificar {len(faltantes)} reactivo(s) de los factores relevantes "
+                f"({', '.join(faltantes[:5])}{'...' if len(faltantes) > 5 else ''}). Complete el Paso 2 antes de calcular."
+            )
 
         foda_registros = []
         factores_criticos = []
@@ -374,9 +587,8 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
                 sfs = factor.subfactores.filter(activo=True)
                 notas = [calificaciones_map[sf.id] for sf in sfs if sf.id in calificaciones_map]
 
-                # Si no hay calificaciones para este factor, usar default 3
                 if not notas:
-                    notas = [3]
+                    return None, f"El factor relevante '{rf.nombre_factor}' no cuenta con subfactores activos para calificar."
 
                 pm = round(sum(notas) / len(notas), 2)
                 alcance = rf.alcance_aplicado or factor.alcance
@@ -625,8 +837,14 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
         """
         evaluacion = self.get_object()
         try:
-            # 1. Si vienen factores o subfactores en el body de POST, persistirlos
+            # 1. Si vienen factores o subfactores en el body de POST, persistirlos si no está congelada
             if request.method == "POST" and request.data:
+                if evaluacion.estado == Evaluacion.EstadoEvaluacion.COMPLETADA:
+                    return Response(
+                        {"detail": "Esta evaluación ya fue completada y está congelada contra modificaciones."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
                 payload_factores = request.data.get("factores")
                 payload_subfactores = request.data.get("subfactores")
 
@@ -638,7 +856,11 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
                         f_obj = Factor.objects.filter(id=f_id).first()
                         if not f_obj:
                             continue
-                        id_val = int(item.get("importancia_decisor") or item.get("ID") or 1)
+                        raw_id = item.get("importancia_decisor") or item.get("ID") or 1
+                        try:
+                            id_val = max(1, min(4, int(raw_id)))
+                        except (ValueError, TypeError):
+                            id_val = 1
                         is_val = f_obj.importancia_literatura or 3
                         ir_num = (is_val + id_val) // 2
                         mapa_ir = {
@@ -671,7 +893,11 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
                         if not sf_obj and sf_cod:
                             sf_obj = Subfactor.objects.filter(codigo=sf_cod).first()
                         if sf_obj:
-                            calif = int(sf_item.get("calificacion") or 1)
+                            raw_calif = sf_item.get("calificacion") or 1
+                            try:
+                                calif = max(1, min(4, int(raw_calif)))
+                            except (ValueError, TypeError):
+                                calif = 1
                             obs = sf_item.get("observacion") or ""
                             ResultadoSubfactor.objects.update_or_create(
                                 id_evaluacion=evaluacion,
@@ -711,13 +937,15 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
 
             # 4. Salvaguarda FODA: si no está calculado o faltan registros FODA
             if evaluacion.resultados_foda.count() == 0 or evaluacion.estado != Evaluacion.EstadoEvaluacion.COMPLETADA:
-                self._ejecutar_calculo_foda_interno(evaluacion, user=request.user)
+                _, err = self._ejecutar_calculo_foda_interno(evaluacion, user=request.user)
+                if err and evaluacion.resultados_foda.count() == 0:
+                    return Response({"detail": err}, status=status.HTTP_400_BAD_REQUEST)
                 evaluacion.refresh_from_db()
 
             pdf_bytes = generar_informe_pdf(evaluacion)
             response = HttpResponse(pdf_bytes, content_type="application/pdf")
-            software_safe = evaluacion.nombre_software.replace(" ", "_").replace("/", "-")
-            filename = f"Informe_GUIOS_{software_safe}_ID{evaluacion.id}.pdf"
+            software_clean = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', evaluacion.nombre_software.strip())[:50] or "FLOSS"
+            filename = f"Informe_GUIOS_{software_clean}_ID{evaluacion.id}.pdf"
             response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
             LogAuditoria.objects.create(

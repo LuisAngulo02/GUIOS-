@@ -7,10 +7,10 @@ import { useEvaluation } from "../context/EvaluationContext";
  * Pantalla 1: Login (/login)
  */
 export const Login = () => {
-  const [email, setEmail] = useState("admin@guiosplus.org");
-  const [password, setPassword] = useState("demo2026");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(true);
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -152,13 +152,8 @@ export const Login = () => {
 
         {/* Nota de roles */}
         <p className="text-[11px] text-gray-400 text-center mt-4">
-          Tu rol (Administrador o Evaluador) se asigna al crear la cuenta
+          Ingrese sus credenciales institucionales autorizadas para acceder a la plataforma.
         </p>
-
-        {/* Recuadro de credenciales demo */}
-        <div className="mt-5 p-3 rounded-lg bg-[#F3F7F4] border border-[#DDE7E1] text-[11px] text-center text-gray-600">
-          <span className="font-semibold text-[#2F5444]">Credenciales demo:</span> admin@guiosplus.org · <span className="font-semibold text-[#2F5444]">Contraseña:</span> demo2026
-        </div>
       </div>
 
       {/* Pie de página */}
