@@ -20,6 +20,7 @@ from guio_core.models import (
     ResultadoSubfactor,
     ResultadoFoda,
     LogAuditoria,
+    FactorKeywords,
 )
 from guio_core.serializers import (
     SubfactorCatalogoSerializer,
@@ -171,6 +172,74 @@ class AdminFactoresViewSet(viewsets.ModelViewSet):
             {"message": f"Factor '{factor.nombre}' actualizado.", "data": FactorCatalogoSerializer(factor).data},
             status=status.HTTP_200_OK,
         )
+
+    @action(detail=False, methods=["get", "post"], url_path="keywords")
+    def gestionar_keywords(self, request):
+        """
+        HU-03 / RF-14: Gestión y persistencia de palabras clave de búsqueda por factor.
+        GET: Obtener todas las configuraciones de keywords por id_factor.
+        POST: Guardar o actualizar keywords de un factor en PostgreSQL.
+        """
+        if request.method == "GET":
+            registros = FactorKeywords.objects.select_related("id_factor").all()
+            data = {}
+            for r in registros:
+                data[str(r.id_factor_id)] = {
+                    "keywords": r.keywords,
+                    "usar_sinonimos": r.usar_sinonimos,
+                    "fecha_actualizacion": r.fecha_actualizacion.isoformat() if r.fecha_actualizacion else None,
+                }
+            return Response(data, status=status.HTTP_200_OK)
+
+        elif request.method == "POST":
+            id_factor = request.data.get("id_factor")
+            keywords = request.data.get("keywords", [])
+            usar_sinonimos = request.data.get("usar_sinonimos", True)
+
+            if not id_factor:
+                return Response(
+                    {"detail": "id_factor es obligatorio."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            try:
+                factor = Factor.objects.get(id=id_factor)
+            except Factor.DoesNotExist:
+                return Response(
+                    {"detail": "El factor especificado no existe."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            clean_keywords = [str(k).strip() for k in keywords if str(k).strip()]
+
+            obj, created = FactorKeywords.objects.update_or_create(
+                id_factor=factor,
+                defaults={
+                    "keywords": clean_keywords,
+                    "usar_sinonimos": bool(usar_sinonimos),
+                },
+            )
+
+            LogAuditoria.objects.create(
+                id_usuario=request.user,
+                accion="actualizar_keywords",
+                entidad="factor_keywords",
+                id_entidad=str(factor.id),
+                detalle=f"Actualización de {len(clean_keywords)} palabras clave para el factor '{factor.nombre}'",
+            )
+
+            return Response(
+                {
+                    "message": f"Palabras clave guardadas con éxito para '{factor.nombre}'.",
+                    "data": {
+                        "id_factor": factor.id,
+                        "keywords": obj.keywords,
+                        "usar_sinonimos": obj.usar_sinonimos,
+                        "fecha_actualizacion": obj.fecha_actualizacion.isoformat(),
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
 
 
 class AdminSubfactoresViewSet(viewsets.ModelViewSet):

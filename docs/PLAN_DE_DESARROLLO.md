@@ -124,71 +124,58 @@ flowchart LR
 | **RF-12 / HU-07** | Comparación de Evaluaciones | Funcional | **Completado (100%)** | `ComparadorEvaluaciones.jsx` |
 | **RF-13 / HU-08** | Exportación de Reporte en PDF | Funcional | **Completado (100%)** | `pdf_generator.py` |
 | **RF-14 / Post-S3**| Búsqueda Asistida de Evidencia (IA) | Ampliación | **Pendiente / Roadmap** | `services/academicApis.js` |
-| **RNF-01 a 08** | Rendimiento, Seguridad, Contenedores | No Funcional | **En Progreso (80%)** | Docker, Nginx, Compose |
+| **RNF-01 a 06** | Rendimiento, Seguridad y Auditoría | No Funcional | **Completado (100%)** | Rate limiting, Bcrypt, Logs, Snapshots |
 
 ---
 
-## 4. Lo que Falta por Implementar (Roadmap hacia Versión Final)
+## 4. Lo que Falta por Implementar (Roadmap del Sistema)
 
-A continuación se detallan las tareas pendientes organizadas por prioridad para el cierre del ciclo de vida del producto:
+Excluyendo la infraestructura de despliegue (Docker) y pipelines de CI/CD para priorizar la funcionalidad directa de la aplicación, las áreas y mejoras pendientes son:
 
 ```mermaid
-gantt
-    title Roadmap de Entregas Restantes
-    dateFormat  YYYY-MM-DD
-    section Fase DevOps
-    Dockerización Multi-contenedor (Postgres + Backend + Frontend) :active, d1, 2026-11-10, 4d
-    Orquestación Docker Compose y Variables de Entorno         :d2, after d1, 3d
-    section Fase CI/CD y Calidad
-    GitHub Actions (Pipeline de Pruebas y Linter)             :c1, after d2, 3d
-    Pruebas End-to-End con Playwright/Cypress                 :c2, after c1, 4d
-    section Fase Avanzada (RF-14)
-    Conectores a APIs Académicas (OpenAlex, Semantic Scholar) :i1, after c2, 5d
-    Asistente de Consulta y Estimación de Importancia con LLM :i2, after i1, 5d
+flowchart TD
+    A["Sistema Actual Funcional (Sprints 1, 2 y 3)"] --> B["1. Flujo Completo 'Nueva Evaluación'"]
+    A --> C["2. Conexión Real de Evidencia Bibliográfica (RF-14)"]
+    A --> D["3. Configuración de Keywords de Búsqueda por Factor"]
+    A --> E["4. Exportación de Matriz FODA a Excel/CSV"]
+    A --> F["5. Pruebas de Usuario y Validación de Casos Reales"]
+
+    B --> B1["Modal para inicializar evaluación en blanco en PostgreSQL y resetear contexto"]
+    C --> C1["Conectores a APIs públicas (OpenAlex / Semantic Scholar) en lugar de mocks"]
+    D --> D1["Persistir en BD las palabras clave personalizadas de la pestaña de Admin"]
+    E --> E1["Descarga de matriz FODA y factores en CSV/XLSX además del PDF"]
+    F --> F1["Validación con caso de estudio de la tesis (ej. LibreOffice / Moodle en UNEMI)"]
 ```
 
-### 4.1. Fase 1: Despliegue y Contenedorización Docker (Prioridad Alta)
-- [ ] **Dockerfile para Backend:**
-  - Imagen base ligera `python:3.12-slim`.
-  - Configuración de servidor WSGI de producción (`gunicorn` con workers gevent/uvicorn).
-  - Recolección de estáticos (`collectstatic`) y usuario no privilegiado (`appuser`).
-- [ ] **Dockerfile para Frontend:**
-  - Construcción multi-etapa (*multi-stage build*): Etapa 1 con `node:20-alpine` (`npm run build`); Etapa 2 con `nginx:alpine` para servir assets estáticos de alto rendimiento con compresión gzip.
-  - Archivo de configuración `nginx.conf` con reverse proxy configurado hacia `/api/v1/`.
-- [ ] **Docker Compose (`docker-compose.yml`):**
-  - Orquestación de 3 servicios:
-    1. `db`: PostgreSQL 15 con volumen nombrado persistente (`pgdata`).
-    2. `backend`: Django REST API enlazado a la base de datos con healthchecks.
-    3. `frontend`: Nginx sirviendo la SPA y redirigiendo el tráfico del API.
-  - Script de arranque unificado `entrypoint.sh` que aplique automáticamente migraciones y cargue los datos semilla (`seed_catalog`).
+### 4.1. Tarea 1: Flujo Completo de Creación de "Nueva Evaluación" en Blanco
+- [ ] En `Dashboard.jsx`, al presionar `+ Nueva evaluación`, abrir un modal formal de creación que:
+  - Solicite: Nombre del software, Área/Contexto y Objetivo institucional.
+  - Cree el registro en PostgreSQL vía `POST /api/v1/guios/evaluations/`.
+  - Limpie y resetee el estado reactivo de `EvaluationContext` (calificaciones en blanco y factores inicializados con los valores base del catálogo).
+  - Redirija limpiamente al **Paso 1** con la nueva evaluación activa.
 
-### 4.2. Fase 2: Pipeline de Integración Continua (CI/CD) (Prioridad Media)
-- [ ] **GitHub Actions Workflow (`.github/workflows/ci.yml`):**
-  - Job de Backend: ejecución de `flake8`/`black`, migraciones en base de datos temporal y suite completa `python manage.py test`.
-  - Job de Frontend: ejecución de validación de sintaxis y empaquetado `npm run build`.
-  - Bloqueo de Pull Requests que no aprueben el 100% de los tests.
+### 4.2. Tarea 2: Conexión Real del Módulo de Evidencia Bibliográfica (RF-14)
+- [ ] Sustituir los datos de prueba (`MOCK_EVIDENCIA`) en `frontend/src/pages/Evidencia.jsx` y `Configuracion.jsx`:
+  - Implementar un endpoint en el backend `/api/v1/guios/evidencia/` que consulte o almacene las fuentes documentales y citas.
+  - Conexión opcional a la API pública y gratuita de **OpenAlex** o **Semantic Scholar** para obtener conteos reales de artículos sobre el software indicado.
+  - Cálculo de la tasa de citas para actualizar el cuartil de $IL$ (Importancia de la Literatura).
 
-### 4.3. Fase 3: Pruebas End-to-End (E2E) (Prioridad Media)
-- [ ] Implementación de una suite de pruebas de extremo a extremo (con **Playwright** o **Cypress**) que simule:
-  - Flujo completo de un evaluador: Login $\rightarrow$ Creación de evaluación $\rightarrow$ Paso 1 $\rightarrow$ Paso 2 $\rightarrow$ Paso 3 $\rightarrow$ Descarga de PDF.
-  - Flujo de administrador: Gestión de usuarios $\rightarrow$ Creación de nuevo factor $\rightarrow$ Verificación de auditoría.
+### 4.3. Tarea 3: Persistencia de Palabras Clave y Filtros por Factor (Admin)
+- [ ] En la pestaña **"Palabras clave por factor"** de `Administracion.jsx`:
+  - Actualmente las keywords se editan en memoria; agregar persistencia para guardar las cadenas booleanas personalizadas en una tabla de configuración o metadatos de factores.
 
-### 4.4. Fase 4: Módulo de Evidencia Bibliográfica y Asistente IA (RF-14 / Post-Sprint 3)
-- [ ] Conectores a APIs académicas abiertas: **OpenAlex API** y **Semantic Scholar API**.
-- [ ] Generación automática de cadenas de búsqueda booleanas por factor.
-- [ ] Análisis de citas y cálculo sugerido para actualizar cuartiles de $IL$.
-- [ ] Asistente de lenguaje natural para guiar al evaluador en la interpretación de los subfactores.
+### 4.4. Tarea 4: Exportación de Datos en Formato Tabular (Excel / CSV)
+- [ ] Además del informe oficial en PDF (HU-08), permitir a los evaluadores descargar:
+  - La matriz FODA consolidada en formato CSV/Excel.
+  - El listado de reactivos con sus observaciones para archivo interno de la organización.
+
+### 4.5. Tarea 5: Validación Metodológica con el Caso de Estudio de la Tesis
+- [ ] Cargar y evaluar el caso de estudio oficial de la Universidad Estatal de Milagro (UNEMI) documentado en el Capítulo 6 de la tesis (migración a LibreOffice):
+  - Verificar que las calificaciones de los subfactores reproduzcan exactamente el dictamen de la tesis (**Recomendación C** debido a factores críticos tecnológicos).
 
 ---
 
-## 5. Próximos Pasos Inmediatos Recomendados
+## 5. Próximos Pasos Recomendados
 
-1. **Crear la configuración de Docker:**
-   - Crear `backend/Dockerfile` o `Dockerfile` en raíz.
-   - Crear `frontend/Dockerfile` y `frontend/nginx.conf`.
-   - Crear `docker-compose.yml` y `.env.example`.
-2. **Ejecutar y probar la contenedorización en local:**
-   - Levantar el entorno con `docker-compose up --build`.
-   - Verificar la inicialización de la base de datos y la conexión frontend-backend.
-3. **Crear Pull Request e integrar en la rama principal:**
-   - Fusionar la rama `feature/hu-03-crud-catalogo-factores` hacia `main`.
+1. **Revisión del usuario de lo implementado:** Comprobar login, roles, catálogo de factores (HU-03), evaluación completa (Pasos 1 a 3), dashboard, comparador y descarga de PDF.
+2. **Definir cuál de las tareas funcionales anteriores deseas priorizar:** (ej. creación de nueva evaluación en blanco, exportación CSV o conectar la evidencia bibliográfica).

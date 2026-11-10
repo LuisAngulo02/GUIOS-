@@ -317,6 +317,29 @@ export const Administracion = () => {
   const [nuevaKeyword, setNuevaKeyword] = useState("");
   const [usarSinonimos, setUsarSinonimos] = useState(true);
   const [guardadoExitoso, setGuardadoExitoso] = useState(false);
+  const [guardandoKeywords, setGuardandoKeywords] = useState(false);
+
+  // Cargar palabras clave persistidas desde PostgreSQL
+  useEffect(() => {
+    if (activeTab === "Palabras clave por factor") {
+      apiService
+        .getAdminKeywords()
+        .then((data) => {
+          if (data && typeof data === "object" && Object.keys(data).length > 0) {
+            setKeywordsState((prev) => {
+              const next = { ...prev };
+              Object.keys(data).forEach((fId) => {
+                if (data[fId]?.keywords && Array.isArray(data[fId].keywords)) {
+                  next[fId] = data[fId].keywords;
+                }
+              });
+              return next;
+            });
+          }
+        })
+        .catch((err) => console.warn("No se pudieron cargar keywords remotas:", err));
+    }
+  }, [activeTab]);
 
   const factoresList = MOCK_FACTORES.filter((f) =>
     f.nombre.toLowerCase().includes(searchFactor.toLowerCase())
@@ -343,9 +366,23 @@ export const Administracion = () => {
     }));
   };
 
-  const handleGuardarCambios = () => {
-    setGuardadoExitoso(true);
-    setTimeout(() => setGuardadoExitoso(false), 2000);
+  const handleGuardarCambios = async () => {
+    setGuardandoKeywords(true);
+    try {
+      await apiService.guardarAdminKeywords(
+        factorActual.id,
+        currentKeywords,
+        usarSinonimos
+      );
+      setGuardadoExitoso(true);
+      mostrarToast(`Palabras clave de "${factorActual.nombre}" guardadas con éxito en PostgreSQL.`);
+      setTimeout(() => setGuardadoExitoso(false), 2500);
+    } catch (err) {
+      console.error("Error guardando keywords:", err);
+      mostrarToast("Error al guardar en PostgreSQL: " + (err.message || "Error"), "error");
+    } finally {
+      setGuardandoKeywords(false);
+    }
   };
 
   const booleanQuery = `TITLE-ABS-KEY ("${factorActual.nombre}" AND (${currentKeywords
@@ -1157,10 +1194,17 @@ export const Administracion = () => {
 
               <button
                 onClick={handleGuardarCambios}
-                className="px-6 py-2.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
+                disabled={guardandoKeywords}
+                className="px-6 py-2.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
               >
                 <Save size={14} />
-                <span>{guardadoExitoso ? "✓ ¡Cambios guardados!" : "Guardar cambios"}</span>
+                <span>
+                  {guardandoKeywords
+                    ? "Guardando en PostgreSQL..."
+                    : guardadoExitoso
+                    ? "✓ ¡Guardado en PostgreSQL!"
+                    : "Guardar palabras clave"}
+                </span>
               </button>
             </div>
           </div>

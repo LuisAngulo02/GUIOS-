@@ -343,3 +343,33 @@ class AdminCatalogoHU03TestCase(TestCase):
         sf_db = Subfactor.objects.get(id=sf_id)
         self.assertFalse(sf_db.activo)
 
+    def test_admin_gestionar_keywords_factor(self):
+        """HU-03 / RF-14: El administrador puede consultar y persistir keywords por factor."""
+        # 1. Evaluador es rechazado con 403
+        self.client.force_authenticate(user=self.evaluador)
+        resp_eval = self.client.post("/api/v1/guios/admin/factores/keywords/", {
+            "id_factor": self.factor.id,
+            "keywords": ["interoperability", "cloud ready"],
+            "usar_sinonimos": True,
+        }, format="json")
+        self.assertEqual(resp_eval.status_code, status.HTTP_403_FORBIDDEN)
+
+        # 2. Administrador puede guardar keywords
+        self.client.force_authenticate(user=self.admin)
+        resp_admin = self.client.post("/api/v1/guios/admin/factores/keywords/", {
+            "id_factor": self.factor.id,
+            "keywords": ["interoperability", "cloud ready", "cross-platform"],
+            "usar_sinonimos": True,
+        }, format="json")
+        self.assertEqual(resp_admin.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp_admin.data["data"]["keywords"]), 3)
+
+        # 3. Administrador puede consultar keywords
+        resp_get = self.client.get("/api/v1/guios/admin/factores/keywords/")
+        self.assertEqual(resp_get.status_code, status.HTTP_200_OK)
+        self.assertIn(str(self.factor.id), resp_get.data)
+        self.assertEqual(
+            resp_get.data[str(self.factor.id)]["keywords"],
+            ["interoperability", "cloud ready", "cross-platform"],
+        )
+

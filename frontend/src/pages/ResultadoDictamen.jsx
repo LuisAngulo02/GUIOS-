@@ -1,6 +1,15 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Download, Check } from "lucide-react";
+import {
+  Download,
+  Check,
+  FileSpreadsheet,
+  ChevronDown,
+  Table,
+  FileText,
+  CheckCircle2,
+  Clock,
+} from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
 import { apiService } from "../services/apiService";
 import Badge from "../components/Badge";
@@ -37,8 +46,169 @@ export const ResultadoDictamen = () => {
     sincronizarEvaluacionCompletaConBackend,
   } = useEvaluation();
 
-  const [finalizando, setFinalizando] = React.useState(false);
-  const [exportandoPDF, setExportandoPDF] = React.useState(false);
+  const [finalizando, setFinalizando] = useState(false);
+  const [exportandoPDF, setExportandoPDF] = useState(false);
+  const [menuCsvAbierto, setMenuCsvAbierto] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuCsvAbierto(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const mostrarToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 3000);
+  };
+
+  const escaparCSV = (valor) => {
+    if (valor === null || valor === undefined) return '""';
+    const str = String(valor).replace(/"/g, '""');
+    return `"${str}"`;
+  };
+
+  const descargarArchivoCSV = (contenido, nombreArchivo) => {
+    const blob = new Blob(["\uFEFF" + contenido], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", nombreArchivo);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const MAPA_ESCALA_TEXTO = {
+    1: "1 - No cumple el requisito",
+    2: "2 - Desconozco si cumple el requisito",
+    3: "3 - Cumple parcialmente",
+    4: "4 - Cumple el requisito",
+  };
+
+  const generarCSV_FODA = () => {
+    const fecha = new Date().toISOString().split("T")[0];
+    const lineas = [
+      `"REPORTE DE EVALUACIÓN FLOSS — MATRIZ FODA Y FACTORES (METODOLOGÍA GUIOS)"`,
+      `"Software Evaluado:",${escaparCSV(softwareActivo)},"Fecha:",${escaparCSV(fecha)}`,
+      `"Contexto Institucional:",${escaparCSV(contextoActivo)},"Evaluación ID:",${escaparCSV(evaluacionId)}`,
+      `"Dictamen Oficial:",${escaparCSV(`Recomendación ${recomendacion}: ${dictamenTitulo}`)}`,
+      `"Índice de Viabilidad:",${escaparCSV(`${viabilidad}%`)},"Nivel de Confianza:",${escaparCSV(nivelConfianza)}`,
+      `"Balance FODA:",${escaparCSV(`Fortalezas (${strengths}) · Oportunidades (${opportunities}) · Debilidades (${weaknesses}) · Amenazas (${threats})`)}`,
+      "",
+      `"Dimensión","Factor","Alcance","Importancia Sugerida (IS)","Importancia Decisor (ID)","Importancia Relativa (IR)","Ponderación Media (PM)","Clasificación FODA","Factor Crítico"`,
+    ];
+
+    (factoresEvaluados || []).forEach((f) => {
+      lineas.push([
+        escaparCSV(f.dimension),
+        escaparCSV(f.nombre),
+        escaparCSV(f.alcance || "Externo"),
+        escaparCSV(f.IS),
+        escaparCSV(f.ID || 2),
+        escaparCSV(f.IR),
+        escaparCSV(f.PM_str || f.PM),
+        escaparCSV(f.foda),
+        escaparCSV(f.isCritical ? "SÍ (CRÍTICO)" : "No"),
+      ].join(","));
+    });
+
+    const slug = (softwareActivo || "software").toLowerCase().replace(/[^a-z0-9]/g, "_");
+    descargarArchivoCSV(lineas.join("\r\n"), `GUIOS_FODA_${slug}_${fecha}.csv`);
+    mostrarToast("Matriz FODA exportada a CSV exitosamente.");
+  };
+
+  const generarCSV_Reactivos = () => {
+    const fecha = new Date().toISOString().split("T")[0];
+    const lineas = [
+      `"REPORTE DE EVALUACIÓN FLOSS — DETALLE DE REACTIVOS Y OBSERVACIONES"`,
+      `"Software Evaluado:",${escaparCSV(softwareActivo)},"Fecha:",${escaparCSV(fecha)}`,
+      `"Contexto:",${escaparCSV(contextoActivo)},"Dictamen:",${escaparCSV(`Recomendación ${recomendacion}`)}`,
+      "",
+      `"Dimensión","Factor","Código","Enunciado del Reactivo","Calificación (1-4)","Nivel de Cumplimiento","Observación / Evidencia Registrada"`,
+    ];
+
+    (factoresEvaluados || []).forEach((factor) => {
+      const sfs = subfactoresState[factor.id] || [];
+      sfs.forEach((sf) => {
+        const calif = sf.calificacion !== null && sf.calificacion !== undefined ? sf.calificacion : "Sin calificar";
+        const escalaTexto = MAPA_ESCALA_TEXTO[sf.calificacion] || "Pendiente";
+        lineas.push([
+          escaparCSV(factor.dimension),
+          escaparCSV(factor.nombre),
+          escaparCSV(sf.codigo),
+          escaparCSV(sf.descripcion),
+          escaparCSV(calif),
+          escaparCSV(escalaTexto),
+          escaparCSV(sf.observacion || ""),
+        ].join(","));
+      });
+    });
+
+    const slug = (softwareActivo || "software").toLowerCase().replace(/[^a-z0-9]/g, "_");
+    descargarArchivoCSV(lineas.join("\r\n"), `GUIOS_Reactivos_${slug}_${fecha}.csv`);
+    mostrarToast("Reactivos y observaciones exportados a CSV exitosamente.");
+  };
+
+  const generarCSV_Consolidado = () => {
+    const fecha = new Date().toISOString().split("T")[0];
+    const lineas = [
+      `"INFORME METODOLÓGICO CONSOLIDADO — GUIOSPRO FLOSS WEB"`,
+      `"Software Evaluado:",${escaparCSV(softwareActivo)},"Fecha:",${escaparCSV(fecha)}`,
+      `"Contexto Institucional:",${escaparCSV(contextoActivo)},"Evaluación ID:",${escaparCSV(evaluacionId)}`,
+      `"Dictamen Final:",${escaparCSV(`Recomendación ${recomendacion}: ${dictamenTitulo}`)}`,
+      `"Índice de Viabilidad FLOSS:",${escaparCSV(`${viabilidad}%`)},"Nivel de Confianza:",${escaparCSV(nivelConfianza)}`,
+      `"Resumen FODA:",${escaparCSV(`Fortalezas: ${strengths} | Oportunidades: ${opportunities} | Debilidades: ${weaknesses} | Amenazas: ${threats}`)}`,
+      "",
+      `"==================== SECCIÓN 1: MATRIZ FODA Y FACTORES ===================="`,
+      `"Dimensión","Factor","Alcance","Importancia Sugerida (IS)","Importancia Decisor (ID)","Importancia Relativa (IR)","Ponderación Media (PM)","Clasificación FODA","Factor Crítico"`,
+    ];
+
+    (factoresEvaluados || []).forEach((f) => {
+      lineas.push([
+        escaparCSV(f.dimension),
+        escaparCSV(f.nombre),
+        escaparCSV(f.alcance || "Externo"),
+        escaparCSV(f.IS),
+        escaparCSV(f.ID || 2),
+        escaparCSV(f.IR),
+        escaparCSV(f.PM_str || f.PM),
+        escaparCSV(f.foda),
+        escaparCSV(f.isCritical ? "SÍ (CRÍTICO)" : "No"),
+      ].join(","));
+    });
+
+    lineas.push("");
+    lineas.push(`"==================== SECCIÓN 2: CALIFICACIÓN DE REACTIVOS Y OBSERVACIONES ===================="`);
+    lineas.push(`"Dimensión","Factor","Código","Enunciado del Reactivo","Calificación (1-4)","Nivel de Cumplimiento","Observación / Evidencia Registrada"`);
+
+    (factoresEvaluados || []).forEach((factor) => {
+      const sfs = subfactoresState[factor.id] || [];
+      sfs.forEach((sf) => {
+        const calif = sf.calificacion !== null && sf.calificacion !== undefined ? sf.calificacion : "Sin calificar";
+        const escalaTexto = MAPA_ESCALA_TEXTO[sf.calificacion] || "Pendiente";
+        lineas.push([
+          escaparCSV(factor.dimension),
+          escaparCSV(factor.nombre),
+          escaparCSV(sf.codigo),
+          escaparCSV(sf.descripcion),
+          escaparCSV(calif),
+          escaparCSV(escalaTexto),
+          escaparCSV(sf.observacion || ""),
+        ].join(","));
+      });
+    });
+
+    const slug = (softwareActivo || "software").toLowerCase().replace(/[^a-z0-9]/g, "_");
+    descargarArchivoCSV(lineas.join("\r\n"), `GUIOS_Consolidado_${slug}_${fecha}.csv`);
+    mostrarToast("Informe consolidado exportado a CSV exitosamente.");
+  };
 
   React.useEffect(() => {
     if (evaluacionId) {
@@ -175,6 +345,83 @@ export const ResultadoDictamen = () => {
             <Download size={14} className={exportandoPDF ? "animate-bounce text-[#3F6F58]" : "text-gray-600"} />
             <span>{exportandoPDF ? "Generando PDF oficial..." : "Exportar PDF"}</span>
           </button>
+
+          {/* Botón con Menú Desplegable: Exportar Excel / CSV */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuCsvAbierto((prev) => !prev)}
+              className="px-4 py-2 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-medium text-xs transition-colors flex items-center gap-2 shadow-sm shrink-0 cursor-pointer"
+            >
+              <FileSpreadsheet size={14} className="text-[#3F6F58]" />
+              <span>Exportar Excel / CSV</span>
+              <ChevronDown
+                size={13}
+                className={`text-gray-400 transition-transform ${
+                  menuCsvAbierto ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            {menuCsvAbierto && (
+              <div className="absolute right-0 mt-1.5 w-64 bg-white rounded-xl border border-[#DDE7E1] shadow-2xl p-1.5 z-30 animate-in fade-in zoom-in-95 text-xs">
+                <button
+                  onClick={() => {
+                    generarCSV_FODA();
+                    setMenuCsvAbierto(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#F3F7F4] transition-colors flex items-center gap-2.5 cursor-pointer group"
+                >
+                  <Table size={16} className="text-[#3F6F58] shrink-0" />
+                  <div>
+                    <span className="font-semibold block text-gray-800 group-hover:text-[#2F5444]">
+                      Matriz FODA y Factores
+                    </span>
+                    <span className="text-[10px] text-gray-400 block">
+                      Ponderación PM, alcance y categorías
+                    </span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    generarCSV_Reactivos();
+                    setMenuCsvAbierto(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#F3F7F4] transition-colors flex items-center gap-2.5 cursor-pointer group"
+                >
+                  <FileText size={16} className="text-teal-600 shrink-0" />
+                  <div>
+                    <span className="font-semibold block text-gray-800 group-hover:text-[#2F5444]">
+                      Reactivos y Observaciones
+                    </span>
+                    <span className="text-[10px] text-gray-400 block">
+                      61 subfactores calificados y notas
+                    </span>
+                  </div>
+                </button>
+
+                <div className="my-1 border-t border-gray-100" />
+
+                <button
+                  onClick={() => {
+                    generarCSV_Consolidado();
+                    setMenuCsvAbierto(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#F3F7F4] transition-colors flex items-center gap-2.5 cursor-pointer group"
+                >
+                  <FileSpreadsheet size={16} className="text-[#3F6F58] shrink-0" />
+                  <div>
+                    <span className="font-semibold block text-[#2F5444]">
+                      Informe Consolidado
+                    </span>
+                    <span className="text-[10px] text-gray-400 block">
+                      FODA + Reactivos en un solo CSV
+                    </span>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -188,15 +435,24 @@ export const ResultadoDictamen = () => {
             </span>
 
             <div className="flex items-center gap-4">
-              {/* Círculo con la letra C en verde translúcido suave */}
+              {/* Círculo de recomendación o estado */}
               <div className="w-16 h-16 rounded-full bg-[#52876D] text-white flex items-center justify-center font-bold text-3xl shrink-0 shadow-inner">
-                {recomendacion}
+                {recomendacion === "Pendiente" ? (
+                  <Clock size={28} className="text-white/95" />
+                ) : (
+                  recomendacion
+                )}
               </div>
 
               <div>
                 <h2 className="text-xl font-bold text-white tracking-tight leading-snug">
-                  {dictamenTitulo}
+                  {recomendacion === "Pendiente" ? "Evaluación en curso" : dictamenTitulo}
                 </h2>
+                {recomendacion === "Pendiente" && (
+                  <span className="text-xs text-green-100/80 font-normal block mt-0.5">
+                    Subfactores pendientes por calificar
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -212,29 +468,48 @@ export const ResultadoDictamen = () => {
             {/* Header de la tarjeta */}
             <div className="flex items-start justify-between gap-2 mb-2">
               <h3 className="text-base font-semibold text-gray-800">
-                ¿Qué significa la Recomendación {recomendacion}?
+                {recomendacion === "Pendiente"
+                  ? "Evaluación en proceso de cálculo"
+                  : `¿Qué significa la Recomendación ${recomendacion}?`}
               </h3>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#EBF4EE] text-[#25633C] border border-[#D5E6DB] shrink-0">
-                Resultado automático
+                {recomendacion === "Pendiente" ? "En curso" : "Resultado oficial"}
               </span>
             </div>
 
-            {/* Párrafo explicativo con factores causantes */}
+            {/* Párrafo explicativo dinámico según la recomendación oficial GUIOS */}
             <p className="text-xs text-gray-600 leading-relaxed">
-              Existe al menos una Debilidad o Amenaza en un factor Importante o Fundamental. Factor crítico: Personalización. Observaciones en factores opcionales: Mantenibilidad y Coste total de propiedad. Se recomienda destinar recursos de ingeniería al software (factores externos) y fortalecer a la organización (factores internos).
+              {recomendacion === "Pendiente"
+                ? "Aún existen reactivos pendientes de calificación en los factores relevantes. El dictamen final de adopción (A, B o C) se calculará automáticamente en cuanto complete la evaluación de todos los factores en el Paso 2."
+                : recomendacion === "A"
+                ? "Todos los factores evaluados han sido identificados como Fortalezas u Oportunidades. La organización cumple satisfactoriamente con los requisitos para adoptar la solución FLOSS."
+                : recomendacion === "B"
+                ? "Existen debilidades o amenazas únicamente en factores cuya Importancia Relativa es Opcional. La adopción es factible estableciendo un plan de seguimiento sobre dichos factores."
+                : "Existe al menos una Debilidad o Amenaza en un factor Importante o Fundamental. Se recomienda destinar recursos de ingeniería al software (factores externos) y fortalecer a la organización (factores internos) antes de proceder con la adopción."}
             </p>
 
             {/* Chips de acciones recomendadas */}
             <div className="flex flex-wrap gap-2 mt-3.5">
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-[#F3F7F4] text-[#2F5444] border border-[#DDE7E1]">
-                Plan de mejora del código
-              </span>
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-[#F3F7F4] text-[#2F5444] border border-[#DDE7E1]">
-                Capacitación interna
-              </span>
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-[#F3F7F4] text-[#2F5444] border border-[#DDE7E1]">
-                Análisis de costes
-              </span>
+              {recomendacion === "Pendiente" ? (
+                <button
+                  onClick={() => navigate("/subfactores")}
+                  className="px-3 py-1 rounded-full text-xs font-semibold bg-[#EBF4EE] hover:bg-[#DDEFE3] text-[#2F5444] border border-[#CDE1D4] transition-colors cursor-pointer"
+                >
+                  Ir al Paso 2 para completar evaluación →
+                </button>
+              ) : (
+                <>
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-[#F3F7F4] text-[#2F5444] border border-[#DDE7E1]">
+                    Plan de mejora del código
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-[#F3F7F4] text-[#2F5444] border border-[#DDE7E1]">
+                    Capacitación interna
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-[#F3F7F4] text-[#2F5444] border border-[#DDE7E1]">
+                    Análisis de costes
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
@@ -365,6 +640,14 @@ export const ResultadoDictamen = () => {
           </table>
         </div>
       </div>
+
+      {/* Notificación flotante al exportar */}
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#2F5444] text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
+          <CheckCircle2 size={16} className="text-emerald-300" />
+          <span>{toastMsg}</span>
+        </div>
+      )}
     </div>
   );
 };

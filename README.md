@@ -1,4 +1,4 @@
-﻿# GUIOSPRO FLOSS Web (GUIOS+) — Sistema de Apoyo a las Decisiones para la Adopción de Software Libre
+# GUIOSPRO FLOSS Web (GUIOS+) — Sistema de Apoyo a las Decisiones para la Adopción de Software Libre
 
 [![Django](https://img.shields.io/badge/Django-5.x-092E20?logo=django&logoColor=white)](https://www.djangoproject.com/)
 [![React](https://img.shields.io/badge/React-18.x-61DAFB?logo=react&logoColor=black)](https://react.dev/)
@@ -198,7 +198,7 @@ GUIOSAD/
 
 ## 8. Plan de Desarrollo y Roadmap
 
-Para conocer el detalle de los requerimientos completados (Sprints 1 al 3) y las tareas pendientes (Contenedorización Docker, CI/CD y APIs Académicas con IA), consulta:
+Para conocer el detalle de los requerimientos completados (Sprints 1 al 3) y las tareas funcionales pendientes (Gestión de nuevas evaluaciones, exportación tabular y módulo de evidencia bibliográfica), consulta:
 
 👉 [**Plan Maestro de Desarrollo (`docs/PLAN_DE_DESARROLLO.md`)**](docs/PLAN_DE_DESARROLLO.md)
 

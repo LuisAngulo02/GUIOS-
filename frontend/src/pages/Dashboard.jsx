@@ -21,6 +21,7 @@ import { useEvaluation } from "../context/EvaluationContext";
 import { apiService } from "../services/apiService";
 import KpiCard from "../components/KpiCard";
 import Badge from "../components/Badge";
+import ModalNuevaEvaluacion from "../components/ModalNuevaEvaluacion";
 
 /**
  * Pantalla 2: Dashboard (/dashboard)
@@ -66,10 +67,6 @@ export const Dashboard = () => {
 
   // Estado para el modal de Nueva Evaluación
   const [modalNuevaOpen, setModalNuevaOpen] = useState(false);
-  const [nuevoSoftware, setNuevoSoftware] = useState("");
-  const [nuevoContexto, setNuevoContexto] = useState("");
-  const [nuevoObjetivo, setNuevoObjetivo] = useState("");
-  const [creandoNueva, setCreandoNueva] = useState(false);
 
   // Determinar si la evaluación activa actual está completada
   const evaluacionActualObj = useMemo(() => {
@@ -156,32 +153,6 @@ export const Dashboard = () => {
       }
     } catch (err) {
       alert("Error al cargar la evaluación: " + err.message);
-    }
-  };
-
-  // Crear nueva evaluación
-  const handleCrearNueva = async (e) => {
-    e.preventDefault();
-    if (!nuevoSoftware.trim()) {
-      alert("Ingrese el nombre de la solución de software FLOSS");
-      return;
-    }
-    setCreandoNueva(true);
-    try {
-      await crearNuevaEvaluacion({
-        nombre_software: nuevoSoftware.trim(),
-        contexto_uso: nuevoContexto.trim() || "Evaluación institucional",
-        objetivo: nuevoObjetivo.trim() || "Evaluación de viabilidad y madurez",
-      });
-      setModalNuevaOpen(false);
-      setNuevoSoftware("");
-      setNuevoContexto("");
-      setNuevoObjetivo("");
-      navigate("/configuracion");
-    } catch (err) {
-      alert("Error al crear la evaluación: " + err.message);
-    } finally {
-      setCreandoNueva(false);
     }
   };
 
@@ -737,84 +708,11 @@ export const Dashboard = () => {
         </div>
       )}
 
-      {/* 6. MODAL: Nueva Evaluación */}
-      {modalNuevaOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-[#DDE7E1] w-full max-w-md p-6 shadow-2xl animate-in fade-in">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-800 text-base flex items-center gap-2">
-                <PlusCircle size={18} className="text-[#3F6F58]" />
-                Nueva Evaluación FLOSS
-              </h3>
-              <button
-                onClick={() => setModalNuevaOpen(false)}
-                className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 cursor-pointer"
-              >
-                <X size={15} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCrearNueva} className="space-y-4 text-xs">
-              <div>
-                <label className="font-semibold text-gray-700 block mb-1">
-                  Nombre de la Solución FLOSS *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={nuevoSoftware}
-                  onChange={(e) => setNuevoSoftware(e.target.value)}
-                  placeholder="Ej. GitLab CE, Nextcloud, PostgreSQL 16..."
-                  className="w-full px-3 py-2 rounded-lg border border-[#DDE7E1] focus:outline-none focus:ring-1 focus:ring-[#3F6F58]"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-gray-700 block mb-1">
-                  Área o Contexto Institucional
-                </label>
-                <input
-                  type="text"
-                  value={nuevoContexto}
-                  onChange={(e) => setNuevoContexto(e.target.value)}
-                  placeholder="Ej. Educación virtual, Gestión de TI, Base de datos..."
-                  className="w-full px-3 py-2 rounded-lg border border-[#DDE7E1] focus:outline-none focus:ring-1 focus:ring-[#3F6F58]"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-gray-700 block mb-1">
-                  Objetivo de la Evaluación
-                </label>
-                <textarea
-                  rows={2}
-                  value={nuevoObjetivo}
-                  onChange={(e) => setNuevoObjetivo(e.target.value)}
-                  placeholder="Describa brevemente la necesidad u objetivo de adopción..."
-                  className="w-full px-3 py-2 rounded-lg border border-[#DDE7E1] focus:outline-none focus:ring-1 focus:ring-[#3F6F58]"
-                />
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalNuevaOpen(false)}
-                  className="px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 font-semibold cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={creandoNueva}
-                  className="px-5 py-2 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold cursor-pointer shadow-sm"
-                >
-                  {creandoNueva ? "Creando..." : "Crear y comenzar"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* 6. MODAL: Nueva Evaluación (Compartido) */}
+      <ModalNuevaEvaluacion
+        isOpen={modalNuevaOpen}
+        onClose={() => setModalNuevaOpen(false)}
+      />
     </div>
   );
 };

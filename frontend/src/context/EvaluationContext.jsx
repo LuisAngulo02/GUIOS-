@@ -11,6 +11,37 @@ const MAPA_NUMERO_A_TEXTO_IR = {
   4: "Fundamental",
 };
 
+// Generar factores en blanco para una nueva evaluación
+export const getFactoresEnBlanco = () => {
+  return MOCK_FACTORES.map((mf) => {
+    const defaultID = 2; // Opcional por defecto
+    const irNum = Math.floor((mf.IS + defaultID) / 2);
+    const irTexto = MAPA_NUMERO_A_TEXTO_IR[irNum] || "Irrelevante";
+    return {
+      ...mf,
+      ID: defaultID,
+      IR: `${irNum} · ${irTexto}`,
+      relevante: irNum > 1,
+      alcance: mf.nombre === "Soporte" ? "" : mf.alcance,
+    };
+  });
+};
+
+// Generar subfactores limpios (sin calificar, calificacion: null, observacion: "")
+export const getSubfactoresEnBlanco = () => {
+  const limpio = {};
+  Object.keys(MOCK_SUBFACTORES).forEach((fId) => {
+    limpio[fId] = MOCK_SUBFACTORES[fId].map((sf) => ({
+      codigo: sf.codigo,
+      descripcion: sf.descripcion,
+      id: sf.id || parseInt(sf.codigo.replace("SF-", ""), 10),
+      calificacion: null,
+      observacion: "",
+    }));
+  });
+  return limpio;
+};
+
 export const EvaluationProvider = ({ children }) => {
   // 1. Estado de Usuario y Sesión (Sin valores por defecto inseguros)
   const [currentUser, setCurrentUser] = useState(() => {
@@ -221,11 +252,14 @@ export const EvaluationProvider = ({ children }) => {
         setDescripcionCaso(descName);
         setEstadoEvaluacionActiva("en_progreso");
 
-        // Reiniciar factores y subfactores para la nueva instancia
-        setFactores(MOCK_FACTORES);
-        setSubfactoresState(MOCK_SUBFACTORES);
-        localStorage.removeItem("guios_factores");
-        localStorage.removeItem("guios_subfactores");
+        // Reiniciar factores y subfactores con estructura LIMPIA (en blanco)
+        const factoresLimpios = getFactoresEnBlanco();
+        const subfactoresLimpios = getSubfactoresEnBlanco();
+        setFactores(factoresLimpios);
+        setSubfactoresState(subfactoresLimpios);
+
+        localStorage.setItem("guios_factores", JSON.stringify(factoresLimpios));
+        localStorage.setItem("guios_subfactores", JSON.stringify(subfactoresLimpios));
 
         await fetchEvaluaciones();
         return nueva;
@@ -280,51 +314,54 @@ export const EvaluationProvider = ({ children }) => {
         setSoftwareActivo(ev.nombre_software);
         setEstadoEvaluacionActiva(ev.estado || "en_progreso");
 
+        // 1. Factores: si vienen guardados en la BD, aplicarlos; si no, catálogo base limpio
+        let baseFactores = getFactoresEnBlanco();
         if (ev.resultados_factor && ev.resultados_factor.length > 0) {
           const mapaRf = {};
           ev.resultados_factor.forEach((rf) => {
             mapaRf[rf.id_factor] = rf;
           });
 
-          setFactores(
-            MOCK_FACTORES.map((mf) => {
-              const rf = mapaRf[mf.id];
-              if (!rf) return mf;
-              const idVal = rf.importancia_decisor !== undefined ? rf.importancia_decisor : mf.ID;
-              const irNum = Math.floor((mf.IS + idVal) / 2);
-              const irTexto = MAPA_NUMERO_A_TEXTO_IR[irNum] || "Irrelevante";
-              return {
-                ...mf,
-                ID: idVal,
-                IR: `${irNum} · ${irTexto}`,
-                relevante: irNum > 1,
-                alcance: rf.alcance_aplicado || mf.alcance,
-              };
-            })
-          );
-        }
-
-        if (data.subfactores && data.subfactores.length > 0) {
-          setSubfactoresState((prev) => {
-            const next = JSON.parse(JSON.stringify(prev));
-            data.subfactores.forEach((sf) => {
-              const factorId = sf.id_factor;
-              if (next[factorId]) {
-                next[factorId] = next[factorId].map((item) => {
-                  if (item.id === sf.id_subfactor || item.codigo === sf.codigo) {
-                    return {
-                      ...item,
-                      calificacion: sf.calificacion,
-                      observacion: sf.observacion || "",
-                    };
-                  }
-                  return item;
-                });
-              }
-            });
-            return next;
+          baseFactores = baseFactores.map((mf) => {
+            const rf = mapaRf[mf.id];
+            if (!rf) return mf;
+            const idVal = rf.importancia_decisor !== undefined ? rf.importancia_decisor : mf.ID;
+            const irNum = Math.floor((mf.IS + idVal) / 2);
+            const irTexto = MAPA_NUMERO_A_TEXTO_IR[irNum] || "Irrelevante";
+            return {
+              ...mf,
+              ID: idVal,
+              IR: `${irNum} · ${irTexto}`,
+              relevante: irNum > 1,
+              alcance: rf.alcance_aplicado || mf.alcance,
+            };
           });
         }
+        setFactores(baseFactores);
+        localStorage.setItem("guios_factores", JSON.stringify(baseFactores));
+
+        // 2. Subfactores: arrancar de subfactores limpios y sobreponer solo los calificados en BD
+        let baseSubfactores = getSubfactoresEnBlanco();
+        if (data.subfactores && data.subfactores.length > 0) {
+          data.subfactores.forEach((sf) => {
+            const factorId = sf.id_factor;
+            if (baseSubfactores[factorId]) {
+              baseSubfactores[factorId] = baseSubfactores[factorId].map((item) => {
+                if (item.id === sf.id_subfactor || item.codigo === sf.codigo) {
+                  return {
+                    ...item,
+                    calificacion: sf.calificacion,
+                    observacion: sf.observacion || "",
+                  };
+                }
+                return item;
+              });
+            }
+          });
+        }
+        setSubfactoresState(baseSubfactores);
+        localStorage.setItem("guios_subfactores", JSON.stringify(baseSubfactores));
+
         return ev;
       }
     } catch (err) {
@@ -512,62 +549,99 @@ export const EvaluationProvider = ({ children }) => {
 
     relevantes.forEach((factor) => {
       const sfs = subfactoresState[factor.id] || [];
-      const calificados = sfs.filter((s) => s.calificacion !== undefined);
+      const calificados = sfs.filter(
+        (s) => s.calificacion !== undefined && s.calificacion !== null && Number(s.calificacion) >= 1
+      );
+      const isCompletado = sfs.length > 0 && calificados.length === sfs.length;
       const pm =
         calificados.length > 0
-          ? calificados.reduce((acc, s) => acc + s.calificacion, 0) / calificados.length
+          ? calificados.reduce((acc, s) => acc + Number(s.calificacion), 0) / calificados.length
           : 0;
 
       const alcanceEfectivo = factor.alcance || "Externo";
       const isPositive = pm >= 3.0;
 
-      let foda = "";
-      if (alcanceEfectivo === "Interno") {
-        foda = isPositive ? "Fortaleza" : "Debilidad";
-      } else {
-        foda = isPositive ? "Oportunidad" : "Amenaza";
+      let foda = "Pendiente";
+      let isCritical = false;
+
+      if (calificados.length > 0) {
+        if (alcanceEfectivo === "Interno") {
+          foda = isPositive ? "Fortaleza" : "Debilidad";
+        } else {
+          foda = isPositive ? "Oportunidad" : "Amenaza";
+        }
+
+        if (foda === "Fortaleza") strengths++;
+        if (foda === "Oportunidad") opportunities++;
+        if (foda === "Debilidad") weaknesses++;
+        if (foda === "Amenaza") threats++;
+
+        // Es Crítico si es Debilidad o Amenaza y la Importancia Relativa es Importante o Fundamental
+        isCritical =
+          (foda === "Debilidad" || foda === "Amenaza") &&
+          (factor.IR?.includes("Importante") || factor.IR?.includes("Fundamental"));
+
+        if (isCritical) totalCriticos++;
       }
-
-      if (foda === "Fortaleza") strengths++;
-      if (foda === "Oportunidad") opportunities++;
-      if (foda === "Debilidad") weaknesses++;
-      if (foda === "Amenaza") threats++;
-
-      // Es Crítico si es Debilidad o Amenaza y la Importancia Relativa es Importante o Fundamental
-      const isCritical =
-        (foda === "Debilidad" || foda === "Amenaza") &&
-        (factor.IR?.includes("Importante") || factor.IR?.includes("Fundamental"));
-
-      if (isCritical) totalCriticos++;
 
       factoresEvaluados.push({
         ...factor,
         PM: pm,
-        PM_str: pm.toFixed(1).replace(".", ","),
+        PM_str: calificados.length > 0 ? pm.toFixed(1).replace(".", ",") : "—",
         foda,
         isCritical,
-        completado: calificados.length === sfs.length,
+        completado: isCompletado,
       });
     });
 
-    // Dictamen: A si todo F u O; B si D o A solo en Opcionales; C si al menos un Crítico
-    let recomendacion = "C";
-    let dictamenTitulo = "Requiere recursos antes de adoptar";
-    if (totalCriticos > 0) {
-      recomendacion = "C";
-      dictamenTitulo = "Requiere recursos antes de adoptar";
-    } else if (weaknesses > 0 || threats > 0) {
-      recomendacion = "B";
-      dictamenTitulo = "Es posible adoptar con sugerencias por revisar";
-    } else if (relevantes.length > 0) {
-      recomendacion = "A";
-      dictamenTitulo = "Adoptar sin observaciones";
+    // Validar si todos los subfactores relevantes están calificados
+    const todosSubfactoresCalificados =
+      relevantes.length > 0 &&
+      relevantes.every((f) => {
+        const sfs = subfactoresState[f.id] || [];
+        return (
+          sfs.length > 0 &&
+          sfs.every(
+            (s) =>
+              s.calificacion !== null &&
+              s.calificacion !== undefined &&
+              Number(s.calificacion) >= 1 &&
+              Number(s.calificacion) <= 4
+          )
+        );
+      });
+
+    // Dictamen oficial GUIOS
+    let recomendacion = "Pendiente";
+    let dictamenTitulo = "Evaluación en curso (Subfactores pendientes)";
+
+    if (todosSubfactoresCalificados) {
+      if (totalCriticos > 0) {
+        recomendacion = "C";
+        dictamenTitulo = "Requiere recursos antes de adoptar";
+      } else if (weaknesses > 0 || threats > 0) {
+        recomendacion = "B";
+        dictamenTitulo = "Es posible adoptar con sugerencias por revisar";
+      } else if (relevantes.length > 0) {
+        recomendacion = "A";
+        dictamenTitulo = "Adoptar sin observaciones";
+      }
+    } else if (weaknesses > 0 || threats > 0 || strengths > 0 || opportunities > 0) {
+      // Cálculo preliminar mientras se evalúa
+      if (totalCriticos > 0) {
+        recomendacion = "C";
+        dictamenTitulo = "Requiere recursos antes de adoptar (Preliminar)";
+      } else {
+        recomendacion = "B";
+        dictamenTitulo = "Es posible adoptar (Preliminar)";
+      }
     }
 
-    // Índice de Viabilidad = (F + O / Relevantes evaluados) * 100
+    // Índice de Viabilidad = (F + O / Total evaluados) * 100
+    const totalConFoda = strengths + opportunities + weaknesses + threats;
     const viabilidad =
-      relevantes.length > 0
-        ? Math.round(((strengths + opportunities) / relevantes.length) * 100)
+      totalConFoda > 0
+        ? Math.round(((strengths + opportunities) / totalConFoda) * 100)
         : 0;
 
     // Nivel de Confianza: % de respuestas distintas de 2 (Desconozco)
@@ -576,7 +650,9 @@ export const EvaluationProvider = ({ children }) => {
     relevantes.forEach((factor) => {
       const sfs = subfactoresState[factor.id] || [];
       totalSubfactoresRelevantes += sfs.length;
-      respuestasConocidas += sfs.filter((s) => s.calificacion !== 2).length;
+      respuestasConocidas += sfs.filter(
+        (s) => s.calificacion !== null && s.calificacion !== undefined && Number(s.calificacion) !== 2
+      ).length;
     });
 
     const ratioConfianza =
@@ -587,10 +663,6 @@ export const EvaluationProvider = ({ children }) => {
     let nivelConfianza = "Alta";
     if (ratioConfianza < 60) nivelConfianza = "Baja";
     else if (ratioConfianza < 90) nivelConfianza = "Media";
-
-    // Validar si todos los subfactores relevantes están calificados
-    const todosSubfactoresCalificados =
-      relevantes.length > 0 &&
       relevantes.every((f) => {
         const sfs = subfactoresState[f.id] || [];
         return sfs.length > 0 && sfs.every((s) => s.calificacion >= 1);

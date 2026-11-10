@@ -523,3 +523,39 @@ class LogAuditoria(models.Model):
 
     def __str__(self):
         return f"[{self.fecha.strftime('%Y-%m-%d %H:%M:%S')}] {self.accion} sobre {self.entidad} #{self.id_entidad}"
+
+
+# ==============================================================================
+# 12. CONFIGURACIÓN DE BÚSQUEDA Y KEYWORDS POR FACTOR (RF-14 / HU-03)
+# ==============================================================================
+class FactorKeywords(models.Model):
+    """Términos clave de búsqueda y configuración booleana para cada factor."""
+    id_factor = models.OneToOneField(
+        Factor,
+        on_delete=models.CASCADE,
+        related_name="configuracion_keywords",
+        db_column="id_factor",
+        primary_key=True,
+        verbose_name="Factor"
+    )
+    keywords = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Términos y Sinónimos Clave"
+    )
+    usar_sinonimos = models.BooleanField(
+        default=True,
+        verbose_name="Usar Sinónimos Automáticos"
+    )
+    fecha_actualizacion = models.DateTimeField(
+        auto_now=True,
+        verbose_name="Última Actualización"
+    )
+
+    class Meta:
+        db_table = "factor_keywords"
+        verbose_name = "Palabras Clave de Búsqueda por Factor"
+        verbose_name_plural = "Palabras Clave de Búsqueda por Factor"
+
+    def __str__(self):
+        return f"Keywords ({len(self.keywords)}) - {self.id_factor.nombre}"

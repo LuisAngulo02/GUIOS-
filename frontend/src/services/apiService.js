@@ -269,6 +269,22 @@ export const apiService = {
     });
   },
 
+  async getAdminKeywords() {
+    try {
+      return await request("/guios/admin/factores/keywords/");
+    } catch (err) {
+      console.warn("getAdminKeywords offline:", err.message);
+      return {};
+    }
+  },
+
+  async guardarAdminKeywords(id_factor, keywords, usar_sinonimos = true) {
+    return await request("/guios/admin/factores/keywords/", {
+      method: "POST",
+      body: JSON.stringify({ id_factor, keywords, usar_sinonimos }),
+    });
+  },
+
   async getFactores() {
     await delay(150);
     return JSON.parse(JSON.stringify(MOCK_FACTORES));
