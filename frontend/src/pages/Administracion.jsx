@@ -43,7 +43,7 @@ import { useEvaluation } from "../context/EvaluationContext";
  * y HU-03 (Parámetros y Catálogo GUIOS).
  */
 export const Administracion = () => {
-  const { currentUser } = useEvaluation();
+  const { currentUser, softwareActivo } = useEvaluation();
 
   // Pestañas de la vista de administración
   const tabs = [
@@ -318,6 +318,8 @@ export const Administracion = () => {
   const [usarSinonimos, setUsarSinonimos] = useState(true);
   const [guardadoExitoso, setGuardadoExitoso] = useState(false);
   const [guardandoKeywords, setGuardandoKeywords] = useState(false);
+  const [probandoConsulta, setProbandoConsulta] = useState(false);
+  const [resultadoPrueba, setResultadoPrueba] = useState(null);
 
   // Cargar palabras clave persistidas desde PostgreSQL
   useEffect(() => {
@@ -382,6 +384,27 @@ export const Administracion = () => {
       mostrarToast("Error al guardar en PostgreSQL: " + (err.message || "Error"), "error");
     } finally {
       setGuardandoKeywords(false);
+    }
+  };
+
+  const handleProbarConsulta = async () => {
+    setProbandoConsulta(true);
+    setResultadoPrueba(null);
+    try {
+      const res = await apiService.probarConsultaFactor({
+        id_factor: factorActual.id,
+        nombre_software: softwareActivo || "Moodle",
+        keywords: currentKeywords,
+        usar_sinonimos: usarSinonimos,
+      });
+      setResultadoPrueba(res);
+      mostrarToast(
+        `Consulta probada para "${factorActual.nombre}": ${res.documentos} documentos en OpenAlex.`
+      );
+    } catch (err) {
+      mostrarToast("Error probando consulta: " + (err.message || "Error"), "error");
+    } finally {
+      setProbandoConsulta(false);
     }
   };
 
@@ -1185,11 +1208,12 @@ export const Administracion = () => {
             {/* Botones Probar consulta y Guardar cambios */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-gray-100">
               <button
-                onClick={() => mostrarToast(`Probando consulta booleana para ${factorActual.nombre} en Scopus y OpenAlex... 33 documentos coincidentes.`)}
-                className="px-5 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
+                onClick={handleProbarConsulta}
+                disabled={probandoConsulta}
+                className="px-5 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                <Play size={14} className="text-[#3F6F58]" />
-                <span>Probar consulta</span>
+                <Play size={14} className={`text-[#3F6F58] ${probandoConsulta ? "animate-pulse" : ""}`} />
+                <span>{probandoConsulta ? "Consultando OpenAlex..." : "Probar consulta"}</span>
               </button>
 
               <button
@@ -1207,6 +1231,35 @@ export const Administracion = () => {
                 </span>
               </button>
             </div>
+
+            {resultadoPrueba && resultadoPrueba.id_factor === factorActual.id && (
+              <div className="rounded-xl bg-[#F4F8F5] border border-[#CDE1D4] p-4 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-[#2F5444]">
+                    Resultado en vivo ({resultadoPrueba.software_prueba}): {resultadoPrueba.documentos} documentos · {resultadoPrueba.citas_muestra} citas en muestra
+                  </span>
+                  {resultadoPrueba.proveedor_ia && (
+                    <span className="text-[10px] font-semibold bg-white px-2 py-0.5 rounded-full border border-[#CDE1D4] text-[#3F6F58]">
+                      IA: {resultadoPrueba.proveedor_ia}
+                    </span>
+                  )}
+                </div>
+                {resultadoPrueba.sinonimos_ia?.length > 0 && (
+                  <p className="text-[11px] text-gray-600">
+                    Sinónimos IA aplicados: <strong>{resultadoPrueba.sinonimos_ia.join(", ")}</strong>
+                  </p>
+                )}
+                {resultadoPrueba.articulos?.length > 0 && (
+                  <ul className="space-y-1 pt-1 border-t border-[#DDE7E1]">
+                    {resultadoPrueba.articulos.map((a, idx) => (
+                      <li key={idx} className="text-[11px] text-gray-700 truncate">
+                        • <strong>{a.titulo}</strong> ({a.meta})
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

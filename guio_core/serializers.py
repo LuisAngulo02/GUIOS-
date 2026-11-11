@@ -227,6 +227,7 @@ class EvaluacionDetalleSerializer(serializers.ModelSerializer):
             "indice_viabilidad",
             "nivel_confianza",
             "dictamen_texto",
+            "recomendacion_ia",
             "total_factores_relevantes",
             "total_factores_irrelevantes",
             "resumen_foda",
@@ -244,6 +245,7 @@ class EvaluacionDetalleSerializer(serializers.ModelSerializer):
             "indice_viabilidad",
             "nivel_confianza",
             "dictamen_texto",
+            "recomendacion_ia",
         ]
 
     def get_total_factores_relevantes(self, obj):

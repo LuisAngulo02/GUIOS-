@@ -314,6 +314,12 @@ class Evaluacion(models.Model):
         help_text="Copia congelada e inmutable del dictamen al momento de completarse la evaluación",
         verbose_name="Dictamen (Snapshot)"
     )
+    recomendacion_ia = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Análisis y recomendaciones accionables generadas por IA según las calificaciones",
+        verbose_name="Recomendaciones Personalizadas IA"
+    )
 
     class Meta:
         db_table = "evaluacion"
@@ -559,3 +565,110 @@ class FactorKeywords(models.Model):
 
     def __str__(self):
         return f"Keywords ({len(self.keywords)}) - {self.id_factor.nombre}"
+
+
+# ==============================================================================
+# 13. EVIDENCIA BIBLIOGRÁFICA Y TRAZABILIDAD ACADÉMICA (RF-14 / Paso 0)
+# ==============================================================================
+class ConsultaEvidencia(models.Model):
+    """Registro de consultas a APIs académicas y cálculo de IL/IE/IS por evaluación."""
+    id_evaluacion = models.ForeignKey(
+        Evaluacion,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="consultas_evidencia",
+        db_column="id_evaluacion",
+        verbose_name="Evaluación Asociada"
+    )
+    nombre_software = models.CharField(max_length=150, verbose_name="Software FLOSS")
+    contexto_uso = models.CharField(max_length=255, blank=True, default="", verbose_name="Contexto de Uso")
+    descripcion_caso = models.TextField(blank=True, default="", verbose_name="Descripción del Caso")
+    cadena_booleana = models.TextField(blank=True, default="", verbose_name="Cadena Booleana Global")
+    fuentes_consultadas = models.JSONField(default=list, blank=True, verbose_name="Fuentes Consultadas")
+    total_documentos = models.PositiveIntegerField(default=0, verbose_name="Total Documentos")
+    total_citas = models.PositiveIntegerField(default=0, verbose_name="Total Citas Acumuladas")
+    factores_con_evidencia = models.PositiveSmallIntegerField(default=0, verbose_name="Factores con Evidencia")
+    ia_utilizada = models.BooleanField(default=False, verbose_name="Sinónimos Generados con IA")
+    proveedor_ia = models.CharField(max_length=80, blank=True, default="", verbose_name="Proveedor IA")
+    ventana_temporal = models.CharField(max_length=30, default="2016-2026", verbose_name="Ventana Temporal")
+    fecha_consulta = models.DateTimeField(default=timezone.now, verbose_name="Fecha de Consulta")
+
+    class Meta:
+        db_table = "consulta_evidencia"
+        verbose_name = "Consulta de Evidencia Bibliográfica"
+        verbose_name_plural = "Consultas de Evidencia Bibliográfica"
+        ordering = ["-fecha_consulta"]
+        indexes = [
+            models.Index(fields=["id_evaluacion"], name="idx_evidencia_evaluacion"),
+        ]
+
+    def __str__(self):
+        return f"Evidencia '{self.nombre_software}' ({self.fecha_consulta.strftime('%Y-%m-%d %H:%M')})"
+
+
+class EvidenciaFactor(models.Model):
+    """Detalle bibliográfico y valores calculados de IL, IE e IS por factor."""
+    id_consulta = models.ForeignKey(
+        ConsultaEvidencia,
+        on_delete=models.CASCADE,
+        related_name="detalles_factor",
+        db_column="id_consulta",
+        verbose_name="Consulta Padre"
+    )
+    id_factor = models.ForeignKey(
+        Factor,
+        on_delete=models.RESTRICT,
+        related_name="evidencias_calculadas",
+        db_column="id_factor",
+        verbose_name="Factor"
+    )
+    nombre_factor = models.CharField(max_length=150, verbose_name="Nombre del Factor")
+    documentos = models.PositiveIntegerField(default=0, verbose_name="Documentos Encontrados")
+    citas = models.PositiveIntegerField(default=0, verbose_name="Citas Acumuladas")
+    autores_relevantes = models.TextField(blank=True, default="", verbose_name="Autores Relevantes")
+    fuente_principal = models.CharField(max_length=80, default="OpenAlex", verbose_name="Fuente Principal")
+    il_calculado = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(4)],
+        default=3,
+        verbose_name="IL Calculado (1-4)"
+    )
+    il_normalizado = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=0.75,
+        verbose_name="IL Normalizado (0-1)"
+    )
+    ie_valor = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(4)],
+        default=3,
+        verbose_name="IE Experto (1-4)"
+    )
+    ie_normalizado = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=0.75,
+        verbose_name="IE Normalizado (0-1)"
+    )
+    is_calculado = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(4)],
+        default=3,
+        verbose_name="IS Sugerida Calculada (1-4)"
+    )
+    keywords_usadas = models.JSONField(default=list, blank=True, verbose_name="Keywords Usadas")
+    sinonimos_ia = models.JSONField(default=list, blank=True, verbose_name="Sinónimos Generados por IA")
+    articulos = models.JSONField(default=list, blank=True, verbose_name="Artículos Representativos")
+
+    class Meta:
+        db_table = "evidencia_factor"
+        verbose_name = "Evidencia por Factor"
+        verbose_name_plural = "Evidencias por Factor"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["id_consulta", "id_factor"],
+                name="unique_evidencia_factor_por_consulta"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.nombre_factor} -> Docs: {self.documentos}, Citas: {self.citas}, IS: {self.is_calculado}"

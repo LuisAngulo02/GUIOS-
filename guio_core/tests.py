@@ -1,3 +1,4 @@
+from unittest.mock import patch
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
@@ -13,6 +14,8 @@ from guio_core.models import (
     ResultadoSubfactor,
     ResultadoFoda,
     Rol,
+    ConsultaEvidencia,
+    EvidenciaFactor,
 )
 
 Usuario = get_user_model()
@@ -372,4 +375,131 @@ class AdminCatalogoHU03TestCase(TestCase):
             resp_get.data[str(self.factor.id)]["keywords"],
             ["interoperability", "cloud ready", "cross-platform"],
         )
+
+    @patch("guio_core.services.academic_ai_service._http_json")
+    def test_paso0_calcular_consultar_y_restaurar_evidencia(self, mock_http_json):
+        """RF-14: El Paso 0 consulta OpenAlex, calcula IL/IS, persiste evidencia y permite restaurar."""
+        def fake_http(url, method="GET", payload=None, headers=None, timeout=10):
+            if "api.openalex.org" in url:
+                return {
+                    "meta": {"count": 15},
+                    "results": [
+                        {
+                            "id": "https://openalex.org/W123",
+                            "doi": "https://doi.org/10.1000/test",
+                            "display_name": "Open Source LMS Adoption Study",
+                            "publication_year": 2024,
+                            "cited_by_count": 42,
+                            "authorships": [{"author": {"display_name": "Garcia, A."}}],
+                            "primary_location": {"source": {"display_name": "IEEE Access"}},
+                        }
+                    ],
+                }
+            return None
+
+        mock_http_json.side_effect = fake_http
+
+        self.client.force_authenticate(user=self.evaluador)
+        ev = Evaluacion.objects.create(nombre_software="Moodle", id_usuario=self.evaluador)
+
+        # 1. Calcular Paso 0
+        resp_calc = self.client.post("/api/v1/guios/evidencia/calcular/", {
+            "evaluacion_id": ev.id,
+            "nombre_software": "Moodle",
+            "contexto_uso": "Educación",
+            "fuentes": {"scopus": True, "openAlex": True, "semanticScholar": False},
+        }, format="json")
+        self.assertEqual(resp_calc.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_calc.data["software"], "Moodle")
+        self.assertGreater(resp_calc.data["kpis"]["documentos"], 0)
+        self.assertTrue(ConsultaEvidencia.objects.filter(id_evaluacion=ev).exists())
+        self.assertEqual(EvidenciaFactor.objects.filter(id_consulta__id_evaluacion=ev).count(), 1)
+
+        # 2. Consultar evidencia guardada
+        resp_get = self.client.get(f"/api/v1/guios/evidencia/?evaluacion_id={ev.id}")
+        self.assertEqual(resp_get.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_get.data["items"][0]["documentos"], 15)
+        self.assertEqual(resp_get.data["items"][0]["citas"], 42)
+        self.assertIn("IS", resp_get.data["items"][0])
+
+        # 3. Probar consulta de un factor como evaluador (403) y como admin (200)
+        resp_prob_eval = self.client.post("/api/v1/guios/admin/factores/probar-consulta/", {
+            "id_factor": self.factor.id,
+            "nombre_software": "Moodle",
+        }, format="json")
+        self.assertEqual(resp_prob_eval.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.client.force_authenticate(user=self.admin)
+        resp_prob_admin = self.client.post("/api/v1/guios/admin/factores/probar-consulta/", {
+            "id_factor": self.factor.id,
+            "nombre_software": "Moodle",
+            "usar_sinonimos": False,
+        }, format="json")
+        self.assertEqual(resp_prob_admin.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_prob_admin.data["documentos"], 15)
+
+        # 4. Restaurar valores originales de la tesis
+        self.client.force_authenticate(user=self.evaluador)
+        resp_rest = self.client.post("/api/v1/guios/evidencia/restaurar/", {
+            "evaluacion_id": ev.id,
+        }, format="json")
+        self.assertEqual(resp_rest.status_code, status.HTTP_200_OK)
+        self.assertFalse(ConsultaEvidencia.objects.filter(id_evaluacion=ev).exists())
+
+    @patch("guio_core.services.recommendation_ai_service._http_json")
+    def test_paso3_recomendaciones_ia_y_fallback(self, mock_http_json):
+        """Paso 3: Genera recomendaciones personalizadas según calificaciones y las persiste."""
+        mock_http_json.return_value = None  # Probar respaldo determinístico sobre calificaciones reales
+
+        self.client.force_authenticate(user=self.evaluador)
+        ev = Evaluacion.objects.create(nombre_software="LibreOffice", id_usuario=self.evaluador)
+
+        payload = {
+            "evaluacion_id": ev.id,
+            "nombre_software": "LibreOffice",
+            "contexto_uso": "Universidad pública",
+            "recomendacion": "C",
+            "viabilidad": 50,
+            "nivel_confianza": "Medio",
+            "factores": [
+                {
+                    "id": 1,
+                    "nombre": "Compatibilidad",
+                    "foda": "Amenaza",
+                    "alcance": "Externo",
+                    "isCritical": True,
+                    "PM": 2.0,
+                    "IR": "3 · Importante",
+                }
+            ],
+            "subfactores": {
+                "1": [
+                    {
+                        "codigo": "SF-02",
+                        "descripcion": "Exportar formatos propietarios",
+                        "calificacion": 1,
+                        "observacion": "Pérdida de formato en macros DOCX complejos",
+                    },
+                    {
+                        "codigo": "SF-04",
+                        "descripcion": "Certificado en su nicho",
+                        "calificacion": 2,
+                        "observacion": "",
+                    },
+                ]
+            },
+        }
+
+        resp = self.client.post("/api/v1/guios/recomendaciones-ia/", payload, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn("LibreOffice", resp.data["diagnostico_ejecutivo"])
+        self.assertGreater(len(resp.data["recomendaciones_priorizadas"]), 0)
+        self.assertEqual(resp.data["recomendaciones_priorizadas"][0]["factor"], "Compatibilidad")
+        self.assertGreater(len(resp.data["plan_desconocimiento"]), 0)
+
+        ev.refresh_from_db()
+        self.assertIsNotNone(ev.recomendacion_ia)
+        self.assertEqual(ev.recomendacion_ia["recomendaciones_priorizadas"][0]["factor"], "Compatibilidad")
+
+
 

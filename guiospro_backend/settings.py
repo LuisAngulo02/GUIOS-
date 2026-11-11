@@ -199,3 +199,11 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
 
+# AI & Academic APIs Configuration 
+GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
+GEMINI_MODEL = env('GEMINI_MODEL', default='gemini-3.5-flash-lite')
+OPENALEX_EMAIL = env('OPENALEX_EMAIL', default='guiospro@research.local')
+SEMANTIC_SCHOLAR_API_KEY = env('SEMANTIC_SCHOLAR_API_KEY', default='')
+SCOPUS_API_KEY = env('SCOPUS_API_KEY', default='')
+
+

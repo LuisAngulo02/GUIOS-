@@ -98,10 +98,43 @@ flowchart LR
 
 ---
 
-### 2.4. Hardening de Seguridad y Aseguramiento de Calidad (Transversal)
+### 2.4. Mejoras Metodológicas y Funcionalidades Recientes (Post-Sprint 3)
+- [x] **Flujo Completo de Creación de "Nueva Evaluación" en Blanco:**
+  - Componente modal reutilizable `ModalNuevaEvaluacion.jsx` disparado desde el botón `+ Nueva evaluación` en Dashboard y Sidebar.
+  - Inicialización limpia en `EvaluationContext.jsx` (`getFactoresEnBlanco()`, `getSubfactoresEnBlanco()`), reseteando todos los 61 reactivos con `calificacion: null` y eliminando residuos de evaluaciones previas.
+  - Redirección automática al Paso 1 con el estado en blanco.
+- [x] **Modales de Validación Metodológica y UX (Sustitución de Alerts Nativos):**
+  - Reemplazo de `alert()` nativo del navegador por modales estilizados con diseño corporativo GUIOS+:
+    - Modal de advertencia en `EvaluacionSubfactores.jsx` que muestra la cantidad de subfactores sin calificar, listado interactivo de factores incompletos y botón de navegación directa con un clic.
+    - Modal en `FactoresRelevantes.jsx` que valida la condición metodológica de tener al menos un factor relevante ($IR > 1$).
+  - Corrección visual del Card de Recomendación en `ResultadoDictamen.jsx`: renderizado condicional con ícono `<Clock />` centrado y mensaje explicativo cuando la evaluación aún no ha sido completada, evitando desbordamientos de texto.
+- [x] **Exportación Tabular a Excel / CSV:**
+  - Menú desplegable integrado en `ResultadoDictamen.jsx` junto a la exportación PDF con 3 modalidades de descarga:
+    1. **Matriz FODA y Factores (`.csv`):** Factores clasificados por cuadrante FODA, alcance, calificaciones $ID$, $IS$, $IR$, $PM$ y criticidad.
+    2. **Reactivos y Observaciones (`.csv`):** Los 61 subfactores con sus códigos, ponderación Likert asignada y justificaciones registradas.
+    3. **Informe Completo Consolidado (`.csv`):** Metadatos de la evaluación, dictamen final, viabilidad FLOSS, nivel de confianza y resumen FODA.
+  - Implementación con codificación UTF-8 con BOM (`\uFEFF`) y escape de caracteres para compatibilidad directa y sin problemas de tildes/eñes en Microsoft Excel para Windows.
+- [x] **Persistencia de Palabras Clave por Factor en PostgreSQL:**
+  - Nuevo modelo `FactorKeywords` en backend (`guio_core/models.py`) vinculado a la tabla `factor_keywords` con soporte `JSONField` para almacenar matrices de términos y booleanos de sinónimos.
+  - Migración `0003_factorkeywords.py` generada y aplicada en base de datos PostgreSQL.
+  - Endpoints DRF `/api/v1/guios/admin/factores/keywords/` (`GET` y `POST`) con permiso `EsAdministrador` y registro automático de bitácora en `LogAuditoria`.
+  - Integración en frontend `Administracion.jsx` y `apiService.js`, permitiendo guardar y cargar de forma persistente los filtros de búsqueda bibliográfica.
+- [x] **Paso 0 y Evidencia Bibliográfica Real con IA (RF-14):**
+  - Modelos `ConsultaEvidencia` y `EvidenciaFactor` en PostgreSQL (migración `0004`).
+  - Servicio `academic_ai_service.py` con conector en vivo a **OpenAlex** (`title_and_abstract.search`, 2016–2026) en paralelo y expansión de sinónimos vía **Google Gemini (`gemini-3.5-flash-lite`)**. *(Semantic Scholar preparado y comentado temporalmente hasta aprobación de API key).*
+  - Cálculo exacto de $IL$ por cuartiles ($r_i = c_i / NS_i$) e $IS = \lfloor (IL + IE) / 2 \rfloor$.
+  - Pantallas `Configuracion.jsx`, `Evidencia.jsx` (con modal de artículos y enlaces DOI + exportación CSV) y botón `"Probar consulta"` en `Administracion.jsx` conectados en tiempo real.
+- [x] **Recomendaciones Personalizadas con IA en Paso 3:**
+  - Campo `recomendacion_ia` (`JSONField`) en `Evaluacion` (migración `0005`).
+  - Servicio `recommendation_ai_service.py` y endpoint `/api/v1/guios/recomendaciones-ia/` que analizan la matriz FODA, subfactores en `1` (*No cumple*) o `2` (*Desconozco*) y observaciones para emitir diagnóstico contextualizado, acciones prioritarias y plan de verificación usando **Gemini** (con respaldo determinístico inteligente).
+  - Integración en `ResultadoDictamen.jsx` con chips dinámicos, tarjetas priorizadas por alcance e impacto y opción de regenerar análisis.
+
+---
+
+### 2.5. Hardening de Seguridad y Aseguramiento de Calidad (Transversal)
 - [x] **Throttling y Rate Limiting:** Configurado en DRF para mitigar ataques DoS y fuerza bruta (10 peticiones/min en endpoints de autenticación, 60/min usuarios anónimos, 300/min usuarios autenticados).
 - [x] **Cabeceras de Seguridad:** Activadas protecciones XSS, Clickjacking (`X-Frame-Options: DENY`), y `X-Content-Type-Options: nosniff`.
-- [x] **Pruebas Automatizadas:** 19/19 pruebas unitarias y de integración pasando al 100% en Django (`guio_core` y `users`).
+- [x] **Pruebas Automatizadas:** 22/22 pruebas unitarias y de integración pasando al 100% en Django (`guio_core` y `users`).
 - [x] **Build Limpio Frontend:** Empaquetado exitoso en Vite/React sin errores de dependencias ni de sintaxis.
 
 ---
@@ -119,63 +152,68 @@ flowchart LR
 | **RF-07 / HU-04** | Selección y Configuración de Alcance | Funcional | **Completado (100%)** | `Paso1Factores.jsx`, `guio_core` |
 | **RF-08 / HU-05** | Calificación Granular de Subfactores | Funcional | **Completado (100%)** | `Paso2Subfactores.jsx` |
 | **RF-09 / HU-06** | Generación de la Matriz FODA | Funcional | **Completado (100%)** | `Paso3Resultado.jsx`, `engine.py` |
-| **RF-10 / HU-06** | Generación del Dictamen de Adopción | Funcional | **Completado (100%)** | `engine.py`, `guio_core` |
+| **RF-10 / HU-06** | Generación del Dictamen de Adopción | Funcional | **Completado (100%)** | `engine.py`, `recommendation_ai_service.py` |
 | **RF-11 / HU-07** | Consulta y Filtrado del Historial | Funcional | **Completado (100%)** | `Dashboard.jsx`, `HistorialModal.jsx` |
 | **RF-12 / HU-07** | Comparación de Evaluaciones | Funcional | **Completado (100%)** | `ComparadorEvaluaciones.jsx` |
-| **RF-13 / HU-08** | Exportación de Reporte en PDF | Funcional | **Completado (100%)** | `pdf_generator.py` |
-| **RF-14 / Post-S3**| Búsqueda Asistida de Evidencia (IA) | Ampliación | **Pendiente / Roadmap** | `services/academicApis.js` |
+| **RF-13 / HU-08** | Exportación de Reporte en PDF y CSV | Funcional | **Completado (100%)** | `pdf_generator.py`, `ResultadoDictamen.jsx` |
+| **RF-14 / Post-S3**| Búsqueda Asistida de Evidencia (IA / APIs) | Ampliación | **Completado (OpenAlex + Gemini)** | `academic_ai_service.py`, `Evidencia.jsx` |
 | **RNF-01 a 06** | Rendimiento, Seguridad y Auditoría | No Funcional | **Completado (100%)** | Rate limiting, Bcrypt, Logs, Snapshots |
 
 ---
 
 ## 4. Lo que Falta por Implementar (Roadmap del Sistema)
 
-Excluyendo la infraestructura de despliegue (Docker) y pipelines de CI/CD para priorizar la funcionalidad directa de la aplicación, las áreas y mejoras pendientes son:
+Excluyendo la infraestructura de despliegue (Docker) y pipelines de CI/CD para priorizar la funcionalidad directa de la aplicación, el estado actual de las tareas identificadas es:
 
 ```mermaid
 flowchart TD
-    A["Sistema Actual Funcional (Sprints 1, 2 y 3)"] --> B["1. Flujo Completo 'Nueva Evaluación'"]
-    A --> C["2. Conexión Real de Evidencia Bibliográfica (RF-14)"]
-    A --> D["3. Configuración de Keywords de Búsqueda por Factor"]
-    A --> E["4. Exportación de Matriz FODA a Excel/CSV"]
-    A --> F["5. Pruebas de Usuario y Validación de Casos Reales"]
+    A["Sistema Actual Funcional (Sprints 1, 2, 3 + IA)"] --> B["1. Flujo 'Nueva Evaluación' ✅"]
+    A --> C["2. Evidencia Bibliográfica + IA (RF-14) ✅"]
+    A --> D["3. Persistencia de Keywords por Factor ✅"]
+    A --> E["4. Exportación Tabular a Excel/CSV ✅"]
+    A --> G["5. Recomendaciones Personalizadas IA Paso 3 ✅"]
+    A --> H["6. Optimización UX Subfactores ⏳"]
+    A --> F["7. Validación Caso Real UNEMI ⏳"]
 
-    B --> B1["Modal para inicializar evaluación en blanco en PostgreSQL y resetear contexto"]
-    C --> C1["Conectores a APIs públicas (OpenAlex / Semantic Scholar) en lugar de mocks"]
-    D --> D1["Persistir en BD las palabras clave personalizadas de la pestaña de Admin"]
-    E --> E1["Descarga de matriz FODA y factores en CSV/XLSX además del PDF"]
-    F --> F1["Validación con caso de estudio de la tesis (ej. LibreOffice / Moodle en UNEMI)"]
+    B --> B1["Implementado: Modal, reseteo limpio en contexto y catálogo base"]
+    C --> C1["Implementado: OpenAlex + Gemini IA (Semantic Scholar pendiente API Key)"]
+    D --> D1["Implementado: Modelo FactorKeywords en PostgreSQL y CRUD Admin"]
+    E --> E1["Implementado: Descarga de FODA, Reactivos e Informe en CSV (BOM UTF-8)"]
+    G --> G1["Implementado: Diagnóstico y plan de acción Gemini según notas 1-4"]
+    H --> H1["Por hacer: Asistente IA, acciones en bloque, stepper y filtro de pendientes"]
+    F --> F1["Pendiente: Carga y verificación del caso de estudio de la tesis"]
 ```
 
-### 4.1. Tarea 1: Flujo Completo de Creación de "Nueva Evaluación" en Blanco
-- [ ] En `Dashboard.jsx`, al presionar `+ Nueva evaluación`, abrir un modal formal de creación que:
-  - Solicite: Nombre del software, Área/Contexto y Objetivo institucional.
-  - Cree el registro en PostgreSQL vía `POST /api/v1/guios/evaluations/`.
-  - Limpie y resetee el estado reactivo de `EvaluationContext` (calificaciones en blanco y factores inicializados con los valores base del catálogo).
-  - Redirija limpiamente al **Paso 1** con la nueva evaluación activa.
+### 4.1. Tareas Recientemente Completadas
+- [x] **Tarea 1: Flujo Completo de Creación de "Nueva Evaluación" en Blanco** *(Completada)*
+- [x] **Tarea 2: Conexión Real del Módulo de Evidencia Bibliográfica (`RF-14`)** *(Completada con OpenAlex + Gemini; pendiente activar Semantic Scholar al recibir API key)*
+- [x] **Tarea 3: Persistencia de Palabras Clave y Filtros por Factor (Admin)** *(Completada)*
+- [x] **Tarea 4: Exportación de Datos en Formato Tabular (Excel / CSV)** *(Completada)*
+- [x] **Recomendaciones Personalizadas con IA en Paso 3** *(Completada)*
 
-### 4.2. Tarea 2: Conexión Real del Módulo de Evidencia Bibliográfica (RF-14)
-- [ ] Sustituir los datos de prueba (`MOCK_EVIDENCIA`) en `frontend/src/pages/Evidencia.jsx` y `Configuracion.jsx`:
-  - Implementar un endpoint en el backend `/api/v1/guios/evidencia/` que consulte o almacene las fuentes documentales y citas.
-  - Conexión opcional a la API pública y gratuita de **OpenAlex** o **Semantic Scholar** para obtener conteos reales de artículos sobre el software indicado.
-  - Cálculo de la tasa de citas para actualizar el cuartil de $IL$ (Importancia de la Literatura).
+### 4.2. Tareas Pendientes por Realizar
 
-### 4.3. Tarea 3: Persistencia de Palabras Clave y Filtros por Factor (Admin)
-- [ ] En la pestaña **"Palabras clave por factor"** de `Administracion.jsx`:
-  - Actualmente las keywords se editan en memoria; agregar persistencia para guardar las cadenas booleanas personalizadas en una tabla de configuración o metadatos de factores.
+#### ⏳ Tarea 5: Validación Metodológica con el Caso de Estudio de la Tesis (UNEMI / LibreOffice)
+- Cargar y evaluar el caso de estudio oficial de la Universidad Estatal de Milagro (UNEMI) documentado en el Capítulo 6 de la tesis doctoral (migración a LibreOffice):
+  - Calificar los reactivos correspondientes y verificar que el motor de inferencia arroje exactamente el dictamen metodológico de la tesis (**Recomendación C**, debido a debilidades en factores tecnológicos críticos).
+  - Validar los reportes generados en PDF, CSV y recomendaciones IA contra los datos tabulares de la tesis.
 
-### 4.4. Tarea 4: Exportación de Datos en Formato Tabular (Excel / CSV)
-- [ ] Además del informe oficial en PDF (HU-08), permitir a los evaluadores descargar:
-  - La matriz FODA consolidada en formato CSV/Excel.
-  - El listado de reactivos con sus observaciones para archivo interno de la organización.
+#### ⏳ Tarea 6: Optimización UX en Evaluación de Subfactores (Calificación Ágil de los 61 Reactivos)
+- **Asistente de Pre-calificación con Gemini AI (`gemini-3.5-flash-lite`):**
+  - Botón `"✦ Sugerir calificaciones con IA"` en `EvaluacionSubfactores.jsx` que analiza el software evaluado contra los 61 reactivos de la tesis y propone notas justificadas preliminares para que el evaluador solo valide o ajuste excepciones.
+- **Acciones Rápidas en Bloque y Flujo Continuo:**
+  - Botones *"Marcar factor como Cumple (4)"* y *"Marcar restantes como Parcial (3)"* para agilizar factores aprobados en su totalidad con un solo clic.
+  - Navegación secuencial fluida con botón *"Guardar y pasar al siguiente factor"* (del 1 al 18) eliminando la necesidad de seleccionar en el menú desplegable 18 veces.
+- **Navegación Visual con Stepper y Filtro de Pendientes:**
+  - Panel o barra lateral con estado en tiempo real de cada factor (`✓ Completo`, `⚠ Pendiente`).
+  - Filtro interactivo *"Mostrar solo factores pendientes"* para enfocar la atención en los reactivos que faltan para habilitar el Paso 3.
 
-### 4.5. Tarea 5: Validación Metodológica con el Caso de Estudio de la Tesis
-- [ ] Cargar y evaluar el caso de estudio oficial de la Universidad Estatal de Milagro (UNEMI) documentado en el Capítulo 6 de la tesis (migración a LibreOffice):
-  - Verificar que las calificaciones de los subfactores reproduzcan exactamente el dictamen de la tesis (**Recomendación C** debido a factores críticos tecnológicos).
+#### ⏳ Activación de Semantic Scholar (cuando aprueben la API Key)
+- Pegar `SEMANTIC_SCHOLAR_API_KEY` en `.env` y descomentar el bloque temporal en `guio_core/services/academic_ai_service.py` y `Configuracion.jsx`.
 
 ---
 
 ## 5. Próximos Pasos Recomendados
 
-1. **Revisión del usuario de lo implementado:** Comprobar login, roles, catálogo de factores (HU-03), evaluación completa (Pasos 1 a 3), dashboard, comparador y descarga de PDF.
-2. **Definir cuál de las tareas funcionales anteriores deseas priorizar:** (ej. creación de nueva evaluación en blanco, exportación CSV o conectar la evidencia bibliográfica).
+1. **Revisión del usuario:** Probar el flujo completo en el navegador desde Paso 0 hasta Paso 3 verificando las consultas a OpenAlex, la expansión de sinónimos y el plan de acción generado por Gemini IA según las calificaciones.
+2. **Validación final:** Ejecutar la **Tarea 5 (Caso de estudio UNEMI / LibreOffice)** para cerrar al 100% la validación metodológica.

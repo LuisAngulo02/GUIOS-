@@ -112,16 +112,20 @@ export const EvaluationProvider = ({ children }) => {
         const found = parsed.find((p) => p.id === mf.id);
         if (!found) return mf;
         const idVal = found.ID !== undefined ? found.ID : mf.ID;
-        const irNum = Math.floor((mf.IS + idVal) / 2);
+        const isVal = found.IS !== undefined ? found.IS : mf.IS;
+        const irNum = Math.floor((isVal + idVal) / 2);
         const irTexto = MAPA_NUMERO_A_TEXTO_IR[irNum] || "Irrelevante";
         return {
           ...mf,
           ...found,
-          IL_dec: mf.IL_dec,
-          IE_dec: mf.IE_dec,
-          evidencia_count: mf.evidencia_count,
-          citas_acumuladas: mf.citas_acumuladas,
-          articulos: mf.articulos,
+          IL: found.IL !== undefined ? found.IL : mf.IL,
+          IE: found.IE !== undefined ? found.IE : mf.IE,
+          IS: isVal,
+          IL_dec: found.IL_dec !== undefined ? found.IL_dec : mf.IL_dec,
+          IE_dec: found.IE_dec !== undefined ? found.IE_dec : mf.IE_dec,
+          evidencia_count: found.evidencia_count !== undefined ? found.evidencia_count : mf.evidencia_count,
+          citas_acumuladas: found.citas_acumuladas !== undefined ? found.citas_acumuladas : mf.citas_acumuladas,
+          articulos: Array.isArray(found.articulos) ? found.articulos : mf.articulos,
           ID: idVal,
           IR: `${irNum} · ${irTexto}`,
           relevante: irNum > 1,
@@ -701,6 +705,64 @@ export const EvaluationProvider = ({ children }) => {
     setCurrentUser(null);
   };
 
+  // Aplicar cálculo real del Paso 0 (IL, IE, IS, artículos y citas) sobre los factores activos
+  const aplicarEvidenciaEnFactores = useCallback((itemsEvidencia) => {
+    if (!Array.isArray(itemsEvidencia) || itemsEvidencia.length === 0) return;
+    setFactores((prev) =>
+      prev.map((f) => {
+        const match = itemsEvidencia.find(
+          (item) =>
+            Number(item.id_factor) === Number(f.id) ||
+            item.factor?.toLowerCase() === f.nombre?.toLowerCase()
+        );
+        if (!match) return f;
+        const nuevoIS = match.IS ?? f.IS;
+        const irNum = Math.floor((nuevoIS + f.ID) / 2);
+        const irTexto = MAPA_NUMERO_A_TEXTO_IR[irNum] || "Irrelevante";
+        return {
+          ...f,
+          IL: match.IL_num ?? f.IL,
+          IE: match.IE_num ?? f.IE,
+          IS: nuevoIS,
+          IL_dec: match.IL_dec ?? f.IL_dec,
+          IE_dec: match.IE_dec ?? f.IE_dec,
+          evidencia_count: match.documentos ?? f.evidencia_count,
+          citas_acumuladas: match.citas ?? f.citas_acumuladas,
+          articulos: Array.isArray(match.articulos) && match.articulos.length > 0 ? match.articulos : [],
+          IR: `${irNum} · ${irTexto}`,
+          relevante: irNum > 1,
+        };
+      })
+    );
+    setSaveStatus("Actualizado por Paso 0");
+  }, []);
+
+  // Restaurar IL, IE, IS oficiales de la tesis en los factores activos
+  const restaurarValoresTesisEnFactores = useCallback(() => {
+    setFactores((prev) =>
+      prev.map((f) => {
+        const base = MOCK_FACTORES.find((mf) => mf.id === f.id);
+        if (!base) return f;
+        const irNum = Math.floor((base.IS + f.ID) / 2);
+        const irTexto = MAPA_NUMERO_A_TEXTO_IR[irNum] || "Irrelevante";
+        return {
+          ...f,
+          IL: base.IL,
+          IE: base.IE,
+          IS: base.IS,
+          IL_dec: base.IL_dec,
+          IE_dec: base.IE_dec,
+          evidencia_count: base.evidencia_count,
+          citas_acumuladas: base.citas_acumuladas,
+          articulos: base.articulos,
+          IR: `${irNum} · ${irTexto}`,
+          relevante: irNum > 1,
+        };
+      })
+    );
+    setSaveStatus("Valores tesis restaurados");
+  }, []);
+
   return (
     <EvaluationContext.Provider
       value={{
@@ -728,6 +790,8 @@ export const EvaluationProvider = ({ children }) => {
         sincronizarPaso1ConBackend,
         sincronizarPaso2ConBackend,
         sincronizarEvaluacionCompletaConBackend,
+        aplicarEvidenciaEnFactores,
+        restaurarValoresTesisEnFactores,
         evaluacionesList,
         cargandoEvaluaciones,
         fetchEvaluaciones,

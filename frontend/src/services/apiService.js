@@ -86,13 +86,17 @@ async function request(endpoint, options = {}, isRetry = false) {
 
   const response = await doFetch(`${API_BASE_URL}${endpoint}`, config);
 
-  // Si responde 401 y no es petición de auth, intentar recuperar token y reintentar una vez
+  // Si responde 401 y no es petición de auth, intentar recuperar token o reintentar sin token
   if (response.status === 401 && !isAuthEndpoint && !isRetry) {
     console.info("Token expirado o inválido (401). Renovando sesión...");
     localStorage.removeItem("guios_access_token");
     const newToken = await ensureValidToken();
     if (newToken) {
       return await request(endpoint, options, true);
+    } else {
+      const headersSinAuth = { ...headers };
+      delete headersSinAuth.Authorization;
+      return await request(endpoint, { ...options, headers: headersSinAuth }, true);
     }
   }
 
@@ -301,25 +305,39 @@ export const apiService = {
   },
 
   // ---------------------------------------------------------------------------
-  // 3. Paso 0: Automatización de Importancia Sugerida (IS)
+  // 3. Paso 0 y Evidencia: Automatización de Importancia Sugerida (RF-14)
   // ---------------------------------------------------------------------------
-  async calcularImportanciaSugerida(onProgress) {
-    for (let p = 10; p <= 100; p += 25) {
-      await delay(200);
-      if (onProgress) onProgress(p);
-    }
-    return {
-      factores_actualizados: 18,
-      subfactores_evaluados: 61,
-      documentos_procesados: 126,
-      fuentes_consultadas: ["Scopus", "OpenAlex", "Semantic Scholar"],
-      timestamp: new Date().toISOString(),
-    };
+  async calcularImportanciaSugerida(payload) {
+    return await request("/guios/evidencia/calcular/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   },
 
-  async restaurarValoresOriginales() {
-    await delay(150);
-    return JSON.parse(JSON.stringify(MOCK_FACTORES));
+  async restaurarValoresOriginales(evaluacion_id = null) {
+    return await request("/guios/evidencia/restaurar/", {
+      method: "POST",
+      body: JSON.stringify({ evaluacion_id }),
+    });
+  },
+
+  async getEvidenciaBibliografica(evaluacion_id = null) {
+    const query = evaluacion_id ? `?evaluacion_id=${evaluacion_id}` : "";
+    return await request(`/guios/evidencia/${query}`);
+  },
+
+  async probarConsultaFactor({ id_factor, nombre_software, keywords, usar_sinonimos }) {
+    return await request("/guios/admin/factores/probar-consulta/", {
+      method: "POST",
+      body: JSON.stringify({ id_factor, nombre_software, keywords, usar_sinonimos }),
+    });
+  },
+
+  async generarRecomendacionesIA(payload) {
+    return await request("/guios/recomendaciones-ia/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   },
 
   // ---------------------------------------------------------------------------

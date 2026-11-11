@@ -2,14 +2,44 @@ import re
 from rest_framework import status, views, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.http import HttpResponse
 
 from users.permissions import EsAdministrador
+
+
+class OptionalJWTAuthentication(JWTAuthentication):
+    """
+    Autentica con JWT si el token provisto es válido.
+    Si el token está expirado, es inválido o no se envía, retorna None (AnonymousUser)
+    en lugar de lanzar una excepción AuthenticationFailed / 401.
+    Esto permite que los endpoints con permission_classes = [AllowAny] atiendan
+    peticiones de clientes con tokens expirados sin bloquearlos con un error 401.
+    """
+
+    def authenticate(self, request):
+        header = self.get_header(request)
+        if header is None:
+            return None
+        raw_token = self.get_raw_token(header)
+        if raw_token is None:
+            return None
+        try:
+            validated_token = self.get_validated_token(raw_token)
+            return self.get_user(validated_token), validated_token
+        except Exception:
+            return None
 from guio_core.pdf_generator import generar_informe_pdf
+from guio_core.services.academic_ai_service import (
+    ejecutar_paso_0,
+    probar_consulta_factor,
+    serializar_consulta_evidencia,
+)
+from guio_core.services.recommendation_ai_service import generar_recomendaciones_ia
 from guio_core.models import (
     Dimension,
     Factor,
@@ -21,6 +51,7 @@ from guio_core.models import (
     ResultadoFoda,
     LogAuditoria,
     FactorKeywords,
+    ConsultaEvidencia,
 )
 from guio_core.serializers import (
     SubfactorCatalogoSerializer,
@@ -241,6 +272,29 @@ class AdminFactoresViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_200_OK,
             )
 
+    @action(detail=False, methods=["post"], url_path="probar-consulta")
+    def probar_consulta(self, request):
+        """
+        RF-14: Prueba en vivo la consulta booleana de un factor contra OpenAlex
+        con expansión opcional de sinónimos vía IA.
+        """
+        id_factor = request.data.get("id_factor")
+        nombre_software = (request.data.get("nombre_software") or "Moodle").strip()
+        keywords = request.data.get("keywords")
+        usar_sinonimos = bool(request.data.get("usar_sinonimos", True))
+
+        if not id_factor:
+            return Response({"detail": "id_factor es obligatorio."}, status=status.HTTP_400_BAD_REQUEST)
+
+        factor = get_object_or_404(Factor, id=id_factor)
+        resultado = probar_consulta_factor(
+            factor=factor,
+            nombre_software=nombre_software,
+            keywords=keywords,
+            usar_sinonimos=usar_sinonimos,
+        )
+        return Response(resultado, status=status.HTTP_200_OK)
+
 
 class AdminSubfactoresViewSet(viewsets.ModelViewSet):
     """HU-03: CRUD administrativo de Subfactores con baja lógica."""
@@ -398,11 +452,19 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
         resultados_guardados = []
         factores_relevantes_count = 0
 
+        # Si existe cálculo bibliográfico del Paso 0 para esta evaluación, usar sus IS calculados
+        consulta_ev = ConsultaEvidencia.objects.filter(id_evaluacion=evaluacion).first()
+        mapa_is_evidencia = (
+            {d.id_factor_id: d.is_calculado for d in consulta_ev.detalles_factor.all()}
+            if consulta_ev
+            else {}
+        )
+
         with transaction.atomic():
             for item in items_factores:
                 f_obj = factores_dict[item["id_factor"]]
                 id_val = item["importancia_decisor"]
-                is_val = f_obj.importancia_literatura
+                is_val = mapa_is_evidencia.get(f_obj.id, f_obj.importancia_literatura)
 
                 # Regla de oro de la tesis (Ecuación 5.2):
                 # IR = floor((IS + ID) / 2)
@@ -918,6 +980,12 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
                 payload_subfactores = request.data.get("subfactores")
 
                 if payload_factores:
+                    consulta_ev = ConsultaEvidencia.objects.filter(id_evaluacion=evaluacion).first()
+                    mapa_is_evidencia = (
+                        {d.id_factor_id: d.is_calculado for d in consulta_ev.detalles_factor.all()}
+                        if consulta_ev
+                        else {}
+                    )
                     for item in payload_factores:
                         f_id = item.get("id_factor") or item.get("id")
                         if not f_id:
@@ -930,7 +998,7 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
                             id_val = max(1, min(4, int(raw_id)))
                         except (ValueError, TypeError):
                             id_val = 1
-                        is_val = f_obj.importancia_literatura or 3
+                        is_val = mapa_is_evidencia.get(f_obj.id, f_obj.importancia_literatura or 3)
                         ir_num = (is_val + id_val) // 2
                         mapa_ir = {
                             1: ResultadoFactor.ImportanciaRelativaTexto.IRRELEVANTE,
@@ -1030,5 +1098,212 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
                 {"detail": f"Error generando informe PDF: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+def _verificar_acceso_evaluacion(user, evaluacion_id):
+    """Retorna la Evaluacion si existe y el usuario es dueño o administrador; None si no existe; False si no tiene permisos."""
+    if not evaluacion_id:
+        return None
+    evaluacion = Evaluacion.objects.filter(id=evaluacion_id).first()
+    if not evaluacion:
+        return None
+    if not user or not hasattr(user, "is_authenticated") or not user.is_authenticated:
+        return None
+    es_admin = user.is_superuser or (user.id_rol and user.id_rol.nombre == "administrador")
+    if not es_admin and evaluacion.id_usuario_id != user.id:
+        return False
+    return evaluacion
+
+
+class EvidenciaView(views.APIView):
+    """
+    GET /api/v1/guios/evidencia/?evaluacion_id=<id>
+    Retorna la última consulta bibliográfica real ejecutada para la evaluación o general.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
+
+    def get(self, request):
+        eval_id = request.query_params.get("evaluacion_id")
+        consulta = None
+
+        if eval_id and str(eval_id).isdigit():
+            ev_check = _verificar_acceso_evaluacion(request.user, int(eval_id))
+            if ev_check is False:
+                return Response(
+                    {"detail": "No tienes permisos sobre esta evaluación."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if ev_check:
+                consulta = ConsultaEvidencia.objects.filter(id_evaluacion_id=ev_check.id).first()
+
+        if not consulta:
+            es_autenticado = bool(
+                request.user and hasattr(request.user, "is_authenticated") and request.user.is_authenticated
+            )
+            es_admin = bool(
+                es_autenticado
+                and (
+                    request.user.is_superuser
+                    or (request.user.id_rol and request.user.id_rol.nombre == "administrador")
+                )
+            )
+            if es_admin:
+                consulta = ConsultaEvidencia.objects.first()
+            elif es_autenticado:
+                consulta = ConsultaEvidencia.objects.filter(
+                    id_evaluacion__id_usuario=request.user
+                ).first()
+            else:
+                consulta = ConsultaEvidencia.objects.first()
+
+        if not consulta:
+            return Response({"sin_consulta": True, "items": []}, status=status.HTTP_200_OK)
+
+        return Response(serializar_consulta_evidencia(consulta), status=status.HTTP_200_OK)
+
+
+class CalcularEvidenciaView(views.APIView):
+    """
+    POST /api/v1/guios/evidencia/calcular/
+    Paso 0 (RF-14): Ejecuta expansión de sinónimos vía IA + búsqueda real en OpenAlex/Semantic Scholar
+    y calcula IL, IE e IS según los cuartiles de la tesis doctoral.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
+
+    def post(self, request):
+        nombre_software = (request.data.get("nombre_software") or "").strip()
+        if not nombre_software:
+            return Response(
+                {"detail": "El nombre del software FLOSS es obligatorio."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        eval_id = request.data.get("evaluacion_id")
+        valid_eval_id = None
+        if eval_id and str(eval_id).isdigit():
+            ev_check = _verificar_acceso_evaluacion(request.user, int(eval_id))
+            if ev_check is False:
+                return Response(
+                    {"detail": "No tienes permisos sobre esta evaluación."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if ev_check:
+                valid_eval_id = ev_check.id
+
+        resultado = ejecutar_paso_0(
+            nombre_software=nombre_software,
+            contexto_uso=(request.data.get("contexto_uso") or "").strip(),
+            descripcion_caso=(request.data.get("descripcion_caso") or "").strip(),
+            fuentes=request.data.get("fuentes"),
+            evaluacion_id=valid_eval_id,
+            user=request.user,
+        )
+        return Response(resultado, status=status.HTTP_200_OK)
+
+
+class RestaurarEvidenciaView(views.APIView):
+    """
+    POST /api/v1/guios/evidencia/restaurar/
+    Restaura los valores oficiales de IS/IL/IE de la tesis doctoral para una evaluación.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
+
+    def post(self, request):
+        eval_id = request.data.get("evaluacion_id")
+        if eval_id and str(eval_id).isdigit():
+            ev_check = _verificar_acceso_evaluacion(request.user, int(eval_id))
+            if ev_check is False:
+                return Response(
+                    {"detail": "No tienes permisos sobre esta evaluación."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if ev_check:
+                ConsultaEvidencia.objects.filter(id_evaluacion_id=ev_check.id).delete()
+
+        factores = Factor.objects.filter(activo=True).order_by("id")
+        valores_tesis = [
+            {
+                "id_factor": f.id,
+                "factor": f.nombre,
+                "IL_num": f.importancia_literatura,
+                "IL_dec": f"{f.importancia_literatura / 4.0:.2f}",
+                "IE_num": 3,
+                "IE_dec": "0.75",
+                "IS": f.importancia_literatura,
+            }
+            for f in factores
+        ]
+
+        if request.user and request.user.is_authenticated:
+            LogAuditoria.objects.create(
+                id_usuario=request.user,
+                accion="restaurar_evidencia_tesis",
+                entidad="evaluacion",
+                id_entidad=str(eval_id or "global"),
+                detalle="Restauración de valores originales de literatura científica (Tesis Doctoral).",
+            )
+
+        return Response(
+            {
+                "message": "Valores originales de la tesis doctoral restaurados correctamente.",
+                "factores": valores_tesis,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class RecomendacionesIAView(views.APIView):
+    """
+    POST /api/v1/guios/recomendaciones-ia/
+    Paso 3: Analiza las calificaciones exactas de factores, subfactores (1-4),
+    FODA y observaciones para generar recomendaciones accionables con Gemini IA
+    (con respaldo determinístico y persistencia en Evaluacion.recomendacion_ia).
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
+
+    def post(self, request):
+        eval_id = request.data.get("evaluacion_id")
+        regenerar = bool(request.data.get("regenerar", False))
+        evaluacion_obj = None
+
+        if eval_id and str(eval_id).isdigit():
+            ev_check = _verificar_acceso_evaluacion(request.user, int(eval_id))
+            if ev_check is False:
+                return Response(
+                    {"detail": "No tienes permisos sobre esta evaluación."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            evaluacion_obj = ev_check
+
+            if evaluacion_obj and evaluacion_obj.recomendacion_ia and not regenerar:
+                return Response(evaluacion_obj.recomendacion_ia, status=status.HTTP_200_OK)
+
+        payload = dict(request.data)
+        if evaluacion_obj and not payload.get("nombre_software"):
+            payload["nombre_software"] = evaluacion_obj.nombre_software
+
+        resultado_ia = generar_recomendaciones_ia(payload)
+
+        if evaluacion_obj:
+            evaluacion_obj.recomendacion_ia = resultado_ia
+            evaluacion_obj.save(update_fields=["recomendacion_ia"])
+            if request.user and request.user.is_authenticated:
+                LogAuditoria.objects.create(
+                    id_usuario=request.user,
+                    accion="generar_recomendaciones_ia",
+                    entidad="evaluacion",
+                    id_entidad=str(evaluacion_obj.id),
+                    detalle=(
+                        f"Análisis de recomendaciones ({resultado_ia.get('modelo', 'GUIOS+')}) "
+                        f"para '{evaluacion_obj.nombre_software}'"
+                    ),
+                )
+
+        return Response(resultado_ia, status=status.HTTP_200_OK)
+
 
 
