@@ -1,6 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles, RotateCcw, Check, Database, Info, Calendar, Globe } from "lucide-react";
+import {
+  Sparkles,
+  RotateCcw,
+  Check,
+  Database,
+  Info,
+  Calendar,
+  Globe,
+  AlertTriangle,
+  X,
+  BookOpen,
+} from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
 import Toggle from "../components/Toggle";
 import Badge from "../components/Badge";
@@ -12,6 +23,7 @@ import { apiService } from "../services/apiService";
 export const Configuracion = () => {
   const navigate = useNavigate();
   const {
+    evaluacionId,
     softwareActivo,
     setSoftwareActivo,
     contextoActivo,
@@ -19,24 +31,62 @@ export const Configuracion = () => {
     descripcionCaso,
     setDescripcionCaso,
     actualizarMetadatosEvaluacion,
+    aplicarEvidenciaEnFactores,
+    restaurarValoresTesisEnFactores,
   } = useEvaluation();
 
   // Estados de fuentes bibliográficas
   const [fuentes, setFuentes] = useState({
     scopus: true,
     openAlex: true,
-    semanticScholar: true,
+    semanticScholar: false, // Desactivado temporalmente hasta aprobación de API key
   });
 
-  // Estado de simulación de cálculo
+  // Estado de cálculo real con backend + IA + APIs académicas
   const [calculando, setCalculando] = useState(false);
   const [progreso, setProgreso] = useState(0);
-  const [calculoExitoso, setCalculoExitoso] = useState(true); // Inicialmente mostrado como en la captura
+  const [calculoExitoso, setCalculoExitoso] = useState(false);
+  const [resultadoConsulta, setResultadoConsulta] = useState(null);
+  const [errorCalculo, setErrorCalculo] = useState("");
+  const [modalRestaurarAbierto, setModalRestaurarAbierto] = useState(false);
+  const [restaurando, setRestaurando] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+
+  const mostrarToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 3500);
+  };
+
+  // Cargar resumen si ya existe una consulta previa para esta evaluación
+  useEffect(() => {
+    if (!evaluacionId) return;
+    apiService
+      .getEvidenciaBibliografica(evaluacionId)
+      .then((res) => {
+        if (res && !res.sin_consulta && Array.isArray(res.items) && res.items.length > 0) {
+          setResultadoConsulta(res);
+          setCalculoExitoso(true);
+        } else {
+          setResultadoConsulta(null);
+          setCalculoExitoso(false);
+        }
+      })
+      .catch(() => {});
+  }, [evaluacionId]);
 
   const handleCalcular = async () => {
+    if (!softwareActivo.trim()) {
+      setErrorCalculo("Ingresa el nombre del software FLOSS antes de calcular la evidencia.");
+      return;
+    }
+    setErrorCalculo("");
     setCalculando(true);
     setCalculoExitoso(false);
-    setProgreso(0);
+    setProgreso(15);
+
+    const timer = setInterval(() => {
+      setProgreso((prev) => (prev < 88 ? prev + 12 : prev));
+    }, 350);
 
     try {
       if (actualizarMetadatosEvaluacion) {
@@ -46,17 +96,43 @@ export const Configuracion = () => {
           objetivo: descripcionCaso,
         });
       }
-      await apiService.calcularImportanciaSugerida((p) => setProgreso(p));
-      setCalculoExitoso(true);
+      const res = await apiService.calcularImportanciaSugerida({
+        evaluacion_id: !isNaN(Number(evaluacionId)) ? Number(evaluacionId) : null,
+        nombre_software: softwareActivo,
+        contexto_uso: contextoActivo,
+        descripcion_caso: descripcionCaso,
+        fuentes,
+      });
+
+      setProgreso(100);
+      if (res && Array.isArray(res.items)) {
+        aplicarEvidenciaEnFactores(res.items);
+        setResultadoConsulta(res);
+        setCalculoExitoso(true);
+      }
+    } catch (err) {
+      setErrorCalculo(err.message || "Error al conectar con las APIs académicas.");
     } finally {
+      clearInterval(timer);
       setCalculando(false);
     }
   };
 
-  const handleRestaurar = async () => {
-    if (window.confirm("¿Deseas restaurar los valores originales de la literatura científica de la tesis?")) {
-      await apiService.restaurarValoresOriginales();
-      alert("Valores originales de la tesis doctoral restaurados con éxito.");
+  const handleConfirmarRestaurar = async () => {
+    setRestaurando(true);
+    try {
+      await apiService.restaurarValoresOriginales(
+        !isNaN(Number(evaluacionId)) ? Number(evaluacionId) : null
+      );
+      restaurarValoresTesisEnFactores();
+      setResultadoConsulta(null);
+      setCalculoExitoso(false);
+      setModalRestaurarAbierto(false);
+      mostrarToast("Valores oficiales de la tesis doctoral restaurados correctamente.");
+    } catch (err) {
+      setErrorCalculo(err.message || "No se pudieron restaurar los valores originales.");
+    } finally {
+      setRestaurando(false);
     }
   };
 
@@ -64,9 +140,14 @@ export const Configuracion = () => {
     <div className="space-y-6">
       {/* Encabezado */}
       <div>
-        <h1 className="text-2xl sm:text-3xl font-light text-[#2F5444] tracking-tight">
-          Paso 0 · Configuración automática
-        </h1>
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-2xl sm:text-3xl font-light text-[#2F5444] tracking-tight">
+            Paso 0 · Configuración automática
+          </h1>
+          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#EBF4EE] text-[#2F5444] border border-[#CDE1D4]">
+            {softwareActivo} #{evaluacionId}
+          </span>
+        </div>
         <p className="text-xs sm:text-sm text-gray-500 mt-1">
           Configura los parámetros del caso de estudio y la estimación asistida de Importancia Sugerida (IS).
         </p>
@@ -153,7 +234,7 @@ export const Configuracion = () => {
               {[
                 { key: "scopus", name: "Scopus (Elsevier)", desc: "54 estudios primarios indexados" },
                 { key: "openAlex", name: "OpenAlex", desc: "Metadatos abiertos globales y citas" },
-                { key: "semanticScholar", name: "Semantic Scholar", desc: "Análisis semántico de citas e influencia" },
+                { key: "semanticScholar", name: "Semantic Scholar", desc: "En espera de API Key (desactivado temporalmente)" },
               ].map((src) => {
                 const conectada = !!fuentes[src.key];
                 return (
@@ -199,11 +280,19 @@ export const Configuracion = () => {
             </div>
           </div>
 
+          {/* Mensaje de error si falla la consulta */}
+          {errorCalculo && (
+            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+              <AlertTriangle size={15} className="shrink-0" />
+              <span>{errorCalculo}</span>
+            </div>
+          )}
+
           {/* Barra de progreso interactiva si está calculando */}
           {calculando && (
             <div className="p-4 rounded-lg bg-[#EBF4EE] border border-[#CDE1D4]">
               <div className="flex justify-between items-center text-xs font-semibold text-[#2F5444] mb-1">
-                <span>Consultando APIs académicas y procesando sinónimos...</span>
+                <span>Consultando OpenAlex / Semantic Scholar y procesando sinónimos...</span>
                 <span>{progreso}%</span>
               </div>
               <div className="w-full bg-white rounded-full h-2 overflow-hidden">
@@ -226,7 +315,7 @@ export const Configuracion = () => {
               <span>{calculando ? "Procesando cálculo..." : "Calcular importancia sugerida"}</span>
             </button>
             <button
-              onClick={handleRestaurar}
+              onClick={() => setModalRestaurarAbierto(true)}
               disabled={calculando}
               className="px-5 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
@@ -292,11 +381,22 @@ export const Configuracion = () => {
               </div>
               <div className="flex justify-between items-center py-1">
                 <span className="text-gray-400">Fecha de cálculo</span>
-                <span className="font-semibold text-gray-800">24 Oct 2026, 22:30</span>
+                <span className="font-semibold text-gray-800">
+                  {resultadoConsulta?.fecha_consulta
+                    ? new Date(resultadoConsulta.fecha_consulta).toLocaleString("es-ES", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })
+                    : "Base Tesis 2022"}
+                </span>
               </div>
               <div className="flex justify-between items-center py-1">
                 <span className="text-gray-400">Modo</span>
-                <span className="font-semibold text-[#3F6F58]">Automático con revisión</span>
+                <span className="font-semibold text-[#3F6F58]">
+                  {resultadoConsulta?.ia_utilizada
+                    ? `IA (${resultadoConsulta.proveedor_ia || "Gemini"}) + APIs`
+                    : "APIs abiertas + Palabras clave"}
+                </span>
               </div>
             </div>
           </div>
@@ -304,7 +404,7 @@ export const Configuracion = () => {
       </div>
 
       {/* Banda verde de éxito abajo */}
-      {calculoExitoso && (
+      {calculoExitoso && resultadoConsulta && (
         <div className="rounded-card bg-[#3F6F58] text-white p-4 px-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-fade-in">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-[#52876D] flex items-center justify-center text-white shrink-0">
@@ -312,20 +412,81 @@ export const Configuracion = () => {
             </div>
             <div>
               <h5 className="font-semibold text-sm">
-                Cálculo completado correctamente
+                Cálculo completado correctamente · {resultadoConsulta.software}
               </h5>
               <p className="text-xs text-green-100 opacity-90">
-                18 factores actualizados · 61 subfactores vinculados · 126 documentos procesados desde Scopus y OpenAlex.
+                {resultadoConsulta.factores_actualizados} factores actualizados ·{" "}
+                {resultadoConsulta.kpis?.documentos ?? 0} documentos analizados ·{" "}
+                {resultadoConsulta.kpis?.citas_acumuladas ?? 0} citas acumuladas
+                {resultadoConsulta.ia_utilizada ? " · Sinónimos expandidos con IA" : ""}.
               </p>
             </div>
           </div>
 
-          <button
-            onClick={() => navigate("/factores")}
-            className="px-4 py-2 rounded-lg bg-white text-[#2F5444] hover:bg-gray-100 font-semibold text-xs transition-colors shrink-0 shadow cursor-pointer"
-          >
-            Ir al Paso 1 · Factores relevantes →
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => navigate("/evidencia")}
+              className="px-3.5 py-2 rounded-lg bg-[#52876D] hover:bg-[#5E9A7D] text-white font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <BookOpen size={13} />
+              <span>Ver evidencia</span>
+            </button>
+            <button
+              onClick={() => navigate("/factores")}
+              className="px-4 py-2 rounded-lg bg-white text-[#2F5444] hover:bg-gray-100 font-semibold text-xs transition-colors shadow cursor-pointer"
+            >
+              Ir al Paso 1 · Factores relevantes →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmación Restaurar Valores Originales */}
+      {modalRestaurarAbierto && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full border border-[#DDE7E1] shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <RotateCcw size={17} />
+                </div>
+                <h3 className="font-semibold text-gray-900 text-sm">
+                  Restaurar valores de la tesis
+                </h3>
+              </div>
+              <button
+                onClick={() => setModalRestaurarAbierto(false)}
+                className="text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              ¿Deseas descartar los valores calculados por las APIs académicas para esta evaluación y restaurar los valores oficiales de <strong>IL, IE e IS</strong> validados en la tesis doctoral?
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setModalRestaurarAbierto(false)}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmarRestaurar}
+                disabled={restaurando}
+                className="px-4 py-2 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
+              >
+                {restaurando ? "Restaurando..." : "Sí, restaurar valores"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#2F5444] text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-medium flex items-center gap-2">
+          <Check size={14} className="text-green-300" />
+          <span>{toastMsg}</span>
         </div>
       )}
     </div>

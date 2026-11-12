@@ -86,13 +86,17 @@ async function request(endpoint, options = {}, isRetry = false) {
 
   const response = await doFetch(`${API_BASE_URL}${endpoint}`, config);
 
-  // Si responde 401 y no es petición de auth, intentar recuperar token y reintentar una vez
+  // Si responde 401 y no es petición de auth, intentar recuperar token o reintentar sin token
   if (response.status === 401 && !isAuthEndpoint && !isRetry) {
     console.info("Token expirado o inválido (401). Renovando sesión...");
     localStorage.removeItem("guios_access_token");
     const newToken = await ensureValidToken();
     if (newToken) {
       return await request(endpoint, options, true);
+    } else {
+      const headersSinAuth = { ...headers };
+      delete headersSinAuth.Authorization;
+      return await request(endpoint, { ...options, headers: headersSinAuth }, true);
     }
   }
 
@@ -269,6 +273,22 @@ export const apiService = {
     });
   },
 
+  async getAdminKeywords() {
+    try {
+      return await request("/guios/admin/factores/keywords/");
+    } catch (err) {
+      console.warn("getAdminKeywords offline:", err.message);
+      return {};
+    }
+  },
+
+  async guardarAdminKeywords(id_factor, keywords, usar_sinonimos = true) {
+    return await request("/guios/admin/factores/keywords/", {
+      method: "POST",
+      body: JSON.stringify({ id_factor, keywords, usar_sinonimos }),
+    });
+  },
+
   async getFactores() {
     await delay(150);
     return JSON.parse(JSON.stringify(MOCK_FACTORES));
@@ -285,25 +305,39 @@ export const apiService = {
   },
 
   // ---------------------------------------------------------------------------
-  // 3. Paso 0: Automatización de Importancia Sugerida (IS)
+  // 3. Paso 0 y Evidencia: Automatización de Importancia Sugerida (RF-14)
   // ---------------------------------------------------------------------------
-  async calcularImportanciaSugerida(onProgress) {
-    for (let p = 10; p <= 100; p += 25) {
-      await delay(200);
-      if (onProgress) onProgress(p);
-    }
-    return {
-      factores_actualizados: 18,
-      subfactores_evaluados: 61,
-      documentos_procesados: 126,
-      fuentes_consultadas: ["Scopus", "OpenAlex", "Semantic Scholar"],
-      timestamp: new Date().toISOString(),
-    };
+  async calcularImportanciaSugerida(payload) {
+    return await request("/guios/evidencia/calcular/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   },
 
-  async restaurarValoresOriginales() {
-    await delay(150);
-    return JSON.parse(JSON.stringify(MOCK_FACTORES));
+  async restaurarValoresOriginales(evaluacion_id = null) {
+    return await request("/guios/evidencia/restaurar/", {
+      method: "POST",
+      body: JSON.stringify({ evaluacion_id }),
+    });
+  },
+
+  async getEvidenciaBibliografica(evaluacion_id = null) {
+    const query = evaluacion_id ? `?evaluacion_id=${evaluacion_id}` : "";
+    return await request(`/guios/evidencia/${query}`);
+  },
+
+  async probarConsultaFactor({ id_factor, nombre_software, keywords, usar_sinonimos }) {
+    return await request("/guios/admin/factores/probar-consulta/", {
+      method: "POST",
+      body: JSON.stringify({ id_factor, nombre_software, keywords, usar_sinonimos }),
+    });
+  },
+
+  async generarRecomendacionesIA(payload) {
+    return await request("/guios/recomendaciones-ia/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   },
 
   // ---------------------------------------------------------------------------
@@ -344,20 +378,104 @@ export const apiService = {
 
   async cargarEvaluacionActiva(id) {
     try {
-      return await request(`/guios/evaluations/${id}/cargar_activa/`);
+      const res = await request(`/guios/evaluations/${id}/cargar_activa/`);
+      if (res && res.evaluacion) return res;
     } catch (err) {
       console.warn(`cargarEvaluacionActiva ${id} offline:`, err.message);
+    }
+    try {
+      const cache = JSON.parse(localStorage.getItem("guios_evaluaciones_cache") || "[]");
+      const found = cache.find((e) => String(e.id) === String(id));
+      if (found) {
+        return {
+          evaluacion: {
+            id: found.id,
+            nombre_software: found.nombre_software,
+            contexto_uso: found.contexto_uso || "",
+            objetivo: found.objetivo || "",
+            estado: found.estado || "en_progreso",
+            resultados_factor: found.resultados_factor || [],
+          },
+          subfactores: [],
+        };
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  },
+
+  // Precargar el Caso de Estudio Oficial UNEMI / LibreOffice (Tarea 5)
+  async cargarCasoUNEMI() {
+    try {
+      const res = await request("/guios/evaluations/caso-unemi/", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      return res;
+    } catch (err) {
+      console.warn("cargarCasoUNEMI error:", err.message);
+      throw err;
+    }
+  },
+
+  // Precalificación ágil de subfactores con IA / base experta (Tarea 6)
+  async precalificarSubfactores(payload) {
+    try {
+      return await request("/guios/precalificar-subfactores/", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      console.warn("precalificarSubfactores error:", err.message);
       return null;
     }
   },
 
   async compararEvaluaciones(eval1Id, eval2Id) {
     try {
-      return await request(`/guios/evaluations/comparar/?eval1=${eval1Id}&eval2=${eval2Id}`);
+      const res = await request(`/guios/evaluations/comparar/?eval1=${eval1Id}&eval2=${eval2Id}`);
+      const ev1 = res?.evaluacion_1 || res?.evaluacion1;
+      const ev2 = res?.evaluacion_2 || res?.evaluacion2;
+      if (res && ev1 && ev2) {
+        return {
+          ...res,
+          evaluacion_1: ev1,
+          evaluacion_2: ev2,
+          evaluacion1: ev1,
+          evaluacion2: ev2,
+        };
+      }
     } catch (err) {
-      console.warn(`compararEvaluaciones offline:`, err.message);
-      throw err;
+      console.warn("compararEvaluaciones API warning:", err.message);
     }
+    try {
+      const cache = JSON.parse(localStorage.getItem("guios_evaluaciones_cache") || "[]");
+      const ev1 = cache.find((e) => String(e.id) === String(eval1Id));
+      const ev2 = cache.find((e) => String(e.id) === String(eval2Id));
+      if (ev1 && ev2) {
+        const viab1 = Number(ev1.indice_viabilidad || 0);
+        const viab2 = Number(ev2.indice_viabilidad || 0);
+        const rec1 = typeof ev1.recomendacion === "object" ? ev1.recomendacion?.tipo : ev1.recomendacion;
+        const rec2 = typeof ev2.recomendacion === "object" ? ev2.recomendacion?.tipo : ev2.recomendacion;
+        return {
+          evaluacion_1: ev1,
+          evaluacion_2: ev2,
+          evaluacion1: ev1,
+          evaluacion2: ev2,
+          comparativa_factores: [],
+          resumen_diferencias: [
+            `Diferencia de viabilidad: ${Math.abs(viab1 - viab2).toFixed(1)}%`,
+            rec1 === rec2
+              ? `Ambas soluciones coinciden con recomendación ${rec1 || "—"}.`
+              : `Discrepancia en dictamen: ${ev1.nombre_software} (${rec1 || "—"}) vs ${ev2.nombre_software} (${rec2 || "—"}).`,
+          ],
+        };
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error("No se pudo obtener la comparación entre las evaluaciones seleccionadas.");
   },
 
   async createEvaluation({ nombre_software, contexto_uso, objetivo }) {

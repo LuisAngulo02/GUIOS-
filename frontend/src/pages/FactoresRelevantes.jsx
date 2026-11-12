@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Save, ChevronDown, X, ArrowRight } from "lucide-react";
+import { Search, Save, ChevronDown, X, ArrowRight, AlertTriangle } from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
 import Badge from "../components/Badge";
 
@@ -10,6 +10,8 @@ import Badge from "../components/Badge";
  */
 export const FactoresRelevantes = () => {
   const {
+    softwareActivo,
+    evaluacionId,
     factores,
     updateFactorID,
     updateFactorAlcance,
@@ -27,6 +29,7 @@ export const FactoresRelevantes = () => {
   const [filtroEstado, setFiltroEstado] = useState("Todos");
   const [filtroAlcance, setFiltroAlcance] = useState("Todos");
   const [guardadoManual, setGuardadoManual] = useState(false);
+  const [modalSinRelevantesOpen, setModalSinRelevantesOpen] = useState(false);
 
   // Estado para el Drawer lateral de Evidencia bibliográfica
   const [drawerFactor, setDrawerFactor] = useState(null);
@@ -90,7 +93,7 @@ export const FactoresRelevantes = () => {
 
   const handleContinuarPaso2 = async () => {
     if (!puedeAvanzarPaso2) {
-      alert("No hay ningún factor relevante seleccionado (IR > 1). Asigne al menos un factor con importancia para continuar.");
+      setModalSinRelevantesOpen(true);
       return;
     }
     sincronizarPaso1ConBackend();
@@ -102,9 +105,14 @@ export const FactoresRelevantes = () => {
       {/* 1. Encabezado con título y botón Guardar cambios */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-light text-[#2F5444] tracking-tight">
-            Paso 1 · Factores relevantes
-          </h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl sm:text-3xl font-light text-[#2F5444] tracking-tight">
+              Paso 1 · Factores relevantes
+            </h1>
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#EBF4EE] text-[#2F5444] border border-[#CDE1D4]">
+              {softwareActivo} #{evaluacionId}
+            </span>
+          </div>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
             Determina la Importancia del Decisor (ID) para calcular la Importancia Relativa (IR) y filtrar los factores clave.
           </p>
@@ -466,6 +474,48 @@ export const FactoresRelevantes = () => {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal: Sin Factores Relevantes */}
+      {modalSinRelevantesOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full border border-[#DDE7E1] shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+                  <AlertTriangle size={22} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 text-sm">
+                    Sin Factores Relevantes
+                  </h3>
+                  <p className="text-[11px] text-gray-500">
+                    Regla de filtrado de la tesis GUIOS (IR &gt; 1)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalSinRelevantesOpen(false)}
+                className="w-7 h-7 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-600 leading-relaxed">
+              No hay ningún factor relevante seleccionado (Importancia Relativa $IR &gt; 1$). Para avanzar al Paso 2, asigne al menos un factor con valor de importancia para su organización (Opcional, Importante o Fundamental).
+            </p>
+
+            <div className="pt-2 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setModalSinRelevantesOpen(false)}
+                className="px-4 py-2 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs cursor-pointer shadow-sm"
+              >
+                Entendido
+              </button>
             </div>
           </div>
         </div>

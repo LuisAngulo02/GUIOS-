@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -9,8 +9,10 @@ import {
   BookOpen,
   ShieldCheck,
   HelpCircle,
+  PlusCircle,
 } from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
+import ModalNuevaEvaluacion from "./ModalNuevaEvaluacion";
 
 /**
  * Layout común: Menú lateral izquierdo (~240px, blanco)
@@ -18,6 +20,7 @@ import { useEvaluation } from "../context/EvaluationContext";
 export const Sidebar = () => {
   const { currentUser } = useEvaluation();
   const esAdmin = currentUser?.rol?.toLowerCase() === "administrador";
+  const [modalNuevaOpen, setModalNuevaOpen] = useState(false);
 
   const navItems = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -35,10 +38,17 @@ export const Sidebar = () => {
     <aside className="w-60 bg-white border-r border-[#DDE7E1] flex flex-col justify-between shrink-0 min-h-[calc(100vh-64px)] shadow-sm">
       {/* Navegación Principal */}
       <div className="py-6">
-        <div className="px-5 mb-3">
+        <div className="px-5 mb-3 flex items-center justify-between">
           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
             FLUJO DE EVALUACIÓN
           </span>
+          <button
+            onClick={() => setModalNuevaOpen(true)}
+            title="Iniciar nueva evaluación"
+            className="w-5 h-5 rounded hover:bg-emerald-50 text-[#3F6F58] flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <PlusCircle size={15} />
+          </button>
         </div>
 
         <nav className="space-y-1">
@@ -80,6 +90,11 @@ export const Sidebar = () => {
           </div>
         </div>
       </div>
+
+      <ModalNuevaEvaluacion
+        isOpen={modalNuevaOpen}
+        onClose={() => setModalNuevaOpen(false)}
+      />
     </aside>
   );
 };

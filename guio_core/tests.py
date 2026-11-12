@@ -1,3 +1,4 @@
+from unittest.mock import patch
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
@@ -13,6 +14,8 @@ from guio_core.models import (
     ResultadoSubfactor,
     ResultadoFoda,
     Rol,
+    ConsultaEvidencia,
+    EvidenciaFactor,
 )
 
 Usuario = get_user_model()
@@ -159,13 +162,23 @@ class EvaluacionApiFlowTestCase(TestCase):
 
         self.client.post(f"/api/v1/guios/evaluations/{eval_id}/resultado/")
 
-        # 2. Descargar PDF oficial
+        # 2. Descargar PDF oficial vía GET
         res_pdf = self.client.get(f"/api/v1/guios/evaluations/{eval_id}/pdf/")
         self.assertEqual(res_pdf.status_code, status.HTTP_200_OK)
         self.assertEqual(res_pdf["Content-Type"], "application/pdf")
         self.assertIn("attachment; filename=", res_pdf["Content-Disposition"])
         self.assertTrue(len(res_pdf.content) > 1000)
         self.assertTrue(res_pdf.content.startswith(b"%PDF"))
+
+        # 3. Descargar PDF oficial vía POST con payload (no debe bloquearse si la evaluación ya está completada)
+        res_pdf_post = self.client.post(
+            f"/api/v1/guios/evaluations/{eval_id}/pdf/",
+            {"factores": [{"id_factor": self.f_compat.id, "importancia_decisor": 4}], "subfactores": []},
+            format="json",
+        )
+        self.assertEqual(res_pdf_post.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_pdf_post["Content-Type"], "application/pdf")
+        self.assertTrue(res_pdf_post.content.startswith(b"%PDF"))
 
     def test_rechazo_resultado_si_faltan_subfactores(self):
         """No se debe permitir calcular resultado si faltan subfactores por calificar en factores relevantes."""
@@ -342,4 +355,221 @@ class AdminCatalogoHU03TestCase(TestCase):
         self.assertEqual(resp_delete.status_code, status.HTTP_204_NO_CONTENT)
         sf_db = Subfactor.objects.get(id=sf_id)
         self.assertFalse(sf_db.activo)
+
+    def test_admin_gestionar_keywords_factor(self):
+        """HU-03 / RF-14: El administrador puede consultar y persistir keywords por factor."""
+        # 1. Evaluador es rechazado con 403
+        self.client.force_authenticate(user=self.evaluador)
+        resp_eval = self.client.post("/api/v1/guios/admin/factores/keywords/", {
+            "id_factor": self.factor.id,
+            "keywords": ["interoperability", "cloud ready"],
+            "usar_sinonimos": True,
+        }, format="json")
+        self.assertEqual(resp_eval.status_code, status.HTTP_403_FORBIDDEN)
+
+        # 2. Administrador puede guardar keywords
+        self.client.force_authenticate(user=self.admin)
+        resp_admin = self.client.post("/api/v1/guios/admin/factores/keywords/", {
+            "id_factor": self.factor.id,
+            "keywords": ["interoperability", "cloud ready", "cross-platform"],
+            "usar_sinonimos": True,
+        }, format="json")
+        self.assertEqual(resp_admin.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp_admin.data["data"]["keywords"]), 3)
+
+        # 3. Administrador puede consultar keywords
+        resp_get = self.client.get("/api/v1/guios/admin/factores/keywords/")
+        self.assertEqual(resp_get.status_code, status.HTTP_200_OK)
+        self.assertIn(str(self.factor.id), resp_get.data)
+        self.assertEqual(
+            resp_get.data[str(self.factor.id)]["keywords"],
+            ["interoperability", "cloud ready", "cross-platform"],
+        )
+
+    @patch("guio_core.services.academic_ai_service._http_json")
+    def test_paso0_calcular_consultar_y_restaurar_evidencia(self, mock_http_json):
+        """RF-14: El Paso 0 consulta OpenAlex, calcula IL/IS, persiste evidencia y permite restaurar."""
+        def fake_http(url, method="GET", payload=None, headers=None, timeout=10):
+            if "api.openalex.org" in url:
+                return {
+                    "meta": {"count": 15},
+                    "results": [
+                        {
+                            "id": "https://openalex.org/W123",
+                            "doi": "https://doi.org/10.1000/test",
+                            "display_name": "Open Source LMS Adoption Study",
+                            "publication_year": 2024,
+                            "cited_by_count": 42,
+                            "authorships": [{"author": {"display_name": "Garcia, A."}}],
+                            "primary_location": {"source": {"display_name": "IEEE Access"}},
+                        }
+                    ],
+                }
+            return None
+
+        mock_http_json.side_effect = fake_http
+
+        self.client.force_authenticate(user=self.evaluador)
+        ev = Evaluacion.objects.create(nombre_software="Moodle", id_usuario=self.evaluador)
+
+        # 1. Calcular Paso 0
+        resp_calc = self.client.post("/api/v1/guios/evidencia/calcular/", {
+            "evaluacion_id": ev.id,
+            "nombre_software": "Moodle",
+            "contexto_uso": "Educación",
+            "fuentes": {"scopus": True, "openAlex": True, "semanticScholar": False},
+        }, format="json")
+        self.assertEqual(resp_calc.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_calc.data["software"], "Moodle")
+        self.assertGreater(resp_calc.data["kpis"]["documentos"], 0)
+        self.assertTrue(ConsultaEvidencia.objects.filter(id_evaluacion=ev).exists())
+        self.assertEqual(EvidenciaFactor.objects.filter(id_consulta__id_evaluacion=ev).count(), 1)
+
+        # 2. Consultar evidencia guardada
+        resp_get = self.client.get(f"/api/v1/guios/evidencia/?evaluacion_id={ev.id}")
+        self.assertEqual(resp_get.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_get.data["items"][0]["documentos"], 15)
+        self.assertEqual(resp_get.data["items"][0]["citas"], 42)
+        self.assertIn("IS", resp_get.data["items"][0])
+
+        # 3. Probar consulta de un factor como evaluador (403) y como admin (200)
+        resp_prob_eval = self.client.post("/api/v1/guios/admin/factores/probar-consulta/", {
+            "id_factor": self.factor.id,
+            "nombre_software": "Moodle",
+        }, format="json")
+        self.assertEqual(resp_prob_eval.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.client.force_authenticate(user=self.admin)
+        resp_prob_admin = self.client.post("/api/v1/guios/admin/factores/probar-consulta/", {
+            "id_factor": self.factor.id,
+            "nombre_software": "Moodle",
+            "usar_sinonimos": False,
+        }, format="json")
+        self.assertEqual(resp_prob_admin.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_prob_admin.data["documentos"], 15)
+
+        # 4. Restaurar valores originales de la tesis
+        self.client.force_authenticate(user=self.evaluador)
+        resp_rest = self.client.post("/api/v1/guios/evidencia/restaurar/", {
+            "evaluacion_id": ev.id,
+        }, format="json")
+        self.assertEqual(resp_rest.status_code, status.HTTP_200_OK)
+        self.assertFalse(ConsultaEvidencia.objects.filter(id_evaluacion=ev).exists())
+
+    @patch("guio_core.services.recommendation_ai_service._http_json")
+    def test_paso3_recomendaciones_ia_y_fallback(self, mock_http_json):
+        """Paso 3: Genera recomendaciones personalizadas según calificaciones y las persiste."""
+        mock_http_json.return_value = None  # Probar respaldo determinístico sobre calificaciones reales
+
+        self.client.force_authenticate(user=self.evaluador)
+        ev = Evaluacion.objects.create(nombre_software="LibreOffice", id_usuario=self.evaluador)
+
+        payload = {
+            "evaluacion_id": ev.id,
+            "nombre_software": "LibreOffice",
+            "contexto_uso": "Universidad pública",
+            "recomendacion": "C",
+            "viabilidad": 50,
+            "nivel_confianza": "Medio",
+            "factores": [
+                {
+                    "id": 1,
+                    "nombre": "Compatibilidad",
+                    "foda": "Amenaza",
+                    "alcance": "Externo",
+                    "isCritical": True,
+                    "PM": 2.0,
+                    "IR": "3 · Importante",
+                }
+            ],
+            "subfactores": {
+                "1": [
+                    {
+                        "codigo": "SF-02",
+                        "descripcion": "Exportar formatos propietarios",
+                        "calificacion": 1,
+                        "observacion": "Pérdida de formato en macros DOCX complejos",
+                    },
+                    {
+                        "codigo": "SF-04",
+                        "descripcion": "Certificado en su nicho",
+                        "calificacion": 2,
+                        "observacion": "",
+                    },
+                ]
+            },
+        }
+
+        resp = self.client.post("/api/v1/guios/recomendaciones-ia/", payload, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn("LibreOffice", resp.data["diagnostico_ejecutivo"])
+        self.assertGreater(len(resp.data["recomendaciones_priorizadas"]), 0)
+        self.assertEqual(resp.data["recomendaciones_priorizadas"][0]["factor"], "Compatibilidad")
+        self.assertGreater(len(resp.data["plan_desconocimiento"]), 0)
+
+        ev.refresh_from_db()
+        self.assertIsNotNone(ev.recomendacion_ia)
+        self.assertEqual(ev.recomendacion_ia["recomendaciones_priorizadas"][0]["factor"], "Compatibilidad")
+
+    def test_precalificar_subfactores_ia_y_fallback(self):
+        """Tarea 6: Precalificación de subfactores mediante IA / respaldo heurístico."""
+        payload = {
+            "nombre_software": "LibreOffice",
+            "contexto_uso": "Educación Superior",
+            "subfactores": [
+                {"codigo": "SF-01", "factor_nombre": "Compatibilidad", "descripcion": "Infraestructura de nube"},
+                {"codigo": "SF-07", "factor_nombre": "Compatibilidad", "descripcion": "Formatos estándar"},
+            ],
+        }
+        resp = self.client.post("/api/v1/guios/precalificar-subfactores/", payload, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data["estado"], "exito")
+        self.assertIn("sugerencias", resp.data)
+        self.assertIn("SF-01", resp.data["sugerencias"])
+        self.assertIn("SF-07", resp.data["sugerencias"])
+        self.assertTrue(1 <= resp.data["sugerencias"]["SF-07"]["calificacion"] <= 4)
+        self.assertTrue(len(resp.data["sugerencias"]["SF-07"]["observacion"]) > 0)
+
+    def test_cargar_caso_estudio_unemi_libreoffice(self):
+        """Tarea 5: Precarga y validación del caso de estudio oficial UNEMI (LibreOffice, Tesis Cap. 6)."""
+        self.client.force_authenticate(user=self.evaluador)
+        resp = self.client.post("/api/v1/guios/evaluations/caso-unemi/", format="json")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn("evaluacion", resp.data)
+        self.assertEqual(resp.data["evaluacion"]["nombre_software"], "LibreOffice")
+        self.assertIn("UNEMI", resp.data["evaluacion"]["contexto_uso"])
+        self.assertEqual(len(resp.data["subfactores"]), 61)
+        self.assertIsNotNone(resp.data["evaluacion"]["indice_viabilidad"])
+        self.assertIsNotNone(resp.data["evaluacion"]["nivel_confianza"])
+
+    def test_comparar_evaluaciones_sin_autenticacion(self):
+        """Verifica que el comparador en paralelo funcione sin credenciales (AllowAny) sin lanzar 401."""
+        id1 = Evaluacion.objects.create(nombre_software="App A", id_usuario=self.evaluador).id
+        id2 = Evaluacion.objects.create(nombre_software="App B", id_usuario=self.evaluador).id
+        cliente_anonimo = APIClient()
+        resp = cliente_anonimo.get(f"/api/v1/guios/evaluations/comparar/?eval1={id1}&eval2={id2}")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn("evaluacion_1", resp.data)
+        self.assertIn("evaluacion_2", resp.data)
+
+    def test_exportar_pdf_caso_unemi_libreoffice_evaluador(self):
+        """Valida que un usuario evaluador pueda cargar y descargar el PDF de LibreOffice (UNEMI)."""
+        self.client.force_authenticate(user=self.evaluador)
+        res_unemi = self.client.post("/api/v1/guios/evaluations/caso-unemi/", format="json")
+        self.assertEqual(res_unemi.status_code, status.HTTP_200_OK)
+        lo_id = res_unemi.data["evaluacion"]["id"]
+
+        # Descargar PDF con el payload enviado por Paso 3 (debe devolver el PDF sin error de inmutabilidad)
+        res_pdf = self.client.post(
+            f"/api/v1/guios/evaluations/{lo_id}/pdf/",
+            {"factores": [], "subfactores": []},
+            format="json",
+        )
+        self.assertEqual(res_pdf.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_pdf["Content-Type"], "application/pdf")
+        self.assertTrue(res_pdf.content.startswith(b"%PDF"))
+
+
+
+
 
