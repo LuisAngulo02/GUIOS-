@@ -11,10 +11,17 @@ const MAPA_NUMERO_A_TEXTO_IR = {
   4: "Fundamental",
 };
 
-// Generar factores en blanco para una nueva evaluación
+const MAPA_TEXTO_A_NUMERO_IR = {
+  Irrelevante: 1,
+  Opcional: 2,
+  Importante: 3,
+  Fundamental: 4,
+};
+
+// Generar factores en blanco para una nueva evaluación (catálogo maestro de 18 factores)
 export const getFactoresEnBlanco = () => {
   return MOCK_FACTORES.map((mf) => {
-    const defaultID = 2; // Opcional por defecto
+    const defaultID = mf.ID || 2;
     const irNum = Math.floor((mf.IS + defaultID) / 2);
     const irTexto = MAPA_NUMERO_A_TEXTO_IR[irNum] || "Irrelevante";
     return {
@@ -22,7 +29,7 @@ export const getFactoresEnBlanco = () => {
       ID: defaultID,
       IR: `${irNum} · ${irTexto}`,
       relevante: irNum > 1,
-      alcance: mf.nombre === "Soporte" ? "" : mf.alcance,
+      alcance: mf.nombre === "Soporte" ? "Interno" : mf.alcance,
     };
   });
 };
@@ -307,16 +314,45 @@ export const EvaluationProvider = ({ children }) => {
   const cargarEvaluacionParaContinuar = async (id) => {
     setSaveStatus("Cargando evaluación...");
     try {
-      const data = await apiService.cargarEvaluacionActiva(id);
+      let data = await apiService.cargarEvaluacionActiva(id);
+
+      // Si por alguna razón la API no devolvió la evaluación, buscar en la lista activa o cache
+      if (!data || !data.evaluacion) {
+        const itemEnLista = evaluacionesList.find((e) => String(e.id) === String(id));
+        if (itemEnLista) {
+          data = {
+            evaluacion: {
+              id: itemEnLista.id,
+              nombre_software: itemEnLista.nombre_software,
+              contexto_uso: itemEnLista.contexto_uso || "",
+              objetivo: itemEnLista.objetivo || "",
+              estado: itemEnLista.estado || "en_progreso",
+              resultados_factor: itemEnLista.resultados_factor || [],
+            },
+            subfactores: [],
+          };
+        }
+      }
+
       if (data && data.evaluacion) {
         const ev = data.evaluacion;
-        localStorage.setItem("guios_evaluacion_id", ev.id.toString());
-        localStorage.setItem("guios_software_activo", ev.nombre_software);
-        localStorage.setItem("guios_evaluacion_estado", ev.estado || "en_progreso");
+        const idStr = ev.id.toString();
+        const swNombre = ev.nombre_software || "Evaluación FLOSS";
+        const ctxNombre = ev.contexto_uso || "Contexto general";
+        const descNombre = ev.objetivo || ev.descripcion_caso || "Evaluación de viabilidad y madurez OSS";
+        const estNombre = ev.estado || "en_progreso";
 
-        setEvaluacionId(ev.id.toString());
-        setSoftwareActivo(ev.nombre_software);
-        setEstadoEvaluacionActiva(ev.estado || "en_progreso");
+        localStorage.setItem("guios_evaluacion_id", idStr);
+        localStorage.setItem("guios_software_activo", swNombre);
+        localStorage.setItem("guios_contexto_activo", ctxNombre);
+        localStorage.setItem("guios_descripcion_caso", descNombre);
+        localStorage.setItem("guios_evaluacion_estado", estNombre);
+
+        setEvaluacionId(idStr);
+        setSoftwareActivo(swNombre);
+        setContextoActivo(ctxNombre);
+        setDescripcionCaso(descNombre);
+        setEstadoEvaluacionActiva(estNombre);
 
         // 1. Factores: si vienen guardados en la BD, aplicarlos; si no, catálogo base limpio
         let baseFactores = getFactoresEnBlanco();
@@ -330,13 +366,14 @@ export const EvaluationProvider = ({ children }) => {
             const rf = mapaRf[mf.id];
             if (!rf) return mf;
             const idVal = rf.importancia_decisor !== undefined ? rf.importancia_decisor : mf.ID;
-            const irNum = Math.floor((mf.IS + idVal) / 2);
-            const irTexto = MAPA_NUMERO_A_TEXTO_IR[irNum] || "Irrelevante";
+            const irTexto = rf.importancia_relativa || MAPA_NUMERO_A_TEXTO_IR[Math.floor(((rf.importancia_literatura || mf.IS) + idVal) / 2)] || "Irrelevante";
+            const irNum = MAPA_TEXTO_A_NUMERO_IR[irTexto] || Math.floor(((rf.importancia_literatura || mf.IS) + idVal) / 2);
+            const relevante = irNum > 1 || rf.es_relevante || irTexto !== "Irrelevante";
             return {
               ...mf,
               ID: idVal,
               IR: `${irNum} · ${irTexto}`,
-              relevante: irNum > 1,
+              relevante,
               alcance: rf.alcance_aplicado || mf.alcance,
             };
           });
@@ -375,6 +412,84 @@ export const EvaluationProvider = ({ children }) => {
       setSaveStatus("Guardado");
     }
   };
+
+  // Precargar el Caso de Estudio Oficial UNEMI / LibreOffice (Tarea 5)
+  const cargarCasoEstudioUNEMI = async () => {
+    setSaveStatus("Cargando caso oficial UNEMI...");
+    try {
+      const data = await apiService.cargarCasoUNEMI();
+      if (data && data.evaluacion) {
+        return await cargarEvaluacionParaContinuar(data.evaluacion.id);
+      }
+      return null;
+    } catch (err) {
+      console.error("Error al cargar caso UNEMI:", err);
+      throw err;
+    } finally {
+      setSaveStatus("Guardado");
+    }
+  };
+
+  // Tarea 6: Aplicar calificaciones masivas sugeridas por IA a los subfactores
+  const aplicarCalificacionesSubfactores = useCallback((calificacionesMap) => {
+    setSubfactoresState((prev) => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach((fid) => {
+        updated[fid] = updated[fid].map((sf) => {
+          const sug = calificacionesMap[sf.codigo];
+          if (sug) {
+            return {
+              ...sf,
+              calificacion: sug.calificacion,
+              observacion: sug.observacion !== undefined ? sug.observacion : sf.observacion,
+            };
+          }
+          return sf;
+        });
+      });
+      localStorage.setItem("guios_subfactores", JSON.stringify(updated));
+      return updated;
+    });
+    setSaveStatus("Sugerencias IA aplicadas");
+    setTimeout(() => setSaveStatus("Guardado"), 2000);
+  }, []);
+
+  // Tarea 6: Calificar en bloque un factor entero (e.g. 4 'Cumple' o 3 'Parcial')
+  const calificarBloqueFactor = useCallback((factorId, calificacion, soloPendientes = false) => {
+    setSubfactoresState((prev) => {
+      if (!prev[factorId]) return prev;
+      const updatedList = prev[factorId].map((sf) => {
+        if (soloPendientes && sf.calificacion !== null && sf.calificacion !== undefined) {
+          return sf;
+        }
+        return {
+          ...sf,
+          calificacion,
+        };
+      });
+      const updated = { ...prev, [factorId]: updatedList };
+      localStorage.setItem("guios_subfactores", JSON.stringify(updated));
+      return updated;
+    });
+    setSaveStatus("Calificación en bloque aplicada");
+    setTimeout(() => setSaveStatus("Guardado"), 2000);
+  }, []);
+
+  // Tarea 6: Limpiar calificaciones de un factor específico
+  const limpiarCalificacionesFactor = useCallback((factorId) => {
+    setSubfactoresState((prev) => {
+      if (!prev[factorId]) return prev;
+      const updatedList = prev[factorId].map((sf) => ({
+        ...sf,
+        calificacion: null,
+      }));
+      const updated = { ...prev, [factorId]: updatedList };
+      localStorage.setItem("guios_subfactores", JSON.stringify(updated));
+      return updated;
+    });
+    setSaveStatus("Calificaciones del factor limpiadas");
+    setTimeout(() => setSaveStatus("Guardado"), 2000);
+  }, []);
 
   // Sincronizar Paso 1 con Backend DRF
   const sincronizarPaso1ConBackend = useCallback(async (factoresParaGuardar) => {
@@ -645,7 +760,7 @@ export const EvaluationProvider = ({ children }) => {
     const totalConFoda = strengths + opportunities + weaknesses + threats;
     const viabilidad =
       totalConFoda > 0
-        ? Math.round(((strengths + opportunities) / totalConFoda) * 100)
+        ? parseFloat((((strengths + opportunities) / totalConFoda) * 100).toFixed(1))
         : 0;
 
     // Nivel de Confianza: % de respuestas distintas de 2 (Desconozco)
@@ -797,6 +912,10 @@ export const EvaluationProvider = ({ children }) => {
         fetchEvaluaciones,
         crearNuevaEvaluacion,
         cargarEvaluacionParaContinuar,
+        cargarCasoEstudioUNEMI,
+        aplicarCalificacionesSubfactores,
+        calificarBloqueFactor,
+        limpiarCalificacionesFactor,
         actualizarMetadatosEvaluacion,
         estadoEvaluacionActiva,
         setEstadoEvaluacionActiva,

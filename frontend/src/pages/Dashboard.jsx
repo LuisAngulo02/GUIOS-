@@ -42,6 +42,7 @@ export const Dashboard = () => {
     fetchEvaluaciones,
     crearNuevaEvaluacion,
     cargarEvaluacionParaContinuar,
+    cargarCasoEstudioUNEMI,
     estadoEvaluacionActiva,
     totalFactores,
     totalRelevantes,
@@ -53,6 +54,27 @@ export const Dashboard = () => {
   React.useEffect(() => {
     fetchEvaluaciones();
   }, [fetchEvaluaciones]);
+
+  const [cargandoUnemi, setCargandoUnemi] = useState(false);
+  const [errorToast, setErrorToast] = useState("");
+
+  const mostrarError = (msg) => {
+    setErrorToast(msg);
+    setTimeout(() => setErrorToast(""), 6000);
+  };
+
+  const handleCargarUNEMI = async () => {
+    setCargandoUnemi(true);
+    try {
+      await cargarCasoEstudioUNEMI();
+      await fetchEvaluaciones();
+      navigate("/resultado");
+    } catch (err) {
+      mostrarError("Error al cargar caso UNEMI: " + err.message);
+    } finally {
+      setCargandoUnemi(false);
+    }
+  };
 
   // Estados de filtros para el Historial
   const [searchTerm, setSearchTerm] = useState("");
@@ -124,7 +146,7 @@ export const Dashboard = () => {
       setComparacionData(data);
       setModalComparacionOpen(true);
     } catch (err) {
-      alert("No se pudo cargar la comparación: " + (err.message || "Error del servidor"));
+      mostrarError("No se pudo cargar la comparación: " + (err.message || "Error del servidor"));
     } finally {
       setLoadingComparacion(false);
     }
@@ -136,7 +158,7 @@ export const Dashboard = () => {
     try {
       await apiService.descargarInformePDF(ev.id, ev.nombre_software);
     } catch (err) {
-      alert("No se pudo descargar el informe PDF: " + (err.message || "Error del servidor"));
+      mostrarError("No se pudo descargar el informe PDF: " + (err.message || "Error del servidor"));
     } finally {
       setDescargandoPdfId(null);
     }
@@ -152,7 +174,7 @@ export const Dashboard = () => {
         navigate("/factores");
       }
     } catch (err) {
-      alert("Error al cargar la evaluación: " + err.message);
+      mostrarError("Error al cargar la evaluación: " + err.message);
     }
   };
 
@@ -169,14 +191,42 @@ export const Dashboard = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setModalNuevaOpen(true)}
-          className="px-4 py-2.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm shrink-0 self-start sm:self-auto cursor-pointer"
-        >
-          <PlusCircle size={15} />
-          <span> Nueva evaluación</span>
-        </button>
+        <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto flex-wrap">
+          <button
+            onClick={handleCargarUNEMI}
+            disabled={cargandoUnemi}
+            className="px-3.5 py-2.5 rounded-lg border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/70 text-[#2F5444] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+            title="Cargar la evaluación oficial de la Universidad Estatal de Milagro (Capítulo 6)"
+          >
+            <BookOpen size={14} className="text-[#3F6F58]" />
+            <span>{cargandoUnemi ? "Cargando..." : "Caso UNEMI (LibreOffice)"}</span>
+          </button>
+
+          <button
+            onClick={() => setModalNuevaOpen(true)}
+            className="px-4 py-2.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
+          >
+            <PlusCircle size={15} />
+            <span>Nueva evaluación</span>
+          </button>
+        </div>
       </div>
+
+      {/* Notificación de Error */}
+      {errorToast && (
+        <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-medium flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={15} className="text-red-600 shrink-0" />
+            <span>{errorToast}</span>
+          </div>
+          <button
+            onClick={() => setErrorToast("")}
+            className="text-red-700 hover:text-red-900 font-bold ml-2 cursor-pointer"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* 2. KPIs Dinámicos */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -577,123 +627,150 @@ export const Dashboard = () => {
             </div>
 
             {/* Contenido scrolleable del comparador */}
-            <div className="p-6 overflow-y-auto space-y-6">
-              {/* Tarjetas Superiores Lado a Lado */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Evaluación 1 */}
-                <div className="p-5 rounded-xl border border-[#CDE1D4] bg-[#F9FCFA]">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">
-                    OPCIÓN 1
-                  </span>
-                  <h4 className="text-lg font-bold text-[#2F5444]">
-                    {comparacionData.evaluacion_1?.nombre_software}
-                  </h4>
-                  <div className="mt-3 space-y-1.5 text-xs text-gray-600">
-                    <p>
-                      <b>Dictamen Oficial:</b>{" "}
-                      <span className="font-bold text-[#25633C]">
-                        Recomendación {comparacionData.evaluacion_1?.recomendacion?.tipo || "—"}
+            {(() => {
+              const ev1 = comparacionData?.evaluacion_1 || comparacionData?.evaluacion1 || {};
+              const ev2 = comparacionData?.evaluacion_2 || comparacionData?.evaluacion2 || {};
+              const getRecTipo = (e) => {
+                if (!e) return "—";
+                if (typeof e.recomendacion === "object" && e.recomendacion?.tipo) return e.recomendacion.tipo;
+                if (typeof e.recomendacion === "string") return e.recomendacion;
+                if (e.dictamen_oficial) return e.dictamen_oficial;
+                return "—";
+              };
+              const getCriticosCount = (e) => {
+                if (e?.resumen_foda?.criticos != null) return e.resumen_foda.criticos;
+                if (Array.isArray(e?.resultados_foda)) return e.resultados_foda.filter((f) => f.critico).length;
+                return 0;
+              };
+
+              return (
+                <div className="p-6 overflow-y-auto space-y-6">
+                  {/* Tarjetas Superiores Lado a Lado */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Evaluación 1 */}
+                    <div className="p-5 rounded-xl border border-[#CDE1D4] bg-[#F9FCFA]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">
+                        OPCIÓN 1 {ev1.id ? `(#${ev1.id})` : ""}
                       </span>
-                    </p>
-                    <p>
-                      <b>Índice de Viabilidad:</b> {comparacionData.evaluacion_1?.indice_viabilidad || 0}%
-                    </p>
-                    <p>
-                      <b>Nivel de Confianza:</b> {comparacionData.evaluacion_1?.nivel_confianza || "—"}
-                    </p>
-                    <p>
-                      <b>Factores Críticos:</b> {comparacionData.evaluacion_1?.resumen_foda?.criticos || 0}
-                    </p>
+                      <h4 className="text-lg font-bold text-[#2F5444]">
+                        {ev1.nombre_software || "Evaluación 1"}
+                      </h4>
+                      <div className="mt-3 space-y-1.5 text-xs text-gray-600">
+                        <p>
+                          <b>Dictamen Oficial:</b>{" "}
+                          <span className="font-bold text-[#25633C]">
+                            Recomendación {getRecTipo(ev1)}
+                          </span>
+                        </p>
+                        <p>
+                          <b>Índice de Viabilidad:</b> {ev1.indice_viabilidad != null ? `${ev1.indice_viabilidad}%` : "0%"}
+                        </p>
+                        <p>
+                          <b>Nivel de Confianza:</b> {ev1.nivel_confianza || "—"}
+                        </p>
+                        <p>
+                          <b>Factores Críticos:</b> {getCriticosCount(ev1)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Evaluación 2 */}
+                    <div className="p-5 rounded-xl border border-[#CDE1D4] bg-[#F9FCFA]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">
+                        OPCIÓN 2 {ev2.id ? `(#${ev2.id})` : ""}
+                      </span>
+                      <h4 className="text-lg font-bold text-[#2F5444]">
+                        {ev2.nombre_software || "Evaluación 2"}
+                      </h4>
+                      <div className="mt-3 space-y-1.5 text-xs text-gray-600">
+                        <p>
+                          <b>Dictamen Oficial:</b>{" "}
+                          <span className="font-bold text-[#25633C]">
+                            Recomendación {getRecTipo(ev2)}
+                          </span>
+                        </p>
+                        <p>
+                          <b>Índice de Viabilidad:</b> {ev2.indice_viabilidad != null ? `${ev2.indice_viabilidad}%` : "0%"}
+                        </p>
+                        <p>
+                          <b>Nivel de Confianza:</b> {ev2.nivel_confianza || "—"}
+                        </p>
+                        <p>
+                          <b>Factores Críticos:</b> {getCriticosCount(ev2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Conclusión de Diferencias */}
+                  {Array.isArray(comparacionData?.resumen_diferencias) && comparacionData.resumen_diferencias.length > 0 && (
+                    <div className="p-4 rounded-xl bg-[#EBF4EE] border border-[#CDE1D4] text-xs">
+                      <h5 className="font-bold text-[#2F5444] mb-1.5">Síntesis Comparativa:</h5>
+                      <ul className="list-disc list-inside space-y-1 text-gray-700">
+                        {comparacionData.resumen_diferencias.map((dif, idx) => (
+                          <li key={idx}>{dif}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Tabla Detallada Factor por Factor */}
+                  <div>
+                    <h5 className="font-bold text-gray-800 text-xs mb-3">
+                      Comparativa de Factores (18 Factores GUIOS):
+                    </h5>
+                    <div className="border border-gray-100 rounded-xl overflow-hidden">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-100 text-gray-600 font-semibold">
+                            <th className="py-2.5 px-3">Factor</th>
+                            <th className="py-2.5 px-3">Dimensión</th>
+                            <th className="py-2.5 px-3 text-center">
+                              {ev1.nombre_software || "Opción 1"} (PM / FODA)
+                            </th>
+                            <th className="py-2.5 px-3 text-center">
+                              {ev2.nombre_software || "Opción 2"} (PM / FODA)
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50 text-[11px]">
+                          {Array.isArray(comparacionData?.comparativa_factores) && comparacionData.comparativa_factores.length > 0 ? (
+                            comparacionData.comparativa_factores.map((cf) => (
+                              <tr key={cf.id_factor} className="hover:bg-gray-50/50">
+                                <td className="py-2 px-3 font-semibold text-gray-800">
+                                  {cf.nombre_factor}
+                                </td>
+                                <td className="py-2 px-3 text-gray-500">
+                                  {cf.dimension}
+                                </td>
+                                <td className="py-2 px-3 text-center">
+                                  {cf.eval1?.pm != null ? `${cf.eval1.pm} · ${cf.eval1.foda || "—"}` : (cf.eval1?.importancia_relativa ? `IR: ${cf.eval1.importancia_relativa}` : "—")}
+                                  {cf.eval1?.critico && (
+                                    <span className="text-red-600 font-bold ml-1">(!Crítico)</span>
+                                  )}
+                                </td>
+                                <td className="py-2 px-3 text-center">
+                                  {cf.eval2?.pm != null ? `${cf.eval2.pm} · ${cf.eval2.foda || "—"}` : (cf.eval2?.importancia_relativa ? `IR: ${cf.eval2.importancia_relativa}` : "—")}
+                                  {cf.eval2?.critico && (
+                                    <span className="text-red-600 font-bold ml-1">(!Crítico)</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={4} className="py-6 text-center text-gray-400 italic">
+                                No hay información comparativa de factores disponible. Complete los pasos 1 y 2 en ambas evaluaciones.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
-
-                {/* Evaluación 2 */}
-                <div className="p-5 rounded-xl border border-[#CDE1D4] bg-[#F9FCFA]">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">
-                    OPCIÓN 2
-                  </span>
-                  <h4 className="text-lg font-bold text-[#2F5444]">
-                    {comparacionData.evaluacion_2?.nombre_software}
-                  </h4>
-                  <div className="mt-3 space-y-1.5 text-xs text-gray-600">
-                    <p>
-                      <b>Dictamen Oficial:</b>{" "}
-                      <span className="font-bold text-[#25633C]">
-                        Recomendación {comparacionData.evaluacion_2?.recomendacion?.tipo || "—"}
-                      </span>
-                    </p>
-                    <p>
-                      <b>Índice de Viabilidad:</b> {comparacionData.evaluacion_2?.indice_viabilidad || 0}%
-                    </p>
-                    <p>
-                      <b>Nivel de Confianza:</b> {comparacionData.evaluacion_2?.nivel_confianza || "—"}
-                    </p>
-                    <p>
-                      <b>Factores Críticos:</b> {comparacionData.evaluacion_2?.resumen_foda?.criticos || 0}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Conclusión de Diferencias */}
-              {comparacionData.resumen_diferencias?.length > 0 && (
-                <div className="p-4 rounded-xl bg-[#EBF4EE] border border-[#CDE1D4] text-xs">
-                  <h5 className="font-bold text-[#2F5444] mb-1.5">Síntesis Comparativa:</h5>
-                  <ul className="list-disc list-inside space-y-1 text-gray-700">
-                    {comparacionData.resumen_diferencias.map((dif, idx) => (
-                      <li key={idx}>{dif}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Tabla Detallada Factor por Factor */}
-              <div>
-                <h5 className="font-bold text-gray-800 text-xs mb-3">
-                  Comparativa de Factores (18 Factores GUIOS):
-                </h5>
-                <div className="border border-gray-100 rounded-xl overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-100 text-gray-600 font-semibold">
-                        <th className="py-2.5 px-3">Factor</th>
-                        <th className="py-2.5 px-3">Dimensión</th>
-                        <th className="py-2.5 px-3 text-center">
-                          {comparacionData.evaluacion_1?.nombre_software} (PM / FODA)
-                        </th>
-                        <th className="py-2.5 px-3 text-center">
-                          {comparacionData.evaluacion_2?.nombre_software} (PM / FODA)
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50 text-[11px]">
-                      {comparacionData.comparativa_factores?.map((cf) => (
-                        <tr key={cf.id_factor} className="hover:bg-gray-50/50">
-                          <td className="py-2 px-3 font-semibold text-gray-800">
-                            {cf.nombre_factor}
-                          </td>
-                          <td className="py-2 px-3 text-gray-500">
-                            {cf.dimension}
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            {cf.eval1.pm ? `${cf.eval1.pm} · ${cf.eval1.foda}` : "—"}
-                            {cf.eval1.critico && (
-                              <span className="text-red-600 font-bold ml-1">(!Crítico)</span>
-                            )}
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            {cf.eval2.pm ? `${cf.eval2.pm} · ${cf.eval2.foda}` : "—"}
-                            {cf.eval2.critico && (
-                              <span className="text-red-600 font-bold ml-1">(!Crítico)</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Footer Modal */}
             <div className="p-4 border-t border-gray-100 flex justify-end bg-gray-50">

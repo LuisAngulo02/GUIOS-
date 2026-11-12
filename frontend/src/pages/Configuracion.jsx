@@ -140,9 +140,14 @@ export const Configuracion = () => {
     <div className="space-y-6">
       {/* Encabezado */}
       <div>
-        <h1 className="text-2xl sm:text-3xl font-light text-[#2F5444] tracking-tight">
-          Paso 0 · Configuración automática
-        </h1>
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-2xl sm:text-3xl font-light text-[#2F5444] tracking-tight">
+            Paso 0 · Configuración automática
+          </h1>
+          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#EBF4EE] text-[#2F5444] border border-[#CDE1D4]">
+            {softwareActivo} #{evaluacionId}
+          </span>
+        </div>
         <p className="text-xs sm:text-sm text-gray-500 mt-1">
           Configura los parámetros del caso de estudio y la estimación asistida de Importancia Sugerida (IS).
         </p>

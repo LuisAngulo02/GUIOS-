@@ -1,19 +1,34 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PlusCircle, X, Sparkles, Layers } from "lucide-react";
+import { PlusCircle, X, Sparkles, Layers, BookOpen, ArrowRight } from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
 
 export const ModalNuevaEvaluacion = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  const { crearNuevaEvaluacion } = useEvaluation();
+  const { crearNuevaEvaluacion, cargarCasoEstudioUNEMI } = useEvaluation();
 
   const [nuevoSoftware, setNuevoSoftware] = useState("");
   const [nuevoContexto, setNuevoContexto] = useState("");
   const [nuevoObjetivo, setNuevoObjetivo] = useState("");
   const [creando, setCreando] = useState(false);
+  const [cargandoUnemi, setCargandoUnemi] = useState(false);
   const [error, setError] = useState("");
 
   if (!isOpen) return null;
+
+  const handleCargarUNEMI = async () => {
+    setError("");
+    setCargandoUnemi(true);
+    try {
+      await cargarCasoEstudioUNEMI();
+      onClose();
+      navigate("/resultado");
+    } catch (err) {
+      setError(err.message || "Error al cargar el caso de estudio UNEMI.");
+    } finally {
+      setCargandoUnemi(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -131,6 +146,39 @@ export const ModalNuevaEvaluacion = ({ isOpen, onClose }) => {
             </span>
           </div>
 
+          {/* Acceso Directo: Caso Oficial UNEMI / LibreOffice (Tarea 5) */}
+          <div className="pt-2 border-t border-gray-100 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                <BookOpen size={13} className="text-[#3F6F58]" />
+                Validación Oficial de la Tesis
+              </span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Capítulo 6
+              </span>
+            </div>
+            <button
+              type="button"
+              disabled={cargandoUnemi || creando}
+              onClick={handleCargarUNEMI}
+              className="w-full p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-50 hover:border-emerald-300 text-left transition-all flex items-center justify-between group cursor-pointer disabled:opacity-50"
+            >
+              <div>
+                <div className="font-semibold text-gray-800 text-xs flex items-center gap-1.5">
+                  <span>Cargar Caso UNEMI · LibreOffice</span>
+                  <span className="text-[10px] font-normal text-gray-500">(18 factores · 61 reactivos)</span>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-0.5">
+                  Precarga el caso real de la Universidad Estatal de Milagro con su FODA y dictamen.
+                </p>
+              </div>
+              <div className="flex items-center gap-1 text-xs font-semibold text-[#3F6F58] shrink-0">
+                <span>{cargandoUnemi ? "Cargando..." : "Cargar"}</span>
+                <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+              </div>
+            </button>
+          </div>
+
           {/* Botones de acción */}
           <div className="pt-2 flex items-center justify-end gap-2 border-t border-gray-100">
             <button
@@ -142,10 +190,10 @@ export const ModalNuevaEvaluacion = ({ isOpen, onClose }) => {
             </button>
             <button
               type="submit"
-              disabled={creando}
+              disabled={creando || cargandoUnemi}
               className="px-4 py-1.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold cursor-pointer shadow-sm disabled:opacity-50"
             >
-              {creando ? "Creando en PostgreSQL..." : "Crear y comenzar"}
+              {creando ? "Creando en PostgreSQL..." : "Crear en blanco"}
             </button>
           </div>
         </form>

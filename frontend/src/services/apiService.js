@@ -378,20 +378,104 @@ export const apiService = {
 
   async cargarEvaluacionActiva(id) {
     try {
-      return await request(`/guios/evaluations/${id}/cargar_activa/`);
+      const res = await request(`/guios/evaluations/${id}/cargar_activa/`);
+      if (res && res.evaluacion) return res;
     } catch (err) {
       console.warn(`cargarEvaluacionActiva ${id} offline:`, err.message);
+    }
+    try {
+      const cache = JSON.parse(localStorage.getItem("guios_evaluaciones_cache") || "[]");
+      const found = cache.find((e) => String(e.id) === String(id));
+      if (found) {
+        return {
+          evaluacion: {
+            id: found.id,
+            nombre_software: found.nombre_software,
+            contexto_uso: found.contexto_uso || "",
+            objetivo: found.objetivo || "",
+            estado: found.estado || "en_progreso",
+            resultados_factor: found.resultados_factor || [],
+          },
+          subfactores: [],
+        };
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  },
+
+  // Precargar el Caso de Estudio Oficial UNEMI / LibreOffice (Tarea 5)
+  async cargarCasoUNEMI() {
+    try {
+      const res = await request("/guios/evaluations/caso-unemi/", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      return res;
+    } catch (err) {
+      console.warn("cargarCasoUNEMI error:", err.message);
+      throw err;
+    }
+  },
+
+  // Precalificación ágil de subfactores con IA / base experta (Tarea 6)
+  async precalificarSubfactores(payload) {
+    try {
+      return await request("/guios/precalificar-subfactores/", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      console.warn("precalificarSubfactores error:", err.message);
       return null;
     }
   },
 
   async compararEvaluaciones(eval1Id, eval2Id) {
     try {
-      return await request(`/guios/evaluations/comparar/?eval1=${eval1Id}&eval2=${eval2Id}`);
+      const res = await request(`/guios/evaluations/comparar/?eval1=${eval1Id}&eval2=${eval2Id}`);
+      const ev1 = res?.evaluacion_1 || res?.evaluacion1;
+      const ev2 = res?.evaluacion_2 || res?.evaluacion2;
+      if (res && ev1 && ev2) {
+        return {
+          ...res,
+          evaluacion_1: ev1,
+          evaluacion_2: ev2,
+          evaluacion1: ev1,
+          evaluacion2: ev2,
+        };
+      }
     } catch (err) {
-      console.warn(`compararEvaluaciones offline:`, err.message);
-      throw err;
+      console.warn("compararEvaluaciones API warning:", err.message);
     }
+    try {
+      const cache = JSON.parse(localStorage.getItem("guios_evaluaciones_cache") || "[]");
+      const ev1 = cache.find((e) => String(e.id) === String(eval1Id));
+      const ev2 = cache.find((e) => String(e.id) === String(eval2Id));
+      if (ev1 && ev2) {
+        const viab1 = Number(ev1.indice_viabilidad || 0);
+        const viab2 = Number(ev2.indice_viabilidad || 0);
+        const rec1 = typeof ev1.recomendacion === "object" ? ev1.recomendacion?.tipo : ev1.recomendacion;
+        const rec2 = typeof ev2.recomendacion === "object" ? ev2.recomendacion?.tipo : ev2.recomendacion;
+        return {
+          evaluacion_1: ev1,
+          evaluacion_2: ev2,
+          evaluacion1: ev1,
+          evaluacion2: ev2,
+          comparativa_factores: [],
+          resumen_diferencias: [
+            `Diferencia de viabilidad: ${Math.abs(viab1 - viab2).toFixed(1)}%`,
+            rec1 === rec2
+              ? `Ambas soluciones coinciden con recomendación ${rec1 || "—"}.`
+              : `Discrepancia en dictamen: ${ev1.nombre_software} (${rec1 || "—"}) vs ${ev2.nombre_software} (${rec2 || "—"}).`,
+          ],
+        };
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error("No se pudo obtener la comparación entre las evaluaciones seleccionadas.");
   },
 
   async createEvaluation({ nombre_software, contexto_uso, objetivo }) {

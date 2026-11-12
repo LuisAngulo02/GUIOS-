@@ -244,50 +244,49 @@ export const ResultadoDictamen = () => {
 
     let diag = "";
     if (recomendacion === "A") {
-      diag = `El dictamen para ${swNom} es plenamente favorable (Recomendación A) con un ${viabilidad}% de viabilidad y nivel de confianza ${nivelConfianza.toLowerCase()}. Todos los factores clave cumplen holgadamente los criterios de éxito clasificados como Fortalezas u Oportunidades.`;
+      diag = `Adopción plenamente viable (${viabilidad}% de viabilidad). Todos los factores clave evaluados cumplen los umbrales requeridos sin bloqueadores críticos.`;
     } else if (recomendacion === "B") {
       const nombresOpc = negativos.slice(0, 3).map((f) => f.nombre).join(", ") || "factores no críticos";
-      diag = `La adopción de ${swNom} es metodológicamente viable con reservas (Recomendación B), registrando un ${viabilidad}% de viabilidad con nivel de confianza ${nivelConfianza.toLowerCase()}. No se compromete ningún factor clasificado como crítico por el decisor; sin embargo, se identificaron brechas en factores de importancia opcional (${nombresOpc}). La adopción puede avanzar ejecutando en paralelo las acciones correctivas técnicas y de gestión detalladas a continuación.`;
+      diag = `Adopción viable con reservas (${viabilidad}% de viabilidad). No hay bloqueadores críticos; se identificaron brechas únicamente en factores opcionales (${nombresOpc}).`;
     } else {
       const nombresCrit = criticos.slice(0, 3).map((f) => f.nombre).join(", ") || "factores críticos";
-      diag = `Para proceder con la adopción de ${swNom} (Recomendación C, ${viabilidad}% de viabilidad), es mandatorio asignar recursos previos para subsanar ${criticos.length} factor(es) crítico(s) comprometido(s): ${nombresCrit}. Las brechas externas requieren ingeniería de software y adaptación técnica, mientras que las internas demandan capacitación y fortalecimiento institucional.`;
+      diag = `Adopción condicionada a mitigación previa (${viabilidad}% de viabilidad). Factores críticos comprometidos que requieren recursos: ${nombresCrit}.`;
     }
 
-    const priorizadas = negativos.slice(0, 6).map((f) => {
+    const priorizadas = negativos.slice(0, 4).map((f) => {
       const sfs = subfactoresState[f.id] || [];
       const sfsCods = sfs
         .filter((sf) => sf.calificacion === 1 || sf.calificacion === 2)
         .map((sf) => sf.codigo)
-        .slice(0, 4);
+        .slice(0, 3);
       const esCrit = Boolean(f.isCritical || f.critico);
       const info = buscarConocimientoLocal(f.nombre);
 
       return {
         prioridad: esCrit || Number(f.PM || 3) < 2.0 ? "Alta" : "Media",
         factor: f.nombre,
-        alcance: `${f.alcance || "Externo"} (${f.alcance === "Interno" ? "Organizacional" : "Tecnológico"})`,
+        alcance: f.alcance === "Interno" ? "Organizacional" : "Tecnológico",
         criticidad: esCrit ? "Crítico" : "Opcional",
         subfactores_clave: sfsCods,
         accion: info.accion,
-        pasos: info.pasos,
         entregable: info.entregable,
         plazo: info.plazo,
-        justificacion: `Clasificado como ${f.foda} con puntuación media ponderada de ${f.PM_str || f.PM} / 4.0 (Importancia Relativa: ${f.IR || "Estándar"}).`,
+        justificacion: `${f.foda} · PM ${f.PM_str || f.PM}/4.0 · IR ${f.IR || "Estándar"}`,
       };
     });
 
     const chips = [];
     if (criticos.length > 0) chips.push(`Mitigar ${criticos.length} factor(es) crítico(s)`);
-    if (externos.length > 0) chips.push("Ingeniería FLOSS (Tecnológico)");
-    if (internos.length > 0) chips.push("Capacitación y Gestión Interna");
-    if (reactivosDesconozco.length > 0) chips.push(`Validar ${reactivosDesconozco.length} reactivo(s) incierto(s)`);
-    if (chips.length === 0) chips.push("Despliegue gradual", "Monitoreo de SLAs", "Documentación operativa");
+    if (externos.length > 0) chips.push("Ingeniería FLOSS");
+    if (internos.length > 0) chips.push("Capacitación Interna");
+    if (reactivosDesconozco.length > 0) chips.push(`Validar ${reactivosDesconozco.length} incierto(s)`);
+    if (chips.length === 0) chips.push("Despliegue gradual", "Monitoreo");
 
     return {
       diagnostico_ejecutivo: diag,
       chips_accion: chips.slice(0, 4),
       recomendaciones_priorizadas: priorizadas,
-      plan_desconocimiento: reactivosDesconozco.slice(0, 5),
+      plan_desconocimiento: reactivosDesconozco.slice(0, 4),
       generado_por_ia: false,
       modelo: "Motor Metodológico GUIOS+ (Tesis Cap. 6)",
     };
@@ -852,52 +851,59 @@ export const ResultadoDictamen = () => {
             </div>
           ) : analisisIA ? (
             <div className="space-y-4">
-              {/* Diagnóstico ejecutivo */}
-              <div className="p-3.5 rounded-xl bg-[#F8FAF9] border border-[#E6EFEA] text-xs text-gray-700 leading-relaxed">
-                <strong className="text-[#2F5444] block mb-1">Diagnóstico contextualizado:</strong>
-                {analisisIA.diagnostico_ejecutivo}
+              {/* Diagnóstico ejecutivo conciso */}
+              <div className="p-3.5 rounded-xl bg-[#F8FAF9] border border-[#E6EFEA] text-xs text-gray-800 leading-relaxed flex items-start gap-2.5">
+                <div className="w-2 h-2 rounded-full bg-[#3F6F58] mt-1.5 shrink-0" />
+                <div>
+                  <strong className="text-[#2F5444] font-semibold mr-1.5">Diagnóstico clave:</strong>
+                  <span>{analisisIA.diagnostico_ejecutivo}</span>
+                </div>
               </div>
 
-              {/* Acciones prioritarias */}
+              {/* Acciones prioritarias concisas */}
               {analisisIA.recomendaciones_priorizadas?.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {analisisIA.recomendaciones_priorizadas.map((recItem, idx) => {
                     const esAlta = recItem.prioridad === "Alta";
                     return (
                       <div
                         key={idx}
-                        className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 ${
+                        className={`p-3.5 rounded-xl border flex flex-col justify-between space-y-2.5 transition-all ${
                           esAlta
-                            ? "border-amber-200 bg-amber-50/30"
+                            ? "border-amber-200 bg-amber-50/20"
                             : "border-[#DDE7E1] bg-white"
                         }`}
                       >
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-bold text-gray-900">
-                              {recItem.factor}
-                            </span>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              {recItem.criticidad && (
-                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                                  recItem.criticidad === "Crítico"
-                                    ? "bg-red-50 text-red-700 border border-red-100"
-                                    : "bg-gray-50 text-gray-600 border border-gray-100"
-                                }`}>
-                                  {recItem.criticidad}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-gray-100">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-bold text-gray-900">
+                                {recItem.factor}
+                              </span>
+                              {recItem.subfactores_clave?.length > 0 && (
+                                <span className="font-mono text-[10px] font-semibold text-[#3F6F58] bg-[#F3F7F4] px-1.5 py-0.5 rounded border border-[#DDE7E1]">
+                                  {recItem.subfactores_clave.join(", ")}
                                 </span>
                               )}
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
-                                {recItem.alcance}
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span
+                                className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                                  recItem.criticidad === "Crítico"
+                                    ? "bg-red-50 text-red-700 border border-red-100"
+                                    : "bg-gray-100 text-gray-600"
+                                }`}
+                              >
+                                {recItem.criticidad || "Estándar"}
                               </span>
                               <span
                                 className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                   esAlta
                                     ? "bg-amber-100 text-amber-800 border border-amber-200"
-                                    : "bg-[#EBF4EE] text-[#2F5444] border border-[#DDE7E1]"
+                                    : "bg-[#EBF4EE] text-[#2F5444] border border-[#CDE1D4]"
                                 }`}
                               >
-                                Prioridad {recItem.prioridad}
+                                {recItem.prioridad}
                               </span>
                             </div>
                           </div>
@@ -905,90 +911,65 @@ export const ResultadoDictamen = () => {
                           <p className="text-xs text-gray-800 font-medium leading-relaxed">
                             {recItem.accion}
                           </p>
-
-                          {recItem.pasos?.length > 0 && (
-                            <div className="pt-1.5 space-y-1">
-                              <span className="text-[11px] font-semibold text-gray-700 block">
-                                Ruta técnica recomendada:
-                              </span>
-                              <ol className="text-[11px] text-gray-600 space-y-1 pl-4 list-decimal">
-                                {recItem.pasos.map((paso, pIdx) => (
-                                  <li key={pIdx} className="leading-snug">{paso}</li>
-                                ))}
-                              </ol>
-                            </div>
-                          )}
                         </div>
 
-                        <div className="space-y-2 pt-2 border-t border-gray-100/80">
-                          {(recItem.entregable || recItem.plazo) && (
-                            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                              {recItem.entregable && (
-                                <div className="flex items-center gap-1.5 text-gray-600 bg-gray-50/80 px-2 py-0.5 rounded border border-gray-100">
-                                  <FileText size={12} className="text-[#3F6F58] shrink-0" />
-                                  <span className="font-semibold text-gray-700">Entregable:</span>
-                                  <span className="truncate max-w-[210px]">{recItem.entregable}</span>
-                                </div>
-                              )}
-                              {recItem.plazo && (
-                                <div className="flex items-center gap-1 text-gray-500">
-                                  <Clock size={11} className="text-gray-400 shrink-0" />
-                                  <span>{recItem.plazo}</span>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-500">
-                            <span className="italic">{recItem.justificacion}</span>
-                            {recItem.subfactores_clave?.length > 0 && (
-                              <span className="font-mono font-semibold text-[#3F6F58] bg-[#F3F7F4] px-1.5 py-0.5 rounded border border-[#DDE7E1]">
-                                {recItem.subfactores_clave.join(", ")}
-                              </span>
+                        {(recItem.entregable || recItem.plazo) && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] pt-2 border-t border-gray-100 text-gray-600">
+                            {recItem.entregable && (
+                              <div className="flex items-start sm:items-center gap-1.5 bg-gray-50 px-2 py-1 rounded border border-gray-100 flex-1 min-w-[220px]">
+                                <FileText size={12} className="text-[#3F6F58] shrink-0 mt-0.5 sm:mt-0" />
+                                <span className="font-semibold text-gray-700 shrink-0">Entregable:</span>
+                                <span className="text-gray-800 break-words font-medium">{recItem.entregable}</span>
+                              </div>
+                            )}
+                            {recItem.plazo && (
+                              <div className="flex items-center gap-1 text-gray-500 shrink-0">
+                                <Clock size={11} className="text-gray-400 shrink-0" />
+                                <span>{recItem.plazo}</span>
+                              </div>
                             )}
                           </div>
-                        </div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
               )}
 
-              {/* Plan para reducir incertidumbre (nota 2 = Desconozco) */}
+              {/* Puntos ciegos o incertidumbres a verificar (reactivos marcados 'Desconozco') */}
               {analisisIA.plan_desconocimiento?.length > 0 && (
-                <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-100 space-y-2.5">
+                <div className="p-3.5 rounded-xl bg-blue-50/50 border border-blue-100 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-xs font-bold text-blue-950">
-                      <HelpCircle size={15} className="text-blue-600 shrink-0" />
-                      <span>Protocolos de comprobación rápida para reactivos marcados como "2 · Desconozco"</span>
+                      <HelpCircle size={14} className="text-blue-600 shrink-0" />
+                      <span>Incertidumbres técnicas a despejar (reactivos marcados "Desconozco")</span>
                     </div>
                     <span className="text-[10px] font-semibold text-blue-700 bg-blue-100/70 px-2.5 py-0.5 rounded-full">
-                      {analisisIA.plan_desconocimiento.length} reactivo(s) por despejar
+                      {analisisIA.plan_desconocimiento.length} reactivo(s)
                     </span>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-0.5">
                     {analisisIA.plan_desconocimiento.map((item, idx) => {
                       const esObjeto = typeof item === "object" && item !== null;
                       return (
-                        <div key={idx} className="p-3 rounded-lg bg-white border border-blue-100/80 shadow-xs space-y-1.5 text-xs">
-                          <div className="flex items-center justify-between gap-1.5">
-                            <span className="font-mono font-bold text-blue-800 text-[11px]">
-                              {esObjeto ? `${item.codigo} · ${item.factor}` : `Item #${idx + 1}`}
-                            </span>
-                            {esObjeto && item.rol_responsable && (
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100 font-medium">
-                                {item.rol_responsable}
+                        <div key={idx} className="p-2.5 rounded-lg bg-white border border-blue-100 text-xs flex items-start justify-between gap-2 shadow-2xs">
+                          <div className="space-y-0.5 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-blue-800 text-[11px]">
+                                {esObjeto ? item.codigo : `Item #${idx + 1}`}
                               </span>
-                            )}
-                          </div>
-                          <p className="text-gray-700 font-medium text-[11px] leading-snug">
-                            {esObjeto ? item.reactivo : item}
-                          </p>
-                          {esObjeto && item.protocolo && (
-                            <p className="text-blue-900/90 text-[11px] bg-blue-50/50 p-2 rounded border border-blue-50 leading-relaxed">
-                              <strong className="text-blue-950">Protocolo: </strong>
-                              {item.protocolo}
+                              <span className="text-[10px] text-gray-500 font-medium truncate">
+                                {esObjeto ? item.factor : ""}
+                              </span>
+                            </div>
+                            <p className="text-gray-700 text-[11px] leading-snug">
+                              {esObjeto ? (item.protocolo || item.reactivo) : item}
                             </p>
+                          </div>
+                          {esObjeto && item.rol_responsable && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 font-medium shrink-0">
+                              {item.rol_responsable}
+                            </span>
                           )}
                         </div>
                       );

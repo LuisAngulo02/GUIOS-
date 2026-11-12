@@ -280,39 +280,28 @@ def _generar_fallback_determinista(resumen: Dict[str, Any]) -> Dict[str, Any]:
 
     if rec == "A":
         diagnostico = (
-            f"El dictamen para {software_fmt} es plenamente favorable (Recomendación A) con un {viab}% de viabilidad "
-            f"y nivel de confianza {conf.lower()}. Todos los factores clave cumplen holgadamente los criterios de éxito "
-            f"clasificados como Fortalezas u Oportunidades. "
+            f"Adopción de {software_fmt} plenamente viable ({viab}% de viabilidad). "
+            f"Todos los factores relevantes evaluados satisfacen los umbrales de éxito sin bloqueadores críticos."
         )
-        if no_cumple or desconozco:
-            diagnostico += (
-                f"Para un despliegue sin contratiempos, se aconseja atender {len(no_cumple)} reactivo(s) puntual(es) con calificación 1 "
-                f"y validar {len(desconozco)} aspecto(s) que el evaluador marcó como desconocidos antes de la puesta en producción."
-            )
-        else:
-            diagnostico += "No se registran bloqueadores críticos ni debilidades organizacionales en la evaluación."
     elif rec == "B":
         nombres_opc = ", ".join(f["factor"] for f in negativos[:3]) or "factores no críticos"
         diagnostico = (
-            f"La adopción de {software_fmt} es metodológicamente viable con reservas (Recomendación B), registrando un {viab}% de viabilidad "
-            f"con nivel de confianza {conf.lower()}. No se compromete ningún factor clasificado como crítico por el decisor; "
-            f"sin embargo, se identificaron brechas en factores de importancia opcional ({nombres_opc}). "
-            f"La adopción puede avanzar ejecutando en paralelo las acciones correctivas técnicas y de gestión detalladas a continuación."
+            f"Adopción de {software_fmt} viable con reservas ({viab}% de viabilidad). "
+            f"No hay bloqueadores críticos; se detectaron brechas únicamente en factores opcionales ({nombres_opc})."
         )
     else:
         nombres_crit = ", ".join(f["factor"] for f in criticos[:3]) or "factores críticos"
         diagnostico = (
-            f"Para proceder con la adopción de {software_fmt} (Recomendación C, {viab}% de viabilidad), es mandatorio "
-            f"asignar recursos presupuestarios e ingenieriles previos para subsanar {len(criticos)} factor(es) crítico(s) comprometido(s): {nombres_crit}. "
-            f"Las brechas externas requieren ingeniería de software y adaptación técnica, mientras que las internas demandan capacitación y fortalecimiento institucional."
+            f"Adopción de {software_fmt} condicionada a mitigación previa ({viab}% de viabilidad). "
+            f"Factores críticos comprometidos: {nombres_crit}."
         )
 
     acciones = []
-    for f in negativos[:6]:
+    for f in negativos[:4]:
         sfs_cods = [
             r["codigo"] for r in no_cumple + desconozco
             if r["factor"] == f["factor"] and r["codigo"]
-        ][:4]
+        ][:3]
         es_critico = f["critico"]
         info_experta = _obtener_conocimiento_factor(f["factor"])
 
@@ -323,37 +312,36 @@ def _generar_fallback_determinista(resumen: Dict[str, Any]) -> Dict[str, Any]:
             "criticidad": "Crítico" if es_critico else "Opcional",
             "subfactores_clave": sfs_cods or f.get("detalle_subfactores", [])[:3],
             "accion": info_experta["accion"],
-            "pasos": info_experta["pasos"],
+            "pasos": info_experta.get("pasos", [])[:2],
             "entregable": info_experta["entregable"],
             "plazo": info_experta["plazo"],
-            "justificacion": f"Clasificado como {f['foda']} con puntuación media ponderada de {f['PM']} / 4.0 (Importancia Relativa: {f['IR'] or 'Estándar'}).",
+            "justificacion": f"{f['foda']} · PM {f['PM']}/4.0 · IR {f['IR'] or 'Opcional'}",
         })
 
-    # Protocolos de verificación estructurados para reactivos marcados con nota 2
+    # Protocolos de comprobación concisos para reactivos marcados con nota 2
     plan_incertidumbre = []
-    for d in desconozco[:5]:
+    for d in desconozco[:4]:
         cod = d["codigo"]
         desc = d["descripcion"]
         factor_nom = d["factor"]
 
-        # Determinar rol y protocolo según tema
         if any(w in desc.lower() for w in ("licencia", "propietari", "legal", "código")):
-            rol = "Asesor Legal / Auditor de Software"
-            proto = f"Revisar los archivos LICENSE, NOTICE y encabezados SPDX en el repositorio oficial de {raw_sw} para contrastar con directrices OSI/FSF."
+            rol = "Auditor de Software"
+            proto = f"Auditar encabezados de licencia y compatibilidad en el repositorio oficial de {raw_sw}."
         elif any(w in desc.lower() for w in ("gui", "interfaz", "fácil", "usabilidad", "usuario")):
-            rol = "Especialista UX / Líder de Usuarios"
-            proto = f"Instalar {raw_sw} en un equipo de pruebas y aplicar un test de tareas típicas con 3 usuarios finales midiendo tiempo y satisfacción."
+            rol = "Líder UX"
+            proto = f"Realizar prueba piloto con usuarios finales en tareas típicas de {raw_sw}."
         elif any(w in desc.lower() for w in ("biblioteca", "marco", "framework", "api", "extensión")):
-            rol = "Arquitecto de Software / Desarrollador"
-            proto = f"Inspeccionar la documentación técnica y generar una prueba de concepto (PoC) invocando las APIs o módulos de integración de {raw_sw}."
+            rol = "Arquitecto de Software"
+            proto = f"Ejecutar prueba de concepto (PoC) sobre APIs o módulos de integración de {raw_sw}."
         else:
-            rol = "Administrador de Sistemas / Evaluador TI"
-            proto = f"Ejecutar un ensayo en entorno de laboratorio para verificar experimentalmente: '{desc[:90]}'."
+            rol = "Especialista TI"
+            proto = f"Validar en laboratorio técnico: '{desc[:75]}'."
 
         plan_incertidumbre.append({
             "codigo": cod,
             "factor": factor_nom,
-            "reactivo": desc[:130],
+            "reactivo": desc[:90],
             "protocolo": proto,
             "rol_responsable": rol,
         })
@@ -397,52 +385,38 @@ def generar_recomendaciones_ia(payload: Dict[str, Any]) -> Dict[str, Any]:
     endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={urllib.parse.quote(api_key)}"
 
     prompt = (
-        "Eres un consultor senior internacional especializado en adopción de Software Libre (FLOSS), "
-        "arquitectura de software y en la metodología GUIOSPRO (Doctorado en Informática).\n"
-        "A partir de los resultados reales de esta evaluación institucional, genera un informe de recomendaciones "
-        "RIGUROSO, PRÁCTICO, CONCISO y ALTAMENTE ACCIONABLE en español formal.\n\n"
+        "Eres un arquitecto de software senior y consultor FLOSS bajo la metodología GUIOS (Doctorado en Informática).\n"
+        "A partir de los resultados de esta evaluación, genera un dictamen técnico DIRECTO, CONCISO y SIN RELLENO, "
+        "enfocado en lo que un ingeniero de software y líder técnico necesita saber para actuar.\n\n"
         "REGLAS METODOLÓGICAS ESTRICTAS:\n"
-        "1. REGLA DE ORO: NO alteres ni contradigas la letra oficial del dictamen (Recomendación A, B o C) ni los umbrales matemáticos.\n"
-        "2. SEPARACIÓN DE DIMENSIONES:\n"
-        "   - Si un factor es de alcance 'Externo' y está en 'Amenaza' (ej. Compatibilidad, Fiabilidad, Prueba, Personalización), "
-        "recomienda acciones concretas de INGENIERÍA DE SOFTWARE, pruebas automatizadas, adaptadores, scripts o configuración técnica.\n"
-        "   - Si un factor es de alcance 'Interno' y está en 'Debilidad' (ej. Capacitación, Cultura, Costos, Documentación), "
-        "recomienda acciones ORGANIZACIONALES (talleres de formación, gestión del cambio, gobernanza de TI, presupuestos de soporte).\n"
-        "3. TRATAMIENTO DE SUBFACTORES:\n"
-        "   - Para cada factor con debilidad o amenaza, desglosa la acción en 2 o 3 pasos técnicos concretos ('pasos'), un entregable tangible ('entregable') "
-        "y un plazo sugerido de ejecución ('plazo', e.g. 'Semanas 1 a 3').\n"
-        "   - Cita textualmente los códigos SF-xx que tuvieron calificación 1 (No cumple) o 2 (Desconozco), e incorpora las observaciones registradas por el evaluador.\n"
-        "4. PROTOCOLOS PARA INCERTIDUMBRES (Calificación 2 'Desconozco'):\n"
-        "   - Para cada subfactor marcado con nota 2, define un protocolo de verificación técnico o de laboratorio rápido y un rol responsable sugerido.\n"
-        "5. Devuelve ÚNICAMENTE un JSON válido con esta estructura exacta:\n"
+        "1. REGLA DE ORO: NO alteres el dictamen oficial (Recomendación A, B o C).\n"
+        "2. SINTÉTICO: Evita párrafos largos o teoría obvia. Cada recomendación debe ser una directiva técnica concreta.\n"
+        "3. ALCANCE:\n"
+        "   - Factores Externos (Tecnológicos): adaptadores, librerías, formatos, pruebas o ingeniería de software.\n"
+        "   - Factores Internos (Organizacionales): capacitación, soporte interno, gobernanza o gestión del cambio.\n"
+        "4. Devuelve ÚNICAMENTE un JSON válido con esta estructura exacta:\n"
         "{\n"
-        '  "diagnostico_ejecutivo": "Párrafo analítico y estratégico de 3 a 4 oraciones adaptado al software evaluado, al contexto institucional y a las brechas detectadas.",\n'
-        '  "chips_accion": ["Acción 1 (máx 4 palabras)", "Acción 2", "Acción 3", "Acción 4"],\n'
+        '  "diagnostico_ejecutivo": "1 o 2 oraciones directas resumiendo la viabilidad, el dictamen y el principal bloqueador o condición.",\n'
+        '  "chips_accion": ["Acción 1 (máx 3 palabras)", "Acción 2", "Acción 3"],\n'
         '  "recomendaciones_priorizadas": [\n'
         "    {\n"
         '      "prioridad": "Alta" | "Media",\n'
-        '      "factor": "Nombre exacto del factor",\n'
-        '      "alcance": "Externo (Tecnológico)" | "Interno (Organizacional)",\n'
+        '      "factor": "Nombre del factor",\n'
+        '      "alcance": "Tecnológico" | "Organizacional",\n'
         '      "criticidad": "Crítico" | "Opcional",\n'
         '      "subfactores_clave": ["SF-01", "SF-02"],\n'
-        '      "accion": "Resumen ejecutivo de la acción en 1 o 2 oraciones.",\n'
-        '      "pasos": [\n'
-        '        "Paso 1 técnico o de gestión específico.",\n'
-        '        "Paso 2 técnico o de gestión específico.",\n'
-        '        "Paso 3 de validación o despliegue."\n'
-        "      ],\n"
-        '      "entregable": "Nombre del documento, código o artefacto entregable tangible.",\n'
-        '      "plazo": "e.g. Semanas 1 a 3",\n'
-        '      "justificacion": "Justificación fundamentada en el puntaje PM obtenido y el impacto operacional."\n'
+        '      "accion": "Directiva técnica concisa (1 o 2 oraciones claras).",\n'
+        '      "entregable": "Artefacto o entregable concreto (ej. Adaptador ODF, Guía L2)",\n'
+        '      "plazo": "e.g. 2 semanas"\n'
         "    }\n"
         "  ],\n"
         '  "plan_desconocimiento": [\n'
         "    {\n"
         '      "codigo": "SF-xx",\n'
         '      "factor": "Nombre del factor",\n'
-        '      "reactivo": "Descripción del reactivo evaluado",\n'
-        '      "protocolo": "Protocolo técnico de comprobación rápida en laboratorio o auditoría de repositorio.",\n'
-        '      "rol_responsable": "Rol sugerido (e.g. Especialista de Redes, Asesor Legal, Arquitecto de Software)"\n'
+        '      "reactivo": "Enunciado corto",\n'
+        '      "protocolo": "Comprobación técnica en 1 línea.",\n'
+        '      "rol_responsable": "Rol técnico sugerido"\n'
         "    }\n"
         "  ]\n"
         "}\n\n"

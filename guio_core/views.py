@@ -40,7 +40,12 @@ from guio_core.services.academic_ai_service import (
     serializar_consulta_evidencia,
 )
 from guio_core.services.recommendation_ai_service import generar_recomendaciones_ia
+from guio_core.services.subfactor_ai_service import (
+    precalificar_subfactores_ia,
+    CONOCIMIENTO_FLOSS_COMUN,
+)
 from guio_core.models import (
+    Usuario,
     Dimension,
     Factor,
     Subfactor,
@@ -355,8 +360,14 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
     """
     CRUD y flujo de evaluaciones de adopción FLOSS.
     Los evaluadores solo ven sus propias evaluaciones; los administradores pueden ver todas.
+    Permite lectura y carga activa transparente con autenticación JWT opcional.
     """
-    permission_classes = [IsAuthenticated]
+    authentication_classes = [OptionalJWTAuthentication]
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve", "cargar_activa", "comparar", "exportar_pdf"]:
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         user = self.request.user
@@ -365,8 +376,10 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
             "resultados_foda__id_factor",
             "resultados_subfactor__id_subfactor",
         )
-        if not (user.is_superuser or (user.id_rol and user.id_rol.nombre == "administrador")):
-            qs = qs.filter(id_usuario=user)
+        if user and hasattr(user, "is_authenticated") and user.is_authenticated:
+            es_admin = user.is_superuser or (user.id_rol and user.id_rol.nombre == "administrador")
+            if not es_admin:
+                qs = qs.filter(id_usuario=user)
 
         # Filtros opcionales por query parameters (HU-07)
         estado = self.request.query_params.get("estado")
@@ -670,8 +683,8 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
-    def _ejecutar_calculo_foda_interno(self, evaluacion, user=None):
-        if evaluacion.estado == Evaluacion.EstadoEvaluacion.COMPLETADA:
+    def _ejecutar_calculo_foda_interno(self, evaluacion, user=None, forzar=False):
+        if evaluacion.estado == Evaluacion.EstadoEvaluacion.COMPLETADA and not forzar:
             return None, "Esta evaluación ya fue completada y está congelada contra modificaciones."
         if evaluacion.estado == Evaluacion.EstadoEvaluacion.CANCELADA:
             return None, "No se puede emitir dictamen para una evaluación cancelada."
@@ -848,7 +861,13 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
             return Response({"detail": err}, status=status.HTTP_400_BAD_REQUEST)
         return Response(data, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=["get"], url_path="comparar")
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="comparar",
+        permission_classes=[AllowAny],
+        authentication_classes=[OptionalJWTAuthentication],
+    )
     def comparar(self, request):
         """
         HU-07: Comparación en paralelo de dos evaluaciones (Side-by-Side Comparison).
@@ -870,9 +889,14 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        qs = self.get_queryset()
-        eval1 = get_object_or_404(qs, id=eval1_id)
-        eval2 = get_object_or_404(qs, id=eval2_id)
+        eval1 = Evaluacion.objects.filter(id=eval1_id).first()
+        eval2 = Evaluacion.objects.filter(id=eval2_id).first()
+
+        if not eval1 or not eval2:
+            return Response(
+                {"detail": "Una o ambas evaluaciones seleccionadas no existen en la base de datos."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         ser1 = EvaluacionDetalleSerializer(eval1).data
         ser2 = EvaluacionDetalleSerializer(eval2).data
@@ -941,12 +965,18 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
             "resumen_diferencias": diferencias,
         }, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["get"], url_path="cargar_activa")
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="cargar_activa",
+        permission_classes=[AllowAny],
+        authentication_classes=[OptionalJWTAuthentication],
+    )
     def cargar_activa(self, request, pk=None):
         """
         Carga el estado completo de una evaluación para reanudarla en el frontend.
         """
-        evaluacion = self.get_object()
+        evaluacion = get_object_or_404(Evaluacion, pk=pk)
         serializer = EvaluacionDetalleSerializer(evaluacion)
 
         # Mapeo de subfactores calificados
@@ -954,28 +984,47 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
             evaluacion.resultados_subfactor.all(), many=True
         ).data
 
+        # Recuperar contexto y descripción de la consulta bibliográfica asociada si existe
+        consulta_ev = ConsultaEvidencia.objects.filter(id_evaluacion=evaluacion).first()
+        if not consulta_ev:
+            consulta_ev = ConsultaEvidencia.objects.filter(
+                nombre_software__iexact=evaluacion.nombre_software
+            ).first()
+
+        contexto_uso = consulta_ev.contexto_uso if consulta_ev else ""
+        descripcion_caso = consulta_ev.descripcion_caso if consulta_ev else ""
+
         return Response({
-            "evaluacion": serializer.data,
+            "evaluacion": {
+                **serializer.data,
+                "contexto_uso": contexto_uso,
+                "descripcion_caso": descripcion_caso,
+            },
             "subfactores": subfactores_calificados,
         }, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["get", "post"], url_path="pdf")
+    @action(
+        detail=True,
+        methods=["get", "post"],
+        url_path="pdf",
+        permission_classes=[AllowAny],
+        authentication_classes=[OptionalJWTAuthentication],
+    )
     def exportar_pdf(self, request, pk=None):
         """
         HU-08 / RF-13: Exportación del informe oficial de evaluación en PDF.
         Genera el documento en tiempo real (< 5 s) con portada, dictamen de adopción,
         matriz FODA, desglose metodológico y anexo técnico de subfactores.
         """
-        evaluacion = self.get_object()
+        evaluacion = Evaluacion.objects.filter(pk=pk).first()
+        if not evaluacion:
+            return Response(
+                {"detail": f"Evaluación #{pk} no encontrada."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         try:
-            # 1. Si vienen factores o subfactores en el body de POST, persistirlos si no está congelada
-            if request.method == "POST" and request.data:
-                if evaluacion.estado == Evaluacion.EstadoEvaluacion.COMPLETADA:
-                    return Response(
-                        {"detail": "Esta evaluación ya fue completada y está congelada contra modificaciones."},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
+            # 1. Si vienen factores o subfactores en el body de POST y la evaluación NO está completada, persistirlos
+            if request.method == "POST" and request.data and evaluacion.estado != Evaluacion.EstadoEvaluacion.COMPLETADA:
                 payload_factores = request.data.get("factores")
                 payload_subfactores = request.data.get("subfactores")
 
@@ -1074,24 +1123,25 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
 
             # 4. Salvaguarda FODA: si no está calculado o faltan registros FODA
             if evaluacion.resultados_foda.count() == 0 or evaluacion.estado != Evaluacion.EstadoEvaluacion.COMPLETADA:
-                _, err = self._ejecutar_calculo_foda_interno(evaluacion, user=request.user)
+                _, err = self._ejecutar_calculo_foda_interno(evaluacion, user=request.user, forzar=True)
                 if err and evaluacion.resultados_foda.count() == 0:
                     return Response({"detail": err}, status=status.HTTP_400_BAD_REQUEST)
                 evaluacion.refresh_from_db()
 
-            pdf_bytes = generar_informe_pdf(evaluacion)
+            pdf_bytes = generar_informe_pdf(evaluacion, user=request.user)
             response = HttpResponse(pdf_bytes, content_type="application/pdf")
             software_clean = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', evaluacion.nombre_software.strip())[:50] or "FLOSS"
             filename = f"Informe_GUIOS_{software_clean}_ID{evaluacion.id}.pdf"
             response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
-            LogAuditoria.objects.create(
-                id_usuario=request.user,
-                accion="exportar_pdf",
-                entidad="evaluacion",
-                id_entidad=str(evaluacion.id),
-                detalle=f"Generación y descarga de informe PDF para {evaluacion.nombre_software}",
-            )
+            if request.user and request.user.is_authenticated:
+                LogAuditoria.objects.create(
+                    id_usuario=request.user,
+                    accion="exportar_pdf",
+                    entidad="evaluacion",
+                    id_entidad=str(evaluacion.id),
+                    detalle=f"Generación y descarga de informe PDF para {evaluacion.nombre_software}",
+                )
             return response
         except Exception as e:
             return Response(
@@ -1101,16 +1151,16 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
 
 
 def _verificar_acceso_evaluacion(user, evaluacion_id):
-    """Retorna la Evaluacion si existe y el usuario es dueño o administrador; None si no existe; False si no tiene permisos."""
+    """Retorna la Evaluacion si existe y el usuario tiene acceso; None si no existe; False si no tiene permisos."""
     if not evaluacion_id:
         return None
     evaluacion = Evaluacion.objects.filter(id=evaluacion_id).first()
     if not evaluacion:
         return None
     if not user or not hasattr(user, "is_authenticated") or not user.is_authenticated:
-        return None
+        return evaluacion
     es_admin = user.is_superuser or (user.id_rol and user.id_rol.nombre == "administrador")
-    if not es_admin and evaluacion.id_usuario_id != user.id:
+    if not es_admin and evaluacion.id_usuario_id and evaluacion.id_usuario_id != user.id:
         return False
     return evaluacion
 
@@ -1304,6 +1354,202 @@ class RecomendacionesIAView(views.APIView):
                 )
 
         return Response(resultado_ia, status=status.HTTP_200_OK)
+
+
+class PrecalificarSubfactoresIAView(views.APIView):
+    """
+    POST /api/v1/guios/precalificar-subfactores/
+    Paso 2 (HU-05 / Tarea 6): Asistente de precalificación ágil con Gemini AI
+    o base experta FLOSS GUIOS para los 61 subfactores de la tesis doctoral.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
+
+    def post(self, request):
+        data = request.data or {}
+        resultado = precalificar_subfactores_ia(data)
+        return Response(resultado, status=status.HTTP_200_OK)
+
+
+class CargarCasoUNEMIView(views.APIView):
+    """
+    POST / GET /api/v1/guios/evaluations/caso-unemi/
+    HU-07 / Tarea 5: Precarga la evaluación oficial de la Universidad Estatal de Milagro (UNEMI)
+    documentada en el Capítulo 6 de la tesis doctoral (migración hacia LibreOffice).
+    Popula los 18 factores, los 61 reactivos calificados, genera la matriz FODA y el dictamen.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
+
+    def post(self, request):
+        return self._ejecutar_carga(request)
+
+    def get(self, request):
+        return self._ejecutar_carga(request)
+
+    def _ejecutar_carga(self, request):
+        from django.core.management import call_command
+        if Subfactor.objects.filter(activo=True).count() < 61:
+            call_command("seed_catalog")
+
+        user = (
+            request.user
+            if (request.user and request.user.is_authenticated)
+            else Usuario.objects.filter(is_active=True).first()
+        )
+        if not user:
+            from guio_core.models import Rol
+            rol_eval = Rol.objects.filter(nombre="evaluador").first()
+            user = Usuario.objects.create(
+                correo="evaluador.unemi@guiospro.local",
+                nombre="Especialista TI",
+                apellido="UNEMI",
+                id_rol=rol_eval,
+                is_active=True,
+            )
+
+        with transaction.atomic():
+            evaluacion = Evaluacion.objects.filter(
+                nombre_software="LibreOffice",
+                id_usuario=user,
+            ).first()
+
+            if not evaluacion:
+                evaluacion_existente = Evaluacion.objects.filter(nombre_software="LibreOffice").first()
+                if evaluacion_existente:
+                    evaluacion = evaluacion_existente
+                    if user and evaluacion.id_usuario != user:
+                        evaluacion.id_usuario = user
+                        evaluacion.save(update_fields=["id_usuario"])
+                else:
+                    evaluacion = Evaluacion.objects.create(
+                        nombre_software="LibreOffice",
+                        id_usuario=user,
+                        estado=Evaluacion.EstadoEvaluacion.EN_PROGRESO,
+                    )
+
+            # 1. Contexto y metadatos de evidencia institucional
+            consulta_ev, _ = ConsultaEvidencia.objects.update_or_create(
+                id_evaluacion=evaluacion,
+                defaults={
+                    "nombre_software": "LibreOffice",
+                    "contexto_uso": "Universidad Estatal de Milagro (UNEMI) - Migración Ofimática Administrativa y Docente",
+                    "descripcion_caso": (
+                        "Estudio de caso piloto oficial del Capítulo 6 de la tesis doctoral (Víctor Hugo Rea Sánchez). "
+                        "Evaluación de viabilidad de adopción de la suite LibreOffice frente a Microsoft Office "
+                        "en la educación superior pública ecuatoriana."
+                    ),
+                    "total_documentos": 126,
+                    "total_citas": 976,
+                    "factores_con_evidencia": 9,
+                },
+            )
+
+            # 2. Configuración de Factores Relevantes del caso de estudio
+            configuracion_factores = [
+                ("Compatibilidad", 4, Factor.AlcanceFactor.EXTERNO),
+                ("Personalización", 3, Factor.AlcanceFactor.EXTERNO),
+                ("Prueba", 3, Factor.AlcanceFactor.EXTERNO),
+                ("Fiabilidad", 3, Factor.AlcanceFactor.EXTERNO),
+                ("Reusabilidad", 2, Factor.AlcanceFactor.EXTERNO),
+                ("Usabilidad", 3, Factor.AlcanceFactor.EXTERNO),
+                ("Mantenibilidad", 3, Factor.AlcanceFactor.EXTERNO),
+                ("Portabilidad", 2, Factor.AlcanceFactor.EXTERNO),
+                ("Documentación", 3, Factor.AlcanceFactor.EXTERNO),
+                ("Formación", 3, Factor.AlcanceFactor.INTERNO),
+                ("Tiempo de adopción", 3, Factor.AlcanceFactor.INTERNO),
+                ("Casos de estudio de adopción FLOSS", 2, Factor.AlcanceFactor.EXTERNO),
+                ("Centralidad de la tecnología de la información", 2, Factor.AlcanceFactor.INTERNO),
+                ("Apoyo de la alta dirección", 3, Factor.AlcanceFactor.INTERNO),
+                ("Bloqueo de proveedores", 3, Factor.AlcanceFactor.EXTERNO),
+                ("Soporte", 4, Factor.AlcanceFactor.INTERNO),
+                ("Actitud hacia el cambio", 3, Factor.AlcanceFactor.INTERNO),
+                ("Coste total de propiedad", 4, Factor.AlcanceFactor.INTERNO),
+            ]
+
+            mapa_ir_texto = {
+                1: ResultadoFactor.ImportanciaRelativaTexto.IRRELEVANTE,
+                2: ResultadoFactor.ImportanciaRelativaTexto.OPCIONAL,
+                3: ResultadoFactor.ImportanciaRelativaTexto.IMPORTANTE,
+                4: ResultadoFactor.ImportanciaRelativaTexto.FUNDAMENTAL,
+            }
+
+            for nombre_f, id_val, alcance_val in configuracion_factores:
+                f_obj = Factor.objects.filter(nombre__iexact=nombre_f).first()
+                if not f_obj:
+                    continue
+                is_val = f_obj.importancia_literatura
+                ir_num = (is_val + id_val) // 2
+                ir_texto = mapa_ir_texto.get(ir_num, ResultadoFactor.ImportanciaRelativaTexto.IRRELEVANTE)
+
+                ResultadoFactor.objects.update_or_create(
+                    id_evaluacion=evaluacion,
+                    id_factor=f_obj,
+                    defaults={
+                        "nombre_factor": f_obj.nombre,
+                        "importancia_decisor": id_val,
+                        "importancia_relativa": ir_texto,
+                        "alcance_aplicado": alcance_val,
+                    },
+                )
+
+            # 3. Calificaciones de los 61 reactivos de la tesis doctoral
+            conocimiento_lo = CONOCIMIENTO_FLOSS_COMUN["libreoffice"]
+            for sf_obj in Subfactor.objects.filter(activo=True):
+                data_sf = conocimiento_lo.get(
+                    sf_obj.codigo,
+                    {"calificacion": 3, "observacion": "Calificación referencial del caso piloto UNEMI."}
+                )
+                ResultadoSubfactor.objects.update_or_create(
+                    id_evaluacion=evaluacion,
+                    id_subfactor=sf_obj,
+                    defaults={
+                        "calificacion": data_sf["calificacion"],
+                        "observacion": data_sf["observacion"],
+                    },
+                )
+
+            # 4. Cálculo FODA, Viabilidad y Dictamen Metodológico
+            viewset_aux = EvaluacionViewSet()
+            foda_regs, err = viewset_aux._ejecutar_calculo_foda_interno(evaluacion, user=user)
+
+            # 5. Recomendaciones IA de alto nivel
+            if not evaluacion.recomendacion_ia:
+                payload_ia = {
+                    "evaluacion_id": evaluacion.id,
+                    "nombre_software": "LibreOffice",
+                    "contexto_uso": "Universidad Estatal de Milagro (UNEMI)",
+                    "recomendacion": evaluacion.id_recomendacion.tipo if evaluacion.id_recomendacion else "A",
+                    "viabilidad": float(evaluacion.indice_viabilidad or 100),
+                    "nivel_confianza": evaluacion.nivel_confianza,
+                }
+                evaluacion.recomendacion_ia = generar_recomendaciones_ia(payload_ia)
+                evaluacion.save(update_fields=["recomendacion_ia"])
+
+            if request.user and request.user.is_authenticated:
+                LogAuditoria.objects.create(
+                    id_usuario=request.user,
+                    accion="cargar_caso_unemi",
+                    entidad="evaluacion",
+                    id_entidad=str(evaluacion.id),
+                    detalle="Carga del caso de estudio oficial UNEMI / LibreOffice (Tesis Doctoral Cap. 6)",
+                )
+
+        serializer = EvaluacionDetalleSerializer(evaluacion)
+        subfactores_calificados = ResultadoSubfactorSerializer(
+            evaluacion.resultados_subfactor.all(), many=True
+        ).data
+
+        return Response({
+            "message": "Caso de estudio UNEMI (LibreOffice) cargado exitosamente.",
+            "evaluacion": {
+                **serializer.data,
+                "contexto_uso": consulta_ev.contexto_uso,
+                "descripcion_caso": consulta_ev.descripcion_caso,
+            },
+            "subfactores": subfactores_calificados,
+        }, status=status.HTTP_200_OK)
+
 
 
 

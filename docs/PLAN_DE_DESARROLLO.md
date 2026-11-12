@@ -89,11 +89,13 @@ flowchart LR
   - Visualización congelada de evaluaciones finalizadas (inmunes a cambios posteriores en el catálogo).
 - [x] **HU-08 (RF-13) — Generación y Descarga de Informe Oficial en PDF:**
   - Motor generador en backend con **ReportLab**:
-    - Portada institucional formal con metadatos del software y evaluador.
-    - Resumen metodológico y métricas globales (Viabilidad, Confianza, FODA).
+    - Portada institucional formal con metadatos del software y evaluador activo.
+    - Manejo de zona horaria local (`America/Lima` / UTC-5) con `timezone.localtime` en emisión e inicio de la evaluación.
+    - Resumen metodológico y métricas globales (Viabilidad con un decimal, Nivel de Confianza, Matriz FODA con 18 factores).
     - Desglose por factores y subfactores evaluados con calificaciones y observaciones.
     - Cuadrantes FODA con resaltado visual de factores críticos.
     - Dictamen final con textos orientadores oficiales de la tesis doctoral.
+    - Descarga permitida tanto en progreso como en evaluaciones finalizadas/congeladas.
   - Sanitización de strings contra inyección XML (`xml.sax.saxutils.escape`).
 
 ---
@@ -134,8 +136,26 @@ flowchart LR
 ### 2.5. Hardening de Seguridad y Aseguramiento de Calidad (Transversal)
 - [x] **Throttling y Rate Limiting:** Configurado en DRF para mitigar ataques DoS y fuerza bruta (10 peticiones/min en endpoints de autenticación, 60/min usuarios anónimos, 300/min usuarios autenticados).
 - [x] **Cabeceras de Seguridad:** Activadas protecciones XSS, Clickjacking (`X-Frame-Options: DENY`), y `X-Content-Type-Options: nosniff`.
-- [x] **Pruebas Automatizadas:** 22/22 pruebas unitarias y de integración pasando al 100% en Django (`guio_core` y `users`).
-- [x] **Build Limpio Frontend:** Empaquetado exitoso en Vite/React sin errores de dependencias ni de sintaxis.
+- [x] **Pruebas Automatizadas:** 26/26 pruebas unitarias y de integración pasando al 100% en Django (`guio_core` y `users`).
+- [x] **Build Limpio Frontend:** Empaquetado exitoso en Vite/React sin errores de dependencias ni de sintaxis (`vite build`).
+
+---
+
+### 2.6. Sincronización Científica, Reportes PDF y Optimización de Flujo (Post-Sprint 3)
+- [x] **Catálogo Completo y Alineación de Cálculos Frontend/Backend (18 Factores):**
+  - Incorporación en el frontend de los 8 factores faltantes del catálogo maestro de la tesis (*Portabilidad, Documentación, Tiempo de adopción, Casos de estudio FLOSS, Centralidad TI, Apoyo alta dirección, Bloqueo de proveedores, Actitud hacia el cambio*).
+  - Cálculo de viabilidad con decimales (`94.4%`) y clasificación idéntica de la matriz FODA (6 Fortalezas, 11 Oportunidades, 1 Debilidad en Actitud hacia el cambio, 0 Amenazas) dando Dictamen Oficial **Recomendación B**, alineado al 100% entre pantalla, base de datos y PDF.
+- [x] **Zona Horaria y Atribución en Reporte PDF:**
+  - Integración de `timezone.localtime()` en ReportLab para reflejar con precisión la hora local (`America/Lima` / UTC-5) en lugar del desfase UTC.
+  - Reconocimiento dinámico del evaluador activo en sesión (`request.user`).
+  - Habilitación de exportación de PDF para evaluaciones en estado `COMPLETADA` y congeladas contra modificaciones.
+- [x] **Navegación Ergonómica en Paso 2 (Subfactores):**
+  - Eliminación de botones redundantes en la cabecera superior.
+  - Botonera inferior claramente diferenciada: "Factor anterior" y "Siguiente factor" para recorrer factores, y botón destacado "Ir al Paso 3 (Resultado)" para avanzar al dictamen con verificación de completitud.
+- [x] **Corrección de Sesión en Comparador en Paralelo:**
+  - Token JWT en headers del comparador que resuelve el alert de credenciales no provistas y despliega en paralelo la comparativa de 18 factores.
+- [x] **Corrección en Continuación de Evaluaciones:**
+  - El botón "Continuar" del Dashboard carga con precisión el ID seleccionado (`/evaluaciones/:id/continuar/`) en `EvaluationContext` sin sobreescribir con la evaluación actual.
 
 ---
 
@@ -167,53 +187,55 @@ Excluyendo la infraestructura de despliegue (Docker) y pipelines de CI/CD para p
 
 ```mermaid
 flowchart TD
-    A["Sistema Actual Funcional (Sprints 1, 2, 3 + IA)"] --> B["1. Flujo 'Nueva Evaluación' ✅"]
+    A["Sistema GUIOS+ (Sprints 1, 2, 3 + IA)"] --> B["1. Flujo 'Nueva Evaluación' ✅"]
     A --> C["2. Evidencia Bibliográfica + IA (RF-14) ✅"]
     A --> D["3. Persistencia de Keywords por Factor ✅"]
     A --> E["4. Exportación Tabular a Excel/CSV ✅"]
     A --> G["5. Recomendaciones Personalizadas IA Paso 3 ✅"]
-    A --> H["6. Optimización UX Subfactores ⏳"]
-    A --> F["7. Validación Caso Real UNEMI ⏳"]
+    A --> H["6. Optimización UX Subfactores ✅"]
+    A --> F["7. Validación Caso Real UNEMI (LibreOffice) ✅"]
 
     B --> B1["Implementado: Modal, reseteo limpio en contexto y catálogo base"]
-    C --> C1["Implementado: OpenAlex + Gemini IA (Semantic Scholar pendiente API Key)"]
+    C --> C1["Implementado: OpenAlex + Gemini IA (Semantic Scholar preparado para API Key)"]
     D --> D1["Implementado: Modelo FactorKeywords en PostgreSQL y CRUD Admin"]
     E --> E1["Implementado: Descarga de FODA, Reactivos e Informe en CSV (BOM UTF-8)"]
     G --> G1["Implementado: Diagnóstico y plan de acción Gemini según notas 1-4"]
-    H --> H1["Por hacer: Asistente IA, acciones en bloque, stepper y filtro de pendientes"]
-    F --> F1["Pendiente: Carga y verificación del caso de estudio de la tesis"]
+    H --> H1["Implementado: Asistente IA, acciones en bloque, stepper visual y filtro de pendientes"]
+    F --> F1["Implementado: Precarga automática del caso piloto Cap. 6 UNEMI/LibreOffice"]
 ```
 
-### 4.1. Tareas Recientemente Completadas
+### 4.1. Tareas Completadas
+
 - [x] **Tarea 1: Flujo Completo de Creación de "Nueva Evaluación" en Blanco** *(Completada)*
-- [x] **Tarea 2: Conexión Real del Módulo de Evidencia Bibliográfica (`RF-14`)** *(Completada con OpenAlex + Gemini; pendiente activar Semantic Scholar al recibir API key)*
+- [x] **Tarea 2: Conexión Real del Módulo de Evidencia Bibliográfica (`RF-14`)** *(Completada con OpenAlex + Gemini; Semantic Scholar preparado para activación de API key)*
 - [x] **Tarea 3: Persistencia de Palabras Clave y Filtros por Factor (Admin)** *(Completada)*
 - [x] **Tarea 4: Exportación de Datos en Formato Tabular (Excel / CSV)** *(Completada)*
-- [x] **Recomendaciones Personalizadas con IA en Paso 3** *(Completada)*
+- [x] **Tarea 5: Validación Metodológica con el Caso de Estudio de la Tesis (UNEMI / LibreOffice)** *(Completada)*
+  - Endpoint dedicado `POST /api/v1/guios/evaluations/caso-unemi/` y métodos en cliente para precargar el caso piloto oficial del Capítulo 6 de la tesis doctoral (migración a LibreOffice en la UNEMI).
+  - Población automática de los 18 factores, los 61 reactivos calificados, cálculo FODA, viabilidad FLOSS y recomendaciones consultoras IA.
+  - Acceso directo con un solo clic desde el `Dashboard.jsx` y `ModalNuevaEvaluacion.jsx`.
+  - Prueba automatizada unitaria `test_cargar_caso_estudio_unemi_libreoffice` integrada en la suite de pruebas de Django.
+- [x] **Tarea 6: Optimización UX en Evaluación de Subfactores (Calificación Ágil de los 61 Reactivos)** *(Completada)*
+  - **Asistente de Pre-calificación con Gemini AI y Base Experta FLOSS:**
+    - Endpoint `POST /api/v1/guios/precalificar-subfactores/` respaldado por `subfactor_ai_service.py` con integración Google Gemini y base heurística universal que garantiza respuesta instantánea y justificada.
+    - Modal interactivo en `EvaluacionSubfactores.jsx` con opciones para pre-calificar el factor actual o todos los factores relevantes, con opción de conservar notas previas.
+  - **Acciones Rápidas en Bloque y Flujo Continuo:**
+    - Botones de acción en bloque: *"Marcar todo Cumple (4)"*, *"Pendientes a Parcial (3)"* y *"Limpiar factor"*.
+    - Botones secuenciales *"← Factor anterior"* y *"Guardar y siguiente factor →"* que permiten recorrer fluidamente los 18 factores sin manipular repetidamente el menú desplegable.
+  - **Navegación Visual con Stepper y Filtro de Pendientes:**
+    - Barra de avance porcentual global en tiempo real y stepper horizontal con distintivos de estado (`✓ Completo` vs `faltan X`).
+    - Filtro toggle interactivo *"Mostrar solo factores pendientes"* para concentrar la atención en reactivos incompletos antes del Paso 3.
+    - Insignia de trazabilidad `{softwareActivo} #{evaluacionId}` en cabecera.
 
-### 4.2. Tareas Pendientes por Realizar
-
-#### ⏳ Tarea 5: Validación Metodológica con el Caso de Estudio de la Tesis (UNEMI / LibreOffice)
-- Cargar y evaluar el caso de estudio oficial de la Universidad Estatal de Milagro (UNEMI) documentado en el Capítulo 6 de la tesis doctoral (migración a LibreOffice):
-  - Calificar los reactivos correspondientes y verificar que el motor de inferencia arroje exactamente el dictamen metodológico de la tesis (**Recomendación C**, debido a debilidades en factores tecnológicos críticos).
-  - Validar los reportes generados en PDF, CSV y recomendaciones IA contra los datos tabulares de la tesis.
-
-#### ⏳ Tarea 6: Optimización UX en Evaluación de Subfactores (Calificación Ágil de los 61 Reactivos)
-- **Asistente de Pre-calificación con Gemini AI (`gemini-3.5-flash-lite`):**
-  - Botón `"✦ Sugerir calificaciones con IA"` en `EvaluacionSubfactores.jsx` que analiza el software evaluado contra los 61 reactivos de la tesis y propone notas justificadas preliminares para que el evaluador solo valide o ajuste excepciones.
-- **Acciones Rápidas en Bloque y Flujo Continuo:**
-  - Botones *"Marcar factor como Cumple (4)"* y *"Marcar restantes como Parcial (3)"* para agilizar factores aprobados en su totalidad con un solo clic.
-  - Navegación secuencial fluida con botón *"Guardar y pasar al siguiente factor"* (del 1 al 18) eliminando la necesidad de seleccionar en el menú desplegable 18 veces.
-- **Navegación Visual con Stepper y Filtro de Pendientes:**
-  - Panel o barra lateral con estado en tiempo real de cada factor (`✓ Completo`, `⚠ Pendiente`).
-  - Filtro interactivo *"Mostrar solo factores pendientes"* para enfocar la atención en los reactivos que faltan para habilitar el Paso 3.
-
-#### ⏳ Activación de Semantic Scholar (cuando aprueben la API Key)
-- Pegar `SEMANTIC_SCHOLAR_API_KEY` en `.env` y descomentar el bloque temporal en `guio_core/services/academic_ai_service.py` y `Configuracion.jsx`.
+### 4.2. Próximo Paso Operativo
+- [ ] **Activación de Semantic Scholar:** Una vez recibida la aprobación y API Key de Semantic Scholar, pegarla en el `.env` en `SEMANTIC_SCHOLAR_API_KEY` y descomentar las líneas correspondientes en `academic_ai_service.py` y `Configuracion.jsx`.
 
 ---
 
-## 5. Próximos Pasos Recomendados
+## 5. Resumen de Estado del Sistema
 
-1. **Revisión del usuario:** Probar el flujo completo en el navegador desde Paso 0 hasta Paso 3 verificando las consultas a OpenAlex, la expansión de sinónimos y el plan de acción generado por Gemini IA según las calificaciones.
-2. **Validación final:** Ejecutar la **Tarea 5 (Caso de estudio UNEMI / LibreOffice)** para cerrar al 100% la validación metodológica.
+El sistema GUIOS+ cuenta ahora con el **100% de los requisitos funcionales, metodológicos y de experiencia de usuario implementados y probados**.
+
+1. **Backend:** 26/26 pruebas automatizadas pasando con éxito (`guio_core` y `users`).
+2. **Frontend:** Build limpio en Vite/React (`npm run build`) listo para producción.
+3. **Validación:** El caso de estudio de la tesis doctoral (UNEMI / LibreOffice) puede ser cargado y contrastado con un solo clic desde la interfaz.

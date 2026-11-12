@@ -162,13 +162,23 @@ class EvaluacionApiFlowTestCase(TestCase):
 
         self.client.post(f"/api/v1/guios/evaluations/{eval_id}/resultado/")
 
-        # 2. Descargar PDF oficial
+        # 2. Descargar PDF oficial vía GET
         res_pdf = self.client.get(f"/api/v1/guios/evaluations/{eval_id}/pdf/")
         self.assertEqual(res_pdf.status_code, status.HTTP_200_OK)
         self.assertEqual(res_pdf["Content-Type"], "application/pdf")
         self.assertIn("attachment; filename=", res_pdf["Content-Disposition"])
         self.assertTrue(len(res_pdf.content) > 1000)
         self.assertTrue(res_pdf.content.startswith(b"%PDF"))
+
+        # 3. Descargar PDF oficial vía POST con payload (no debe bloquearse si la evaluación ya está completada)
+        res_pdf_post = self.client.post(
+            f"/api/v1/guios/evaluations/{eval_id}/pdf/",
+            {"factores": [{"id_factor": self.f_compat.id, "importancia_decisor": 4}], "subfactores": []},
+            format="json",
+        )
+        self.assertEqual(res_pdf_post.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_pdf_post["Content-Type"], "application/pdf")
+        self.assertTrue(res_pdf_post.content.startswith(b"%PDF"))
 
     def test_rechazo_resultado_si_faltan_subfactores(self):
         """No se debe permitir calcular resultado si faltan subfactores por calificar en factores relevantes."""
@@ -500,6 +510,66 @@ class AdminCatalogoHU03TestCase(TestCase):
         ev.refresh_from_db()
         self.assertIsNotNone(ev.recomendacion_ia)
         self.assertEqual(ev.recomendacion_ia["recomendaciones_priorizadas"][0]["factor"], "Compatibilidad")
+
+    def test_precalificar_subfactores_ia_y_fallback(self):
+        """Tarea 6: Precalificación de subfactores mediante IA / respaldo heurístico."""
+        payload = {
+            "nombre_software": "LibreOffice",
+            "contexto_uso": "Educación Superior",
+            "subfactores": [
+                {"codigo": "SF-01", "factor_nombre": "Compatibilidad", "descripcion": "Infraestructura de nube"},
+                {"codigo": "SF-07", "factor_nombre": "Compatibilidad", "descripcion": "Formatos estándar"},
+            ],
+        }
+        resp = self.client.post("/api/v1/guios/precalificar-subfactores/", payload, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data["estado"], "exito")
+        self.assertIn("sugerencias", resp.data)
+        self.assertIn("SF-01", resp.data["sugerencias"])
+        self.assertIn("SF-07", resp.data["sugerencias"])
+        self.assertTrue(1 <= resp.data["sugerencias"]["SF-07"]["calificacion"] <= 4)
+        self.assertTrue(len(resp.data["sugerencias"]["SF-07"]["observacion"]) > 0)
+
+    def test_cargar_caso_estudio_unemi_libreoffice(self):
+        """Tarea 5: Precarga y validación del caso de estudio oficial UNEMI (LibreOffice, Tesis Cap. 6)."""
+        self.client.force_authenticate(user=self.evaluador)
+        resp = self.client.post("/api/v1/guios/evaluations/caso-unemi/", format="json")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn("evaluacion", resp.data)
+        self.assertEqual(resp.data["evaluacion"]["nombre_software"], "LibreOffice")
+        self.assertIn("UNEMI", resp.data["evaluacion"]["contexto_uso"])
+        self.assertEqual(len(resp.data["subfactores"]), 61)
+        self.assertIsNotNone(resp.data["evaluacion"]["indice_viabilidad"])
+        self.assertIsNotNone(resp.data["evaluacion"]["nivel_confianza"])
+
+    def test_comparar_evaluaciones_sin_autenticacion(self):
+        """Verifica que el comparador en paralelo funcione sin credenciales (AllowAny) sin lanzar 401."""
+        id1 = Evaluacion.objects.create(nombre_software="App A", id_usuario=self.evaluador).id
+        id2 = Evaluacion.objects.create(nombre_software="App B", id_usuario=self.evaluador).id
+        cliente_anonimo = APIClient()
+        resp = cliente_anonimo.get(f"/api/v1/guios/evaluations/comparar/?eval1={id1}&eval2={id2}")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn("evaluacion_1", resp.data)
+        self.assertIn("evaluacion_2", resp.data)
+
+    def test_exportar_pdf_caso_unemi_libreoffice_evaluador(self):
+        """Valida que un usuario evaluador pueda cargar y descargar el PDF de LibreOffice (UNEMI)."""
+        self.client.force_authenticate(user=self.evaluador)
+        res_unemi = self.client.post("/api/v1/guios/evaluations/caso-unemi/", format="json")
+        self.assertEqual(res_unemi.status_code, status.HTTP_200_OK)
+        lo_id = res_unemi.data["evaluacion"]["id"]
+
+        # Descargar PDF con el payload enviado por Paso 3 (debe devolver el PDF sin error de inmutabilidad)
+        res_pdf = self.client.post(
+            f"/api/v1/guios/evaluations/{lo_id}/pdf/",
+            {"factores": [], "subfactores": []},
+            format="json",
+        )
+        self.assertEqual(res_pdf.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_pdf["Content-Type"], "application/pdf")
+        self.assertTrue(res_pdf.content.startswith(b"%PDF"))
+
+
 
 
 

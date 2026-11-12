@@ -7,6 +7,7 @@ matriz FODA, tablas de factores y anexo de trazabilidad de subfactores.
 
 import io
 from datetime import datetime
+from django.utils import timezone
 from xml.sax.saxutils import escape as xml_escape
 from reportlab.lib import colors
 from reportlab.lib.colors import HexColor
@@ -91,7 +92,7 @@ class NumberedCanvas(canvas.Canvas):
         self.restoreState()
 
 
-def generar_informe_pdf(evaluacion):
+def generar_informe_pdf(evaluacion, user=None):
     """
     Construye y retorna los bytes del PDF oficial para una instancia de Evaluacion.
     """
@@ -241,10 +242,24 @@ def generar_informe_pdf(evaluacion):
     # --------------------------------------------------------------------------
     # 2. FICHA TÉCNICA DE LA EVALUACIÓN
     # --------------------------------------------------------------------------
-    evaluador_str = evaluacion.id_usuario.nombre if evaluacion.id_usuario else "Evaluador Principal"
-    evaluador_email = evaluacion.id_usuario.email if evaluacion.id_usuario else ""
-    fecha_emision = evaluacion.fecha_fin.strftime("%d/%m/%Y %H:%M") if evaluacion.fecha_fin else datetime.now().strftime("%d/%m/%Y %H:%M")
-    fecha_inicio_str = evaluacion.fecha_inicio.strftime("%d/%m/%Y %H:%M") if evaluacion.fecha_inicio else "—"
+    usuario_evaluador = (
+        user
+        if (user and hasattr(user, "is_authenticated") and user.is_authenticated)
+        else evaluacion.id_usuario
+    )
+    evaluador_str = usuario_evaluador.nombre if usuario_evaluador else "Evaluador Principal"
+    evaluador_email = usuario_evaluador.email if usuario_evaluador else ""
+
+    def _fmt_dt(dt):
+        if not dt:
+            return "—"
+        try:
+            return timezone.localtime(dt).strftime("%d/%m/%Y %H:%M")
+        except Exception:
+            return dt.strftime("%d/%m/%Y %H:%M")
+
+    fecha_emision = _fmt_dt(evaluacion.fecha_fin or timezone.now())
+    fecha_inicio_str = _fmt_dt(evaluacion.fecha_inicio or timezone.now())
 
     info_data = [
         [
