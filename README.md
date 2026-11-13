@@ -7,7 +7,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
-> **Evaluación inteligente y científica para la adopción de soluciones de Software Libre y Fuentes Abiertas (FLOSS).**
+> **Evaluación inteligente, científica y automatizada para la adopción estratégica de soluciones de Software Libre y Fuentes Abiertas (FLOSS).**
 
 ---
 
@@ -18,7 +18,9 @@
 La metodología combina evidencia empírica de una Revisión Sistemática de la Literatura ($4.429$ estudios analizados y $54$ estudios primarios seleccionados) con la consulta a $57$ expertos en FLOSS de Ecuador y España, estableciendo un catálogo oficial estructurado en:
 - **3 Dimensiones:** Tecnológica, Organizacional y Económica.
 - **18 Factores de Adopción:** Compatibilidad, Seguridad, Fiabilidad, TCO, Soporte, etc.
-- **61 Subfactores Específicos:** Criterios medibles en escala discreta de 1 a 4.
+- **61 Subfactores Específicos:** Criterios medibles en escala discreta de 1 a 4 con justificación y evidencia.
+
+Además, el sistema integra motores de **Inteligencia Artificial Académica y Consultas Bibliográficas en Vivo** (OpenAlex Polite Pool, Google Gemini y Scopus) para estimar automáticamente la Importancia Sugerida ($IS$) preliminar antes del juicio humano.
 
 ---
 
@@ -30,7 +32,9 @@ El sistema implementa una arquitectura desacoplada de 3 capas orientada a micros
 ┌────────────────────────────────────────────────────────┐
 │               CAPA 1: CLIENTE (SPA)                    │
 │   React 18 + Vite + Tailwind CSS + Lucide Icons        │
-│   Estado global reactivo, validaciones en tiempo real │
+│   - Estado reactivo global (EvaluationContext)         │
+│   - Comparador en paralelo con exportación a Excel     │
+│   - Panel administrativo y de auditoría empresarial    │
 └───────────────────────────┬────────────────────────────┘
                             │ REST API (JSON / JWT)
 ┌───────────────────────────▼────────────────────────────┐
@@ -38,7 +42,8 @@ El sistema implementa una arquitectura desacoplada de 3 capas orientada a micros
 │   Django 5.x + Django REST Framework (DRF)             │
 │   - Autenticación SimpleJWT con blacklist & lockout    │
 │   - Motor matemático GUIOS (IR, PM, FODA, Dictamen)    │
-│   - Generación de informes PDF con ReportLab           │
+│   - Integración con OpenAlex API y Gemini IA           │
+│   - Generación de informes ejecutivos PDF (ReportLab)  │
 │   - RBAC (Administrador / Evaluador) y Auditoría       │
 └───────────────────────────┬────────────────────────────┘
                             │ ORM Django (SQL 3FN)
@@ -46,8 +51,8 @@ El sistema implementa una arquitectura desacoplada de 3 capas orientada a micros
 │               CAPA 3: PERSISTENCIA (BD)                │
 │   PostgreSQL 15+                                       │
 │   - Normalización 3FN con bajas lógicas (soft delete)  │
-│   - Preservación histórica de dictámenes (snapshots)   │
-│   - Bitácora de operaciones administrativas            │
+│   - Parámetros de cálculo globales y bitácora          │
+│   - Historial de consultas científicas y auditoría     │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -55,26 +60,61 @@ El sistema implementa una arquitectura desacoplada de 3 capas orientada a micros
 
 ## 3. Flujo Metodológico de Evaluación
 
-1. **Paso 0 — Configuración del Caso:** Contexto del software a evaluar, descripción y fuentes.
-2. **Paso 1 — Factores Relevantes:** Asignación de la *Importancia del Decisor* ($ID \in [1, 4]$) y cálculo automático de la *Importancia Relativa* ($IR = \lfloor (IS + ID)/2 \rfloor$). Los factores irrelevantes ($IR = 1$) se descartan.
-3. **Paso 2 — Calificación de Subfactores:** Calificación granular (1 a 4) de cada reactivo asociado a los factores relevantes y registro de justificaciones/observaciones.
-4. **Paso 3 — Matriz FODA y Recomendación Final:**
+```
+[ + Nueva Evaluación ]
+         │
+         ▼
+[ Paso 0: Configuración y Evidencia ] ──► (OpenAlex / Gemini IA / Scopus) ──► Calcula IS preliminar
+         │
+         ▼
+[ Paso 1: Factores Relevantes ]      ──► Evaluador califica ID ──► IR = ⌊(IS + ID)/2⌋ (Umbral ≥ 2)
+         │
+         ▼
+[ Paso 2: Evaluación Subfactores ]   ──► Calificación granular (1-4) + Observación / Evidencia
+         │
+         ▼
+[ Paso 3: Dictamen y Matriz FODA ]   ──► Ponderación Media (PM), Factores Críticos, FODA y Dictamen
+         │
+         ▼
+[ Informes & Comparativa ]           ──► PDF Oficial, Excel (.xls corporativo) y CSV
+```
+
+1. **Nueva Evaluación:** Crea el expediente de software, versión y contexto en blanco, redirigiendo automáticamente al Paso 0.
+2. **Paso 0 — Configuración y Evidencia Bibliográfica:** Conexión con bases de datos científicas e IA para rastrear publicaciones, citas mundiales y calcular la Importancia Sugerida ($IS$) preliminar.
+3. **Paso 1 — Factores Relevantes:** Asignación de la *Importancia del Decisor* ($ID \in [1, 4]$) y cálculo de la *Importancia Relativa* ($IR = \lfloor (IS + ID)/2 \rfloor$). Factores con $IR = 1$ se descartan automáticamente por irrelevantes.
+4. **Paso 2 — Calificación de Subfactores:** Calificación granular (1 a 4) de cada reactivo con área de texto multilínea para redactar observaciones, argumentos técnicos y enlaces a evidencias.
+5. **Paso 3 — Matriz FODA y Recomendación Final:**
    - Cálculo de la Ponderación Media ($PM \in [1.00, 4.00]$).
-   - Clasificación FODA con umbral en $3.00$ y alcance (Interno/Externo).
-   - Identificación de **Factores Críticos** ($PM < 3.00$ con $IR \ge 3$).
+   - Clasificación FODA con umbral metodológico en $3.00$ y asignación de alcance (Interno/Externo).
+   - Detección de **Factores Críticos** ($PM < 3.00$ con $IR \ge 3$).
    - Emisión del dictamen oficial:
      - **Recomendación A:** Adoptar sin observaciones.
      - **Recomendación B:** Es posible adoptar (riesgos solo en factores opcionales).
      - **Recomendación C:** Requiere recursos antes de adoptar (existen factores críticos).
-5. **Historial y Comparador:** Consulta de evaluaciones finalizadas e inspección comparativa lado a lado entre alternativas de software.
-6. **Exportación de Informe:** Descarga instantánea del informe ejecutivo y metodológico oficial en formato PDF.
+6. **Comparador en Paralelo (Side-by-Side):** Análisis simultáneo de 2 soluciones FLOSS con cálculo de diferencias técnicas (+0.25 ventaja), filtros por factores críticos y exportación directa a Excel y CSV.
+7. **Eliminación y Gestión de Evaluaciones:** Borrado seguro con confirmación modal y registro de auditoría en la base de datos.
+8. **Exportación de Informes:**
+   - PDF oficial con sellos metodológicos y membrete institucional generado vía ReportLab.
+   - Libro de Excel (.xls) profesional estilizado con paleta corporativa (`#2F5444`) y desglose de los 61 reactivos.
 
 ---
 
-## 4. Instalación y Ejecución Local
+## 4. Módulo de Administración
+
+El sistema cuenta con un panel administrativo completo dividido en 6 pestañas especializadas:
+1. **Usuarios:** Control de accesos, roles (Administrador / Evaluador) y estado activo.
+2. **Fuentes Bibliográficas:** Monitoreo y estado de conexión de proveedores científicos (OpenAlex, Scopus, Google Gemini, Semantic Scholar).
+3. **Factores GUIOS:** Visualización y edición del catálogo oficial de 18 factores de la tesis.
+4. **Palabras Clave por Factor:** Mapeo de descriptores en español e inglés para búsquedas bibliográficas automatizadas.
+5. **Historial de Consultas:** Registro persistente de consultas académicas ejecutadas por software y contexto con conteo de documentos recuperados.
+6. **Parámetros de Cálculo:** Configuración de ventana temporal (ej. 2016–2026), selección de idiomas (ES · EN · PT / Solo Español / Solo Inglés / Todos) y modo de cálculo.
+
+---
+
+## 5. Instalación y Ejecución Local
 
 ### Prerrequisitos
-- **Python 3.10+** (recomendado 3.12)
+- **Python 3.10+** (recomendado 3.12 o 3.13)
 - **Node.js 18+** y **npm**
 - **PostgreSQL 13+** con base de datos creada (ej. `guiospro_db`)
 
@@ -87,11 +127,23 @@ El sistema implementa una arquitectura desacoplada de 3 capas orientada a micros
    # En Windows PowerShell
    .\venv\Scripts\Activate.ps1
    ```
-2. Instala las dependencias de Python (si aún no están instaladas):
+2. Instala las dependencias de Python:
    ```bash
    pip install -r requirements.txt
    ```
-3. Configura tus variables de entorno en el archivo `.env` en la raíz (o utiliza los valores por defecto locales).
+3. Configura tus variables de entorno en el archivo `.env`:
+   ```env
+   SECRET_KEY=tu_clave_secreta
+   DEBUG=True
+   ALLOWED_HOSTS=localhost,127.0.0.1
+   DB_NAME=guiospro_db
+   DB_USER=postgres
+   DB_PASSWORD=tu_password
+   DB_HOST=127.0.0.1
+   DB_PORT=5432
+   OPENALEX_EMAIL=guiospro@research.local
+   GEMINI_API_KEY=tu_api_key_de_gemini
+   ```
 4. Aplica las migraciones de base de datos:
    ```bash
    python manage.py migrate
@@ -110,11 +162,11 @@ El sistema implementa una arquitectura desacoplada de 3 capas orientada a micros
 
 ### Paso 2: Configurar el Frontend (React + Vite)
 
-1. Abre una segunda terminal y navega al directorio del cliente:
+1. Abre una segunda terminal y navega al directorio del frontend:
    ```bash
    cd frontend
    ```
-2. Instala los módulos de Node:
+2. Instala los paquetes de Node:
    ```bash
    npm install
    ```
@@ -126,25 +178,27 @@ El sistema implementa una arquitectura desacoplada de 3 capas orientada a micros
 
 ---
 
-## 5. Credenciales Semilla por Defecto
+## 6. Credenciales Semilla por Defecto
 
 | Rol | Correo Electrónico | Contraseña | Permisos |
 | :--- | :--- | :--- | :--- |
-| **Administrador** | `admin@guiosplus.org` | `Admin2026!` | Control total, gestión de usuarios, auditoría, CRUD de factores y catálogo. |
-| **Evaluador** | `evaluador@guiosplus.org` | `Evaluador2026!` | Creación de evaluaciones, matriz FODA, historial, comparador y descarga PDF. |
+| **Administrador** | `admin@guiosplus.org` | `Admin2026!` | Control total, gestión de usuarios, auditoría, parámetros de cálculo y catálogo. |
+| **Evaluador** | `evaluador@guiosplus.org` | `Evaluador2026!` | Creación y eliminación de evaluaciones, matriz FODA, historial, comparador, PDF y Excel. |
+
+> *Nota: También se incluye el botón de acceso directo para cargar el **Caso de Validación Oficial UNEMI · LibreOffice** (Capítulo 6 de la tesis) con 18 factores y 61 reactivos calificados.*
 
 ---
 
-## 6. Pruebas Automatizadas y Calidad
+## 7. Pruebas Automatizadas y Calidad
 
 Para ejecutar la batería completa de pruebas unitarias y de integración del backend:
 
 ```bash
-python manage.py test
+python manage.py test guio_core users
 ```
-*Garantiza el 100% de éxito en 19 suites de prueba (autenticación JWT, RBAC, motor matemático GUIOS, protección de histórico, generador PDF y CRUD del catálogo).*
+*Garantiza el 100% de éxito en **27 suites de prueba** (autenticación JWT, RBAC, motor matemático GUIOS, protección de histórico, parámetros de cálculo, consultas científicas, generador PDF y CRUD del catálogo).*
 
-Para verificar la compilación y tipado del frontend:
+Para verificar la compilación del frontend:
 
 ```bash
 cd frontend
@@ -153,39 +207,41 @@ npm run build
 
 ---
 
-## 7. Estructura del Repositorio
+## 8. Estructura del Repositorio
 
 ```
 GUIOSAD/
 ├── docs/                                  # Documentación de tesis y arquitectura
 │   ├── context.md                         # Especificación maestra de requisitos y UI
 │   ├── PLAN_DE_DESARROLLO.md              # Estado de avance y hoja de ruta
-│   └── tesis/                             # Resumen de los 8 capítulos de la tesis
+│   └── tesis/                             # Resumen metodológico de los 8 capítulos
 │
 ├── guiospro_backend/                      # Configuración Django (settings, urls, wsgi)
 │   ├── settings.py                        # SimpleJWT, CORS, Throttling, Security headers
 │   └── urls.py                            # Rutas globales de la API REST
 │
 ├── guio_core/                             # Aplicación central de la metodología GUIOS
-│   ├── models.py                          # Esquema de BD: Dimension, Factor, Subfactor, Evaluacion
-│   ├── views.py                           # ViewSets para evaluaciones, catálogo admin y métricas
+│   ├── models.py                          # Esquema de BD: Factores, Evaluaciones, ParametroGlobal
+│   ├── views.py                           # ViewSets para evaluaciones, historial, admin y métricas
 │   ├── serializers.py                     # Serializadores DRF con validaciones metodológicas
 │   ├── engine.py                          # Motor de cálculo matemático (IR, PM, FODA, Dictamen)
 │   ├── pdf_generator.py                   # Generador de reportes oficiales con ReportLab
-│   ├── tests.py                           # Pruebas automatizadas de flujo y catálogo
+│   ├── services/
+│   │   └── academic_ai_service.py         # Cliente OpenAlex Polite Pool y Google Gemini
+│   ├── tests.py                           # 27 pruebas automatizadas de flujo y catálogo
 │   └── management/commands/seed_catalog.py# Poblador de fixtures de la tesis
 │
 ├── users/                                 # Aplicación de seguridad y cuentas
-│   ├── views.py                           # Login, registro, logout, gestión de cuentas y auditoría
-│   ├── serializers.py                     # Validaciones de usuario y cambio de contraseña
-│   └── tests.py                           # Pruebas de RBAC y bloqueo de fuerza bruta
+│   ├── views.py                           # Login, registro, logout, auditoría
+│   ├── serializers.py                     # Validaciones de usuario y contraseñas
+│   └── tests.py                           # Pruebas de RBAC y bloqueo por fuerza bruta
 │
 ├── frontend/                              # SPA React (Vite)
 │   ├── src/
-│   │   ├── pages/                         # Vistas principales (Dashboard, Pasos 1-3, Administracion)
-│   │   ├── components/                    # Componentes modulares y visuales (Badges, Modales, FODA)
+│   │   ├── pages/                         # Dashboard, Pasos 0-3, Administracion
+│   │   ├── components/                    # Modales, Badges, Comparador Side-by-Side
 │   │   ├── context/                       # EvaluationContext (Estado global reactivo)
-│   │   └── services/apiService.js         # Cliente Axios/Fetch para la API REST con JWT
+│   │   └── services/apiService.js         # Cliente API REST con autenticación JWT
 │   ├── package.json
 │   └── vite.config.js
 │
@@ -193,14 +249,6 @@ GUIOSAD/
 ├── requirements.txt
 └── README.md
 ```
-
----
-
-## 8. Plan de Desarrollo y Roadmap
-
-Para conocer el detalle de los requerimientos completados (Sprints 1 al 3) y las tareas funcionales pendientes (Gestión de nuevas evaluaciones, exportación tabular y módulo de evidencia bibliográfica), consulta:
-
-👉 [**Plan Maestro de Desarrollo (`docs/PLAN_DE_DESARROLLO.md`)**](docs/PLAN_DE_DESARROLLO.md)
 
 ---
 

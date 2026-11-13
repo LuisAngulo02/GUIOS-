@@ -584,6 +584,32 @@ class AdminCatalogoHU03TestCase(TestCase):
         self.assertEqual(res_pdf["Content-Type"], "application/pdf")
         self.assertTrue(res_pdf.content.startswith(b"%PDF"))
 
+    def test_admin_historial_consultas_y_parametros_calculo(self):
+        """Figma: Verifica endpoints de Historial de Consultas y Parámetros de Cálculo."""
+        # 1. Historial de consultas
+        resp_hist = self.client.get("/api/v1/guios/admin/historial-consultas/")
+        self.assertEqual(resp_hist.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(resp_hist.data, list)
+
+        # 2. Parámetros de cálculo (GET)
+        resp_param = self.client.get("/api/v1/guios/admin/parametros-calculo/")
+        self.assertEqual(resp_param.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_param.data["inicio_ventana"], 2016)
+        self.assertEqual(resp_param.data["fin_ventana"], 2026)
+
+        # 3. Parámetros de cálculo (POST)
+        payload = {
+            "inicio_ventana": 2018,
+            "fin_ventana": 2028,
+            "idiomas": "ES · EN",
+            "modo_calculo": "Totalmente automatizado",
+        }
+        resp_save = self.client.post("/api/v1/guios/admin/parametros-calculo/", payload, format="json")
+        self.assertEqual(resp_save.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_save.data["parametros"]["inicio_ventana"], 2018)
+        self.assertEqual(resp_save.data["parametros"]["fin_ventana"], 2028)
+
+
 
 
 

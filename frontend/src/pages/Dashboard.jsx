@@ -23,6 +23,7 @@ import {
   AlertCircle,
   ArrowUpRight,
   Scale,
+  Trash2,
 } from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
 import { apiService } from "../services/apiService";
@@ -48,6 +49,7 @@ export const Dashboard = () => {
     cargandoEvaluaciones,
     fetchEvaluaciones,
     crearNuevaEvaluacion,
+    eliminarEvaluacion,
     cargarEvaluacionParaContinuar,
     cargarCasoEstudioUNEMI,
     estadoEvaluacionActiva,
@@ -93,6 +95,8 @@ export const Dashboard = () => {
   const [loadingComparacion, setLoadingComparacion] = useState(false);
   const [modalComparacionOpen, setModalComparacionOpen] = useState(false);
   const [descargandoPdfId, setDescargandoPdfId] = useState(null);
+  const [evaluacionAEliminar, setEvaluacionAEliminar] = useState(null);
+  const [eliminandoId, setEliminandoId] = useState(null);
   const [filtroComp, setFiltroComp] = useState("todos");
   const [busquedaComp, setBusquedaComp] = useState("");
 
@@ -364,6 +368,22 @@ export const Dashboard = () => {
       }
     } catch (err) {
       mostrarError("Error al cargar la evaluación: " + err.message);
+    }
+  };
+
+  // Confirmar y procesar eliminación de una evaluación
+  const handleConfirmarEliminar = async () => {
+    if (!evaluacionAEliminar) return;
+    setEliminandoId(evaluacionAEliminar.id);
+    try {
+      await eliminarEvaluacion(evaluacionAEliminar.id);
+      // Si estaba seleccionada para comparar, removerla
+      setSelectedForCompare((prev) => prev.filter((id) => id !== evaluacionAEliminar.id));
+      setEvaluacionAEliminar(null);
+    } catch (err) {
+      mostrarError("No se pudo eliminar la evaluación: " + (err.message || "Error del servidor"));
+    } finally {
+      setEliminandoId(null);
     }
   };
 
@@ -780,6 +800,14 @@ export const Dashboard = () => {
                             className="px-3 py-1.5 rounded-lg bg-[#EBF4EE] hover:bg-[#DDEFE3] text-[#2F5444] font-semibold text-xs transition-colors cursor-pointer"
                           >
                             {isCompletada ? "Ver dictamen" : "Continuar"}
+                          </button>
+                          <button
+                            onClick={() => setEvaluacionAEliminar(ev)}
+                            disabled={eliminandoId === ev.id}
+                            title="Eliminar evaluación"
+                            className="p-1.5 rounded-lg border border-transparent hover:border-red-200 hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       </td>
@@ -1372,6 +1400,48 @@ export const Dashboard = () => {
         isOpen={modalNuevaOpen}
         onClose={() => setModalNuevaOpen(false)}
       />
+
+      {/* 7. MODAL: Confirmación de Eliminación */}
+      {evaluacionAEliminar && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-red-100 max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-50 border border-red-200 text-red-600 flex items-center justify-center shrink-0">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-sm">¿Eliminar evaluación?</h3>
+                <p className="text-[11px] text-gray-500">Esta acción es permanente y no se puede deshacer.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-600 bg-gray-50 p-3 rounded-xl border border-gray-100 leading-relaxed">
+              Se eliminará de la base de datos la evaluación de{" "}
+              <strong className="text-gray-900">{evaluacionAEliminar.nombre_software}</strong>{" "}
+              junto con sus factores calificados, subfactores y dictamen FODA.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setEvaluacionAEliminar(null)}
+                disabled={Boolean(eliminandoId)}
+                className="px-3.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 font-semibold text-xs cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmarEliminar}
+                disabled={Boolean(eliminandoId)}
+                className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-xs cursor-pointer shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {eliminandoId ? "Eliminando..." : "Eliminar definitivamente"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

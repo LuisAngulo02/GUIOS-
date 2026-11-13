@@ -57,6 +57,7 @@ from guio_core.models import (
     LogAuditoria,
     FactorKeywords,
     ConsultaEvidencia,
+    ParametroGlobal,
 )
 from guio_core.serializers import (
     SubfactorCatalogoSerializer,
@@ -1568,6 +1569,123 @@ class CargarCasoUNEMIView(views.APIView):
             },
             "subfactores": subfactores_calificados,
         }, status=status.HTTP_200_OK)
+
+
+class AdminHistorialConsultasView(views.APIView):
+    """
+    GET /api/v1/guios/admin/historial-consultas/
+    HU-03 / Figma: Listado histórico de consultas bibliográficas de evidencia en PostgreSQL.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
+
+    def get(self, request):
+        consultas = ConsultaEvidencia.objects.all().order_by("-fecha_consulta")
+        items = []
+        for c in consultas:
+            dt = timezone.localtime(c.fecha_consulta) if c.fecha_consulta else None
+            fecha_str = dt.strftime("%d/%m/%Y · %H:%M") if dt else "—"
+
+            ctx = c.contexto_uso or "General"
+            if " - " in ctx:
+                ctx_corto = ctx.split(" - ")[0]
+            elif " (" in ctx:
+                ctx_corto = ctx.split(" (")[0]
+            else:
+                ctx_corto = ctx
+            sw_ctx = f"{c.nombre_software} · {ctx_corto}"
+
+            fuentes_list = c.fuentes_consultadas if isinstance(c.fuentes_consultadas, list) and c.fuentes_consultadas else ["Scopus", "OpenAlex", "Gemini IA"]
+            cant_fuentes = len(fuentes_list)
+            fuentes_str = f"{cant_fuentes} académicas"
+
+            items.append({
+                "id": c.id,
+                "fecha": fecha_str,
+                "fecha_iso": c.fecha_consulta.isoformat() if c.fecha_consulta else None,
+                "software_contexto": sw_ctx,
+                "software": c.nombre_software,
+                "contexto": c.contexto_uso,
+                "fuentes": fuentes_str,
+                "fuentes_detalle": fuentes_list,
+                "documentos": c.total_documentos,
+                "citas": c.total_citas,
+                "factores_con_evidencia": c.factores_con_evidencia,
+            })
+
+        return Response(items, status=status.HTTP_200_OK)
+
+
+class AdminParametrosCalculoView(views.APIView):
+    """
+    GET / POST /api/v1/guios/admin/parametros-calculo/
+    HU-03 / Figma: Gestión de ventana temporal, idiomas y modo de cálculo del algoritmo GUIOS.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication]
+
+    DEFAULTS = {
+        "inicio_ventana": 2016,
+        "fin_ventana": 2026,
+        "idiomas": "ES · EN · PT",
+        "modo_calculo": "Automático con revisión",
+    }
+
+    def get(self, request):
+        param = ParametroGlobal.objects.filter(clave="parametros_calculo").first()
+        datos = {**self.DEFAULTS, **(param.valor if param and isinstance(param.valor, dict) else {})}
+        return Response(datos, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        inicio_ventana = request.data.get("inicio_ventana", self.DEFAULTS["inicio_ventana"])
+        fin_ventana = request.data.get("fin_ventana", self.DEFAULTS["fin_ventana"])
+        idiomas = request.data.get("idiomas", self.DEFAULTS["idiomas"])
+        modo_calculo = request.data.get("modo_calculo", self.DEFAULTS["modo_calculo"])
+
+        try:
+            inicio_ventana = int(inicio_ventana)
+            fin_ventana = int(fin_ventana)
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "Los años de ventana temporal deben ser números enteros válidos."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if inicio_ventana > fin_ventana:
+            return Response(
+                {"detail": "El año de inicio no puede ser mayor que el año de fin."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        nuevos_valores = {
+            "inicio_ventana": inicio_ventana,
+            "fin_ventana": fin_ventana,
+            "idiomas": str(idiomas).strip(),
+            "modo_calculo": str(modo_calculo).strip(),
+        }
+
+        param, _ = ParametroGlobal.objects.update_or_create(
+            clave="parametros_calculo",
+            defaults={
+                "valor": nuevos_valores,
+                "descripcion": "Parámetros globales de ventana temporal, idiomas y modo de cálculo (Figma GUIOS+)",
+            },
+        )
+
+        if request.user and request.user.is_authenticated:
+            LogAuditoria.objects.create(
+                id_usuario=request.user,
+                accion="actualizar_parametros_calculo",
+                entidad="parametro_global",
+                id_entidad=str(param.id),
+                detalle=f"Ventana: {inicio_ventana}-{fin_ventana}, Idiomas: {idiomas}, Modo: {modo_calculo}",
+            )
+
+        return Response({
+            "message": "Parámetros de cálculo guardados exitosamente.",
+            "parametros": param.valor,
+        }, status=status.HTTP_200_OK)
+
 
 
 

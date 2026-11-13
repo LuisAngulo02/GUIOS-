@@ -52,7 +52,7 @@ export const ModalNuevaEvaluacion = ({ isOpen, onClose }) => {
       setNuevoContexto("");
       setNuevoObjetivo("");
       onClose();
-      navigate("/factores");
+      navigate("/configuracion");
     } catch (err) {
       setError(err.message || "Error al registrar la nueva evaluación en PostgreSQL.");
     } finally {
@@ -142,7 +142,7 @@ export const ModalNuevaEvaluacion = ({ isOpen, onClose }) => {
           <div className="p-3 rounded-lg bg-[#F8FAF9] border border-[#E3ECE6] text-[11px] text-gray-600 flex items-start gap-2">
             <Layers size={15} className="text-[#3F6F58] shrink-0 mt-0.5" />
             <span>
-              La evaluación se inicializará con los <strong>18 factores</strong> y <strong>61 subfactores</strong> del catálogo en blanco listos para ser calificados en el Paso 1.
+              La evaluación se iniciará en el <strong>Paso 0 (Configuración y Evidencia)</strong> con los 18 factores y 61 subfactores listos para calcular la evidencia preliminar.
             </span>
           </div>
 

@@ -12,6 +12,8 @@ from guio_core.views import (
     RecomendacionesIAView,
     PrecalificarSubfactoresIAView,
     CargarCasoUNEMIView,
+    AdminHistorialConsultasView,
+    AdminParametrosCalculoView,
 )
 
 app_name = "guio_core"
@@ -39,6 +41,10 @@ urlpatterns = [
 
     # Paso 3: Recomendaciones personalizadas con IA según calificaciones
     path("recomendaciones-ia/", RecomendacionesIAView.as_view(), name="recomendaciones-ia"),
+
+    # HU-03 / Figma: Historial de consultas y parámetros de cálculo
+    path("admin/historial-consultas/", AdminHistorialConsultasView.as_view(), name="admin-historial-consultas"),
+    path("admin/parametros-calculo/", AdminParametrosCalculoView.as_view(), name="admin-parametros-calculo"),
 
     # Rutas del ViewSet de evaluaciones y administración del catálogo
     path("", include(router.urls)),
