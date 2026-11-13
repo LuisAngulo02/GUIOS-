@@ -1429,21 +1429,40 @@ class CargarCasoUNEMIView(views.APIView):
                     )
 
             # 1. Contexto y metadatos de evidencia institucional
-            consulta_ev, _ = ConsultaEvidencia.objects.update_or_create(
-                id_evaluacion=evaluacion,
-                defaults={
-                    "nombre_software": "LibreOffice",
-                    "contexto_uso": "Universidad Estatal de Milagro (UNEMI) - Migración Ofimática Administrativa y Docente",
-                    "descripcion_caso": (
+            consultas_previas = list(ConsultaEvidencia.objects.filter(id_evaluacion=evaluacion).order_by("-fecha_consulta"))
+            if consultas_previas:
+                consulta_ev = consultas_previas[0]
+                # Limpiar posibles duplicados huérfanos anteriores
+                if len(consultas_previas) > 1:
+                    ConsultaEvidencia.objects.filter(
+                        id_evaluacion=evaluacion
+                    ).exclude(id=consulta_ev.id).delete()
+
+                consulta_ev.nombre_software = "LibreOffice"
+                consulta_ev.contexto_uso = "Universidad Estatal de Milagro (UNEMI) - Migración Ofimática Administrativa y Docente"
+                consulta_ev.descripcion_caso = (
+                    "Estudio de caso piloto oficial del Capítulo 6 de la tesis doctoral (Víctor Hugo Rea Sánchez). "
+                    "Evaluación de viabilidad de adopción de la suite LibreOffice frente a Microsoft Office "
+                    "en la educación superior pública ecuatoriana."
+                )
+                consulta_ev.total_documentos = 126
+                consulta_ev.total_citas = 976
+                consulta_ev.factores_con_evidencia = 9
+                consulta_ev.save()
+            else:
+                consulta_ev = ConsultaEvidencia.objects.create(
+                    id_evaluacion=evaluacion,
+                    nombre_software="LibreOffice",
+                    contexto_uso="Universidad Estatal de Milagro (UNEMI) - Migración Ofimática Administrativa y Docente",
+                    descripcion_caso=(
                         "Estudio de caso piloto oficial del Capítulo 6 de la tesis doctoral (Víctor Hugo Rea Sánchez). "
                         "Evaluación de viabilidad de adopción de la suite LibreOffice frente a Microsoft Office "
                         "en la educación superior pública ecuatoriana."
                     ),
-                    "total_documentos": 126,
-                    "total_citas": 976,
-                    "factores_con_evidencia": 9,
-                },
-            )
+                    total_documentos=126,
+                    total_citas=976,
+                    factores_con_evidencia=9,
+                )
 
             # 2. Configuración de Factores Relevantes del caso de estudio
             configuracion_factores = [

@@ -533,6 +533,7 @@ class AdminCatalogoHU03TestCase(TestCase):
     def test_cargar_caso_estudio_unemi_libreoffice(self):
         """Tarea 5: Precarga y validación del caso de estudio oficial UNEMI (LibreOffice, Tesis Cap. 6)."""
         self.client.force_authenticate(user=self.evaluador)
+        # 1. Carga inicial
         resp = self.client.post("/api/v1/guios/evaluations/caso-unemi/", format="json")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertIn("evaluacion", resp.data)
@@ -541,6 +542,20 @@ class AdminCatalogoHU03TestCase(TestCase):
         self.assertEqual(len(resp.data["subfactores"]), 61)
         self.assertIsNotNone(resp.data["evaluacion"]["indice_viabilidad"])
         self.assertIsNotNone(resp.data["evaluacion"]["nivel_confianza"])
+
+        # 2. Simular múltiples consultas de evidencia creadas para la misma evaluación y recargar
+        ev = Evaluacion.objects.get(id=resp.data["evaluacion"]["id"])
+        ConsultaEvidencia.objects.create(
+            id_evaluacion=ev,
+            nombre_software="LibreOffice Duplicado",
+            contexto_uso="Consulta previa 2",
+        )
+        self.assertEqual(ConsultaEvidencia.objects.filter(id_evaluacion=ev).count(), 2)
+
+        # La recarga no debe lanzar MultipleObjectsReturned y debe sanear los duplicados
+        resp_recarga = self.client.post("/api/v1/guios/evaluations/caso-unemi/", format="json")
+        self.assertEqual(resp_recarga.status_code, status.HTTP_200_OK)
+        self.assertEqual(ConsultaEvidencia.objects.filter(id_evaluacion=ev).count(), 1)
 
     def test_comparar_evaluaciones_sin_autenticacion(self):
         """Verifica que el comparador en paralelo funcione sin credenciales (AllowAny) sin lanzar 401."""
