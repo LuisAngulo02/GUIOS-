@@ -45,16 +45,30 @@ import { useEvaluation } from "../context/EvaluationContext";
 export const Administracion = () => {
   const { currentUser, softwareActivo } = useEvaluation();
 
-  // Pestañas de la vista de administración
+  // Pestañas de la vista de administración (orden exacto según Figma)
   const tabs = [
     "Usuarios",
-    "Palabras clave por factor",
-    "Factores GUIOS",
     "Fuentes bibliográficas",
+    "Factores GUIOS",
+    "Palabras clave por factor",
     "Historial de consultas",
     "Parámetros de cálculo",
   ];
   const [activeTab, setActiveTab] = useState("Usuarios");
+
+  // Estados para Parámetros de Cálculo (Figma)
+  const [parametrosCalculo, setParametrosCalculo] = useState({
+    inicio_ventana: 2016,
+    fin_ventana: 2026,
+    idiomas: "ES · EN · PT",
+    modo_calculo: "Automático con revisión",
+  });
+  const [guardandoParametros, setGuardandoParametros] = useState(false);
+  const [mensajeParametros, setMensajeParametros] = useState(null);
+
+  // Estados para Historial de Consultas (Figma)
+  const [consultasHistorial, setConsultasHistorial] = useState([]);
+  const [cargandoConsultas, setCargandoConsultas] = useState(false);
 
   // ===========================================================================
   // ESTADOS PARA HU-02: GESTIÓN DE USUARIOS Y AUDITORÍA
@@ -470,8 +484,56 @@ export const Administracion = () => {
   useEffect(() => {
     if (activeTab === "Factores GUIOS") {
       cargarCatalogoAdmin();
+    } else if (activeTab === "Historial de consultas") {
+      cargarHistorialConsultas();
+    } else if (activeTab === "Parámetros de cálculo") {
+      cargarParametrosCalculo();
     }
   }, [activeTab]);
+
+  const cargarHistorialConsultas = async () => {
+    setCargandoConsultas(true);
+    try {
+      const data = await apiService.getHistorialConsultas();
+      setConsultasHistorial(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.warn("Error cargando historial de consultas:", e);
+    } finally {
+      setCargandoConsultas(false);
+    }
+  };
+
+  const cargarParametrosCalculo = async () => {
+    try {
+      const data = await apiService.getParametrosCalculo();
+      if (data) {
+        setParametrosCalculo(data);
+      }
+    } catch (e) {
+      console.warn("Error cargando parámetros de cálculo:", e);
+    }
+  };
+
+  const handleGuardarParametros = async (e) => {
+    e.preventDefault();
+    setGuardandoParametros(true);
+    setMensajeParametros(null);
+    try {
+      const res = await apiService.guardarParametrosCalculo(parametrosCalculo);
+      setMensajeParametros({
+        tipo: "success",
+        texto: res.message || "Parámetros de cálculo guardados exitosamente.",
+      });
+      mostrarToast("Parámetros de cálculo actualizados exitosamente.");
+    } catch (err) {
+      setMensajeParametros({
+        tipo: "error",
+        texto: err.message || "Error al guardar parámetros de cálculo.",
+      });
+    } finally {
+      setGuardandoParametros(false);
+    }
+  };
 
   const handleAbrirModalFactor = (factor = null) => {
     if (factor) {
@@ -649,11 +711,10 @@ export const Administracion = () => {
       {/* Toast Notificación Flotante */}
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-xs font-medium transition-all transform translate-y-0 ${
-            toast.tipo === "success"
+          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-xs font-medium transition-all transform translate-y-0 ${toast.tipo === "success"
               ? "bg-[#2F5444] text-white border-[#53876D]"
               : "bg-red-700 text-white border-red-800"
-          }`}
+            }`}
         >
           {toast.tipo === "success" ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
           <span>{toast.mensaje}</span>
@@ -663,46 +724,48 @@ export const Administracion = () => {
         </div>
       )}
 
-      {/* Encabezado con Insignia Administrador */}
+      {/* Encabezado con Insignia Administrador (según Figma) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-light text-[#2F5444] tracking-tight">
-              Administración del Sistema
+            <h1 className="text-2xl sm:text-3xl font-normal text-[#2F5444] tracking-tight">
+              Administración
             </h1>
-            <Badge variant="green" size="md">
-              <ShieldCheck size={13} />
-              <span>Administrador Activo</span>
-            </Badge>
           </div>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Gestión institucional de roles, cuentas, baja lógica, catálogo metodológico y bitácora de auditoría.
+            Gestiona catálogos, fuentes, usuarios y parámetros globales de GUIOS+.
           </p>
+        </div>
+        <div className="flex items-center">
+          <Badge variant="green" size="md">
+            <ShieldCheck size={13} />
+            <span>Administrador</span>
+          </Badge>
         </div>
       </div>
 
-      {/* Barra de Pestañas de Administración */}
-      <div className="flex items-center gap-1 border-b border-[#DDE7E1] overflow-x-auto whitespace-nowrap">
-        {tabs.map((t) => (
-          <button
-            key={t}
-            onClick={() => setActiveTab(t)}
-            className={`px-4 py-3 text-xs font-semibold transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
-              activeTab === t
-                ? "border-[#3F6F58] text-[#2F5444] bg-white rounded-t-lg shadow-sm"
-                : "border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-50/50"
-            }`}
-          >
-            {t === "Usuarios" && <Users size={14} />}
-            {t === "Palabras clave por factor" && <Activity size={14} />}
-            <span>{t}</span>
-            {t === "Usuarios" && (
-              <span className="text-[10px] bg-green-100 text-[#2F5444] px-1.5 py-0.5 rounded-full font-bold">
-                {usuarios.length}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Barra de Pestañas de Administración (diseño Pill Bar de Figma) */}
+      <div className="bg-white rounded-2xl border border-gray-200/80 p-1.5 shadow-2xs flex items-center justify-between gap-1 overflow-x-auto">
+        {tabs.map((t) => {
+          const isActive = activeTab === t;
+          return (
+            <button
+              key={t}
+              onClick={() => setActiveTab(t)}
+              className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${isActive
+                  ? "bg-[#2F5444] text-white shadow-xs"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                }`}
+            >
+              <span>{t}</span>
+              {t === "Usuarios" && !isActive && (
+                <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.2 rounded-full font-bold">
+                  {usuarios.length}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* ======================================================================= */}
@@ -858,19 +921,17 @@ export const Administracion = () => {
                       return (
                         <tr
                           key={u.id}
-                          className={`hover:bg-[#F9FCFA] transition-colors ${
-                            !u.activo ? "bg-gray-50/60 opacity-80" : ""
-                          }`}
+                          className={`hover:bg-[#F9FCFA] transition-colors ${!u.activo ? "bg-gray-50/60 opacity-80" : ""
+                            }`}
                         >
                           {/* Avatar y Nombre */}
                           <td className="py-3.5 px-4">
                             <div className="flex items-center gap-3">
                               <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
-                                  u.rol_nombre?.toLowerCase() === "administrador"
+                                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${u.rol_nombre?.toLowerCase() === "administrador"
                                     ? "bg-[#2F5444] text-white"
                                     : "bg-emerald-100 text-emerald-800"
-                                }`}
+                                  }`}
                               >
                                 {initials || "U"}
                               </div>
@@ -899,11 +960,10 @@ export const Administracion = () => {
                               value={u.id_rol}
                               disabled={esPropioUsuario}
                               onChange={(e) => handleCambiarRol(u, Number(e.target.value))}
-                              className={`text-xs px-2.5 py-1 rounded-lg border font-medium focus:outline-none ${
-                                u.rol_nombre?.toLowerCase() === "administrador"
+                              className={`text-xs px-2.5 py-1 rounded-lg border font-medium focus:outline-none ${u.rol_nombre?.toLowerCase() === "administrador"
                                   ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                                   : "bg-blue-50 text-blue-800 border-blue-200"
-                              } ${esPropioUsuario ? "cursor-not-allowed opacity-80" : "cursor-pointer"}`}
+                                } ${esPropioUsuario ? "cursor-not-allowed opacity-80" : "cursor-pointer"}`}
                             >
                               <option value="1">Administrador</option>
                               <option value="2">Evaluador</option>
@@ -945,10 +1005,10 @@ export const Administracion = () => {
                           <td className="py-3.5 px-4 text-gray-500 text-[11px]">
                             {u.fecha_creacion
                               ? new Date(u.fecha_creacion).toLocaleDateString("es-ES", {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                })
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })
                               : "—"}
                           </td>
 
@@ -975,16 +1035,15 @@ export const Administracion = () => {
                                   esPropioUsuario
                                     ? "Prohibido desactivar tu propia cuenta activa de administrador."
                                     : u.activo
-                                    ? "Desactivar cuenta (Baja lógica)"
-                                    : "Reactivar cuenta"
+                                      ? "Desactivar cuenta (Baja lógica)"
+                                      : "Reactivar cuenta"
                                 }
-                                className={`px-2.5 py-1 text-xs rounded font-semibold border transition-colors flex items-center gap-1 ${
-                                  esPropioUsuario
+                                className={`px-2.5 py-1 text-xs rounded font-semibold border transition-colors flex items-center gap-1 ${esPropioUsuario
                                     ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
                                     : u.activo
-                                    ? "bg-red-50 hover:bg-red-100 text-red-700 border-red-200 cursor-pointer"
-                                    : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200 cursor-pointer"
-                                }`}
+                                      ? "bg-red-50 hover:bg-red-100 text-red-700 border-red-200 cursor-pointer"
+                                      : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200 cursor-pointer"
+                                  }`}
                               >
                                 {u.activo ? (
                                   <>
@@ -1056,11 +1115,10 @@ export const Administracion = () => {
                   <button
                     key={f.id}
                     onClick={() => setSelectedFactorId(f.id)}
-                    className={`w-full text-left p-3 rounded-lg border text-xs transition-all flex items-center justify-between cursor-pointer ${
-                      isSelected
+                    className={`w-full text-left p-3 rounded-lg border text-xs transition-all flex items-center justify-between cursor-pointer ${isSelected
                         ? "bg-[#EBF4EE] border-[#3F6F58] text-[#2F5444] font-bold shadow-sm"
                         : "bg-white border-transparent hover:bg-gray-50 text-gray-700"
-                    }`}
+                      }`}
                   >
                     <div>
                       <span>{f.nombre}</span>
@@ -1165,7 +1223,7 @@ export const Administracion = () => {
                   className="px-4 py-2 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
                 >
                   <Plus size={14} />
-                  <span>+ Agregar</span>
+                  <span>Agregar</span>
                 </button>
               </div>
             </div>
@@ -1226,8 +1284,8 @@ export const Administracion = () => {
                   {guardandoKeywords
                     ? "Guardando en PostgreSQL..."
                     : guardadoExitoso
-                    ? "✓ ¡Guardado en PostgreSQL!"
-                    : "Guardar palabras clave"}
+                      ? "✓ ¡Guardado en PostgreSQL!"
+                      : "Guardar palabras clave"}
                 </span>
               </button>
             </div>
@@ -1417,11 +1475,10 @@ export const Administracion = () => {
                           <button
                             type="button"
                             onClick={() => handleToggleFactorEstado(factor)}
-                            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                              factor.activo
+                            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${factor.activo
                                 ? "text-red-500 hover:text-red-700 hover:bg-red-50"
                                 : "text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50"
-                            }`}
+                              }`}
                             title={factor.activo ? "Desactivar factor" : "Reactivar factor"}
                           >
                             {factor.activo ? <UserX size={15} /> : <UserCheck size={15} />}
@@ -1482,11 +1539,10 @@ export const Administracion = () => {
                                     <button
                                       type="button"
                                       onClick={() => handleToggleSubfactorEstado(sf)}
-                                      className={`p-1 rounded cursor-pointer ${
-                                        sf.activo
+                                      className={`p-1 rounded cursor-pointer ${sf.activo
                                           ? "text-gray-400 hover:text-red-600 hover:bg-red-50"
                                           : "text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50"
-                                      }`}
+                                        }`}
                                       title={sf.activo ? "Desactivar reactivo" : "Activar reactivo"}
                                     >
                                       {sf.activo ? <UserX size={13} /> : <UserCheck size={13} />}
@@ -1508,29 +1564,277 @@ export const Administracion = () => {
       )}
 
       {/* ======================================================================= */}
-      {/* OTRAS PESTAÑAS (Módulos Informativos) */}
+      {/* PESTAÑA: FUENTES BIBLIOGRÁFICAS (FIGMA) */}
       {/* ======================================================================= */}
-      {activeTab !== "Usuarios" &&
-        activeTab !== "Palabras clave por factor" &&
-        activeTab !== "Factores GUIOS" && (
-        <div className="bg-white rounded-card border border-[#DDE7E1] p-12 text-center shadow-sm space-y-4">
-          <div className="w-12 h-12 bg-green-50 text-[#3F6F58] rounded-xl flex items-center justify-center mx-auto">
-            <ShieldCheck size={24} />
-          </div>
+      {activeTab === "Fuentes bibliográficas" && (
+        <div className="bg-white rounded-2xl border border-[#DDE7E1] p-6 shadow-sm space-y-6 animate-in fade-in">
           <div>
-            <h3 className="font-semibold text-gray-800 text-sm">
-              Módulo: {activeTab}
-            </h3>
-            <p className="text-xs text-gray-500 mt-1 max-w-md mx-auto">
-              Parámetros metodológicos sincronizados con el corpus bibliográfico y las tablas de configuración en PostgreSQL.
+            <h3 className="font-bold text-gray-800 text-lg">Fuentes bibliográficas</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Bases de datos científicas e indexadores conectados para alimentar el cálculo de la Importancia Sugerida (IS).
             </p>
           </div>
-          <button
-            onClick={() => setActiveTab("Usuarios")}
-            className="px-4 py-2 rounded-lg bg-[#3F6F58] text-white text-xs font-semibold cursor-pointer"
-          >
-            Ir a Gestión de Usuarios
-          </button>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl">
+            {/* Scopus */}
+            <div className="p-4 rounded-xl border border-gray-200 bg-white flex items-center justify-between gap-4 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#3F6F58] border border-emerald-200 flex items-center justify-center font-bold text-xs shrink-0">
+                  SC
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-800 text-sm">Scopus (Elsevier)</h4>
+                  <p className="text-[11px] text-gray-500">54 estudios primarios indexados en la base de la tesis doctoral</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
+                Conectada
+              </span>
+            </div>
+
+            {/* OpenAlex */}
+            <div className="p-4 rounded-xl border border-gray-200 bg-white flex items-center justify-between gap-4 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center font-bold text-xs shrink-0">
+                  OA
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-800 text-sm">OpenAlex (API Abierta)</h4>
+                  <p className="text-[11px] text-gray-500">Metadatos abiertos globales, indexación de 250M+ de publicaciones en vivo</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
+                Conectada
+              </span>
+            </div>
+
+            {/* Google Gemini */}
+            <div className="p-4 rounded-xl border border-gray-200 bg-white flex items-center justify-between gap-4 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center font-bold text-xs shrink-0">
+                  AI
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-800 text-sm">Google Gemini IA (3.5 Flash-Lite)</h4>
+                  <p className="text-[11px] text-gray-500">Expansión semántica de sinónimos por factor y síntesis diagnóstica</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
+                Conectada
+              </span>
+            </div>
+
+            {/* Semantic Scholar */}
+            <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/60 flex items-center justify-between gap-4 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-xs shrink-0">
+                  SS
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-700 text-sm">Semantic Scholar</h4>
+                  <p className="text-[11px] text-gray-400">En espera de API Key (opcional, desactivado temporalmente)</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-200 text-gray-600 shrink-0">
+                Desconectada
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================================= */}
+      {/* PESTAÑA: HISTORIAL DE CONSULTAS (FIGMA IMAGEN 2) */}
+      {/* ======================================================================= */}
+      {activeTab === "Historial de consultas" && (
+        <div className="bg-white rounded-2xl border border-[#DDE7E1] p-6 shadow-sm space-y-4 animate-in fade-in">
+          <div className="flex items-center justify-between pb-2">
+            <div>
+              <h3 className="font-bold text-gray-800 text-lg">Historial de consultas</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Registro cronológico de consultas bibliográficas ejecutadas sobre APIs académicas e indexadores.
+              </p>
+            </div>
+            <button
+              onClick={cargarHistorialConsultas}
+              className="p-1.5 px-3 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+              title="Actualizar historial de consultas"
+            >
+              <RefreshCw size={13} className={cargandoConsultas ? "animate-spin text-[#3F6F58]" : ""} />
+              <span>Actualizar</span>
+            </button>
+          </div>
+
+          <div className="border border-gray-100 rounded-xl overflow-hidden shadow-2xs">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-[#F8FAF9] text-gray-500 font-semibold border-b border-gray-100 text-[11px]">
+                  <th className="py-3 px-4">Fecha</th>
+                  <th className="py-3 px-4">Software y contexto</th>
+                  <th className="py-3 px-4">Fuentes</th>
+                  <th className="py-3 px-4">Documentos</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
+                {cargandoConsultas ? (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-gray-400">
+                      <RefreshCw size={18} className="animate-spin mx-auto text-[#3F6F58] mb-1.5" />
+                      Cargando historial de consultas...
+                    </td>
+                  </tr>
+                ) : consultasHistorial.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-gray-400 italic">
+                      No hay consultas registradas aún. Ejecuta una búsqueda de evidencia en el Paso 0.
+                    </td>
+                  </tr>
+                ) : (
+                  consultasHistorial.map((c) => (
+                    <tr key={c.id} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="py-3.5 px-4 font-mono text-gray-600 text-[11px] whitespace-nowrap">
+                        {c.fecha}
+                      </td>
+                      <td className="py-3.5 px-4 font-medium text-gray-800">
+                        {c.software_contexto || `${c.software} · ${c.contexto}`}
+                      </td>
+                      <td className="py-3.5 px-4 text-gray-600">
+                        {c.fuentes}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-[#2F5444]">
+                        {c.documentos}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================================= */}
+      {/* PESTAÑA: PARÁMETROS DE CÁLCULO (FIGMA IMÁGENES 1 Y 3) */}
+      {/* ======================================================================= */}
+      {activeTab === "Parámetros de cálculo" && (
+        <div className="bg-white rounded-2xl border border-[#DDE7E1] p-6 shadow-sm space-y-6 animate-in fade-in">
+          <div>
+            <h3 className="font-bold text-gray-800 text-lg">Parámetros de cálculo</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Configura los umbrales temporales, idiomas admitidos y el modo de inferencia para la Importancia Sugerida (IS).
+            </p>
+          </div>
+
+          <form onSubmit={handleGuardarParametros} className="space-y-6 max-w-4xl">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Inicio de ventana temporal */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-2">
+                  Inicio de ventana temporal
+                </label>
+                <input
+                  type="number"
+                  value={parametrosCalculo.inicio_ventana}
+                  onChange={(e) =>
+                    setParametrosCalculo({
+                      ...parametrosCalculo,
+                      inicio_ventana: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2.5 text-xs rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#3F6F58] focus:border-transparent text-gray-800 shadow-2xs"
+                  placeholder="2016"
+                  required
+                />
+              </div>
+
+              {/* Fin de ventana temporal */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-2">
+                  Fin de ventana temporal
+                </label>
+                <input
+                  type="number"
+                  value={parametrosCalculo.fin_ventana}
+                  onChange={(e) =>
+                    setParametrosCalculo({
+                      ...parametrosCalculo,
+                      fin_ventana: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2.5 text-xs rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#3F6F58] focus:border-transparent text-gray-800 shadow-2xs"
+                  placeholder="2026"
+                  required
+                />
+              </div>
+
+              {/* Idiomas */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-2">
+                  Idiomas
+                </label>
+                <select
+                  value={parametrosCalculo.idiomas}
+                  onChange={(e) =>
+                    setParametrosCalculo({
+                      ...parametrosCalculo,
+                      idiomas: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2.5 text-xs rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#3F6F58] focus:border-transparent text-gray-800 cursor-pointer shadow-2xs"
+                >
+                  <option value="ES · EN · PT">ES · EN · PT</option>
+                  <option value="ES · EN">ES · EN</option>
+                  <option value="ES">Solo Español (ES)</option>
+                  <option value="EN">Solo Inglés (EN)</option>
+                  <option value="Todos los idiomas">Todos los idiomas</option>
+                </select>
+              </div>
+
+              {/* Modo de cálculo */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-2">
+                  Modo de cálculo
+                </label>
+                <select
+                  value={parametrosCalculo.modo_calculo}
+                  onChange={(e) =>
+                    setParametrosCalculo({
+                      ...parametrosCalculo,
+                      modo_calculo: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2.5 text-xs rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#3F6F58] focus:border-transparent text-gray-800 cursor-pointer shadow-2xs"
+                >
+                  <option value="Automático con revisión">Automático con revisión</option>
+                  <option value="Totalmente automatizado">Totalmente automatizado</option>
+                  <option value="Manual referencial">Manual referencial</option>
+                </select>
+              </div>
+            </div>
+
+            {mensajeParametros && (
+              <div
+                className={`p-3 rounded-xl text-xs flex items-center gap-2 ${mensajeParametros.tipo === "success"
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : "bg-red-50 text-red-800 border border-red-200"
+                  }`}
+              >
+                <CheckCircle2 size={15} />
+                <span>{mensajeParametros.texto}</span>
+              </div>
+            )}
+
+            <div>
+              <button
+                type="submit"
+                disabled={guardandoParametros}
+                className="px-6 py-2.5 rounded-xl bg-[#2F5444] hover:bg-[#254336] text-white font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+              >
+                {guardandoParametros && <RefreshCw size={14} className="animate-spin" />}
+                <span>{guardandoParametros ? "Guardando..." : "Guardar parámetros"}</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -1974,13 +2278,12 @@ export const Administracion = () => {
           <div className="bg-white rounded-2xl max-w-md w-full border border-[#DDE7E1] shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-start gap-3.5">
               <div
-                className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
-                  modalConfirm.tipo === "danger"
+                className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${modalConfirm.tipo === "danger"
                     ? "bg-red-50 text-red-600 border border-red-200"
                     : modalConfirm.tipo === "warning"
-                    ? "bg-amber-50 text-amber-600 border border-amber-200"
-                    : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                }`}
+                      ? "bg-amber-50 text-amber-600 border border-amber-200"
+                      : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  }`}
               >
                 {modalConfirm.tipo === "danger" && <Trash2 size={20} />}
                 {modalConfirm.tipo === "warning" && <Unlock size={20} />}
@@ -2019,11 +2322,10 @@ export const Administracion = () => {
                   </div>
                 </div>
                 <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    modalConfirm.detalleUsuario.rol_nombre?.toLowerCase() === "administrador"
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${modalConfirm.detalleUsuario.rol_nombre?.toLowerCase() === "administrador"
                       ? "bg-emerald-100 text-emerald-800"
                       : "bg-blue-100 text-blue-800"
-                  }`}
+                    }`}
                 >
                   {modalConfirm.detalleUsuario.rol_nombre?.toLowerCase() === "administrador"
                     ? "Administrador"
@@ -2053,13 +2355,12 @@ export const Administracion = () => {
                 type="button"
                 onClick={ejecutarModalConfirm}
                 disabled={modalConfirm.cargando}
-                className={`px-4 py-2 text-xs rounded-lg font-semibold text-white transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${
-                  modalConfirm.tipo === "danger"
+                className={`px-4 py-2 text-xs rounded-lg font-semibold text-white transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${modalConfirm.tipo === "danger"
                     ? "bg-red-600 hover:bg-red-700 shadow-red-200"
                     : modalConfirm.tipo === "warning"
-                    ? "bg-amber-600 hover:bg-amber-700 shadow-amber-200"
-                    : "bg-[#3F6F58] hover:bg-[#345C49] shadow-green-200"
-                }`}
+                      ? "bg-amber-600 hover:bg-amber-700 shadow-amber-200"
+                      : "bg-[#3F6F58] hover:bg-[#345C49] shadow-green-200"
+                  }`}
               >
                 {modalConfirm.cargando && <RefreshCw size={13} className="animate-spin" />}
                 <span>{modalConfirm.cargando ? "Procesando..." : modalConfirm.textoConfirmar}</span>

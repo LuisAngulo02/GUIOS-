@@ -543,6 +543,13 @@ export const apiService = {
     }
   },
 
+  // Eliminar evaluación
+  async deleteEvaluation(id) {
+    return await request(`/guios/evaluations/${id}/`, {
+      method: "DELETE",
+    });
+  },
+
   // Paso 1: Guardar ponderaciones ID, calcular IR y alcance
   async savePaso1(evaluacionId, items) {
     try {
@@ -845,5 +852,84 @@ export const apiService = {
       console.warn("Fallo al obtener bitácora de auditoría:", e.message);
     }
     return [];
+  },
+
+  async getHistorialConsultas() {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    try {
+      const resp = await doFetch(`${API_BASE_URL}/guios/admin/historial-consultas/`, { headers });
+      if (resp.ok) {
+        return await resp.json();
+      }
+    } catch (e) {
+      console.warn("Fallo al obtener historial de consultas:", e.message);
+    }
+    return [
+      {
+        id: 1,
+        fecha: "06/06/2026 · 10:38",
+        software_contexto: "Moodle · Educación",
+        fuentes: "3 académicas",
+        documentos: 126,
+      },
+      {
+        id: 2,
+        fecha: "02/06/2026 · 09:15",
+        software_contexto: "Moodle · Educación",
+        fuentes: "2 académicas",
+        documentos: 118,
+      },
+    ];
+  },
+
+  async getParametrosCalculo() {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    try {
+      const resp = await doFetch(`${API_BASE_URL}/guios/admin/parametros-calculo/`, { headers });
+      if (resp.ok) {
+        return await resp.json();
+      }
+    } catch (e) {
+      console.warn("Fallo al obtener parámetros de cálculo:", e.message);
+    }
+    return {
+      inicio_ventana: 2016,
+      fin_ventana: 2026,
+      idiomas: "ES · EN · PT",
+      modo_calculo: "Automático con revisión",
+    };
+  },
+
+  async guardarParametrosCalculo(payload) {
+    let token = getStoredToken();
+    if (!token || token.startsWith("mock-")) {
+      token = await ensureValidToken();
+    }
+    const headers = {
+      "Content-Type": "application/json",
+      ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const resp = await doFetch(`${API_BASE_URL}/guios/admin/parametros-calculo/`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || "Error al guardar parámetros de cálculo");
+    }
+    return await resp.json();
   },
 };

@@ -430,6 +430,32 @@ export const EvaluationProvider = ({ children }) => {
     }
   };
 
+  // Eliminar una evaluación de la base de datos (HU-07)
+  const eliminarEvaluacion = async (id) => {
+    setSaveStatus("Eliminando evaluación...");
+    try {
+      await apiService.deleteEvaluation(id);
+      if (evaluacionId && evaluacionId.toString() === id.toString()) {
+        localStorage.removeItem("guios_evaluacion_id");
+        localStorage.removeItem("guios_software_activo");
+        localStorage.removeItem("guios_contexto_activo");
+        localStorage.removeItem("guios_descripcion_caso");
+        localStorage.removeItem("guios_evaluacion_estado");
+        setEvaluacionId(null);
+        setSoftwareActivo("Sin evaluación activa");
+        setContextoActivo("N/A");
+        setDescripcionCaso("");
+        setEstadoEvaluacionActiva(null);
+      }
+      await fetchEvaluaciones();
+    } catch (err) {
+      console.error("Error al eliminar evaluación:", err);
+      throw err;
+    } finally {
+      setSaveStatus("Guardado");
+    }
+  };
+
   // Tarea 6: Aplicar calificaciones masivas sugeridas por IA a los subfactores
   const aplicarCalificacionesSubfactores = useCallback((calificacionesMap) => {
     setSubfactoresState((prev) => {
@@ -911,6 +937,7 @@ export const EvaluationProvider = ({ children }) => {
         cargandoEvaluaciones,
         fetchEvaluaciones,
         crearNuevaEvaluacion,
+        eliminarEvaluacion,
         cargarEvaluacionParaContinuar,
         cargarCasoEstudioUNEMI,
         aplicarCalificacionesSubfactores,

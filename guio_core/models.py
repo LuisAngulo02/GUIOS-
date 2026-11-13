@@ -672,3 +672,23 @@ class EvidenciaFactor(models.Model):
 
     def __str__(self):
         return f"{self.nombre_factor} -> Docs: {self.documentos}, Citas: {self.citas}, IS: {self.is_calculado}"
+
+
+# ==============================================================================
+# 15. PARÁMETROS GLOBALES DE CÁLCULO Y CONFIGURACIÓN (Admin / Figma)
+# ==============================================================================
+class ParametroGlobal(models.Model):
+    """Parámetros globales de cálculo, ventana temporal e idiomas del sistema."""
+    clave = models.CharField(max_length=100, unique=True, verbose_name="Clave")
+    valor = models.JSONField(default=dict, verbose_name="Valor Configurado")
+    descripcion = models.TextField(blank=True, default="", verbose_name="Descripción")
+    fecha_actualizacion = models.DateTimeField(auto_now=True, verbose_name="Última Actualización")
+
+    class Meta:
+        db_table = "parametro_global"
+        verbose_name = "Parámetro Global"
+        verbose_name_plural = "Parámetros Globales"
+
+    def __str__(self):
+        return f"{self.clave}: {self.valor}"
+

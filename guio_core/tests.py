@@ -533,6 +533,7 @@ class AdminCatalogoHU03TestCase(TestCase):
     def test_cargar_caso_estudio_unemi_libreoffice(self):
         """Tarea 5: Precarga y validación del caso de estudio oficial UNEMI (LibreOffice, Tesis Cap. 6)."""
         self.client.force_authenticate(user=self.evaluador)
+        # 1. Carga inicial
         resp = self.client.post("/api/v1/guios/evaluations/caso-unemi/", format="json")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertIn("evaluacion", resp.data)
@@ -541,6 +542,20 @@ class AdminCatalogoHU03TestCase(TestCase):
         self.assertEqual(len(resp.data["subfactores"]), 61)
         self.assertIsNotNone(resp.data["evaluacion"]["indice_viabilidad"])
         self.assertIsNotNone(resp.data["evaluacion"]["nivel_confianza"])
+
+        # 2. Simular múltiples consultas de evidencia creadas para la misma evaluación y recargar
+        ev = Evaluacion.objects.get(id=resp.data["evaluacion"]["id"])
+        ConsultaEvidencia.objects.create(
+            id_evaluacion=ev,
+            nombre_software="LibreOffice Duplicado",
+            contexto_uso="Consulta previa 2",
+        )
+        self.assertEqual(ConsultaEvidencia.objects.filter(id_evaluacion=ev).count(), 2)
+
+        # La recarga no debe lanzar MultipleObjectsReturned y debe sanear los duplicados
+        resp_recarga = self.client.post("/api/v1/guios/evaluations/caso-unemi/", format="json")
+        self.assertEqual(resp_recarga.status_code, status.HTTP_200_OK)
+        self.assertEqual(ConsultaEvidencia.objects.filter(id_evaluacion=ev).count(), 1)
 
     def test_comparar_evaluaciones_sin_autenticacion(self):
         """Verifica que el comparador en paralelo funcione sin credenciales (AllowAny) sin lanzar 401."""
@@ -568,6 +583,32 @@ class AdminCatalogoHU03TestCase(TestCase):
         self.assertEqual(res_pdf.status_code, status.HTTP_200_OK)
         self.assertEqual(res_pdf["Content-Type"], "application/pdf")
         self.assertTrue(res_pdf.content.startswith(b"%PDF"))
+
+    def test_admin_historial_consultas_y_parametros_calculo(self):
+        """Figma: Verifica endpoints de Historial de Consultas y Parámetros de Cálculo."""
+        # 1. Historial de consultas
+        resp_hist = self.client.get("/api/v1/guios/admin/historial-consultas/")
+        self.assertEqual(resp_hist.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(resp_hist.data, list)
+
+        # 2. Parámetros de cálculo (GET)
+        resp_param = self.client.get("/api/v1/guios/admin/parametros-calculo/")
+        self.assertEqual(resp_param.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_param.data["inicio_ventana"], 2016)
+        self.assertEqual(resp_param.data["fin_ventana"], 2026)
+
+        # 3. Parámetros de cálculo (POST)
+        payload = {
+            "inicio_ventana": 2018,
+            "fin_ventana": 2028,
+            "idiomas": "ES · EN",
+            "modo_calculo": "Totalmente automatizado",
+        }
+        resp_save = self.client.post("/api/v1/guios/admin/parametros-calculo/", payload, format="json")
+        self.assertEqual(resp_save.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_save.data["parametros"]["inicio_ventana"], 2018)
+        self.assertEqual(resp_save.data["parametros"]["fin_ventana"], 2028)
+
 
 
 

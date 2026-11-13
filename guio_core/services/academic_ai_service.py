@@ -31,6 +31,7 @@ from guio_core.models import (
     Factor,
     FactorKeywords,
     LogAuditoria,
+    ParametroGlobal,
 )
 
 logger = logging.getLogger(__name__)
@@ -224,6 +225,7 @@ def consultar_openalex_factor(
     keywords: List[str],
     ventana_inicio: int = 2016,
     ventana_fin: int = 2026,
+    idiomas: str = "ES · EN · PT",
 ) -> Dict[str, Any]:
     """Consulta la API pública de OpenAlex en título y abstract (TITLE-ABS-KEY)."""
     soft_limpio = re.sub(r'[",()]', " ", nombre_software).strip()
@@ -237,10 +239,21 @@ def consultar_openalex_factor(
 
     soft_expr = f'"{soft_limpio}"' if " " in soft_limpio else soft_limpio
     or_terms = " OR ".join(f'"{t}"' if " " in t else t for t in terminos_limpios)
-    filter_str = (
-        f"title_and_abstract.search:({soft_expr} AND ({or_terms})),"
-        f"publication_year:{ventana_inicio}-{ventana_fin}"
-    )
+    filter_parts = [
+        f"title_and_abstract.search:({soft_expr} AND ({or_terms}))",
+        f"publication_year:{ventana_inicio}-{ventana_fin}",
+    ]
+
+    # Filtro de idioma en OpenAlex si se restringe a un idioma específico
+    idiomas_lower = (idiomas or "").lower()
+    if "solo español" in idiomas_lower or idiomas_lower == "es":
+        filter_parts.append("language:es")
+    elif "solo inglés" in idiomas_lower or "solo ingles" in idiomas_lower or idiomas_lower == "en":
+        filter_parts.append("language:en")
+    elif "es · en" in idiomas_lower and "pt" not in idiomas_lower:
+        filter_parts.append("language:es|en")
+
+    filter_str = ",".join(filter_parts)
 
     params = urllib.parse.urlencode({
         "filter": filter_str,
@@ -431,6 +444,13 @@ def ejecutar_paso_0(
     subfactores_por_factor = {f.id: max(1, f.num_subfactores) for f in factores}
     keywords_map = obtener_keywords_por_factor(factores)
 
+    # 0. Parámetros globales de cálculo configurados en Administración (Figma)
+    param_obj = ParametroGlobal.objects.filter(clave="parametros_calculo").first()
+    cfg_params = param_obj.valor if param_obj and isinstance(param_obj.valor, dict) else {}
+    ventana_inicio = int(cfg_params.get("inicio_ventana", 2016))
+    ventana_fin = int(cfg_params.get("fin_ventana", 2026))
+    idiomas_cfg = str(cfg_params.get("idiomas", "ES · EN · PT"))
+
     # 1. Sinónimos IA con Gemini (opcional)
     sinonimos_ia_map, ia_utilizada, proveedor_ia = generar_sinonimos_gemini(
         nombre_software=nombre_software,
@@ -447,7 +467,13 @@ def ejecutar_paso_0(
         combinadas = list(dict.fromkeys(base_kws + ia_kws))
 
         if usar_openalex:
-            res_oa = consultar_openalex_factor(nombre_software, combinadas)
+            res_oa = consultar_openalex_factor(
+                nombre_software,
+                combinadas,
+                ventana_inicio=ventana_inicio,
+                ventana_fin=ventana_fin,
+                idiomas=idiomas_cfg,
+            )
         else:
             res_oa = {
                 "documentos": 0,
@@ -547,7 +573,7 @@ def ejecutar_paso_0(
         factores_con_evidencia=con_evidencia,
         ia_utilizada=ia_utilizada,
         proveedor_ia=proveedor_ia,
-        ventana_temporal="2016-2026",
+        ventana_temporal=f"{ventana_inicio}-{ventana_fin}",
         fecha_consulta=timezone.now(),
     )
 

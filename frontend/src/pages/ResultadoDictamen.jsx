@@ -355,7 +355,23 @@ export const ResultadoDictamen = () => {
   };
 
   const descargarArchivoCSV = (contenido, nombreArchivo) => {
-    const blob = new Blob(["\uFEFF" + contenido], { type: "text/csv;charset=utf-8;" });
+    // Añadimos la directiva sep=; para compatibilidad total con Excel en Windows y español
+    const contenidoConDirectiva = `sep=;\r\n` + contenido;
+    const blob = new Blob(["\uFEFF" + contenidoConDirectiva], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", nombreArchivo);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const descargarArchivoExcel = (contenidoHtml, nombreArchivo) => {
+    const blob = new Blob(["\uFEFF" + contenidoHtml], {
+      type: "application/vnd.ms-excel;charset=utf-8;",
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
@@ -373,17 +389,221 @@ export const ResultadoDictamen = () => {
     4: "4 - Cumple el requisito",
   };
 
+  const generarExcelProfesional = () => {
+    const fecha = new Date().toISOString().split("T")[0];
+    const fechaHora = new Date().toLocaleString("es-ES");
+    const recColor = recomendacion === "A" ? "#2E7D32" : recomendacion === "B" ? "#E65100" : "#C62828";
+    const recBg = recomendacion === "A" ? "#E8F5E9" : recomendacion === "B" ? "#FFF3E0" : "#FFEBEE";
+
+    let html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Informe GUIOS+</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; }
+          .titulo-principal { font-size: 16pt; font-weight: bold; color: #2F5444; }
+          .subtitulo { font-size: 10pt; color: #555555; }
+          .seccion-header { font-size: 12pt; font-weight: bold; color: #2F5444; border-bottom: 2px solid #3F6F58; padding-top: 15px; }
+          table { border-collapse: collapse; width: 100%; margin-top: 8px; margin-bottom: 20px; }
+          th { background-color: #2F5444; color: #FFFFFF; font-weight: bold; font-size: 9pt; border: 1px solid #1F382E; padding: 7px 10px; text-align: left; }
+          th.center, td.center { text-align: center; }
+          th.right, td.right { text-align: right; }
+          td { border: 1px solid #DDE7E1; padding: 6px 10px; font-size: 9pt; vertical-align: middle; }
+          tr:nth-child(even) td { background-color: #F8FAF9; }
+          .meta-th { background-color: #EBF4EE; color: #2F5444; font-weight: bold; width: 180px; }
+          .meta-td { background-color: #FFFFFF; }
+          .badge-rec { font-size: 13pt; font-weight: bold; color: ${recColor}; background-color: ${recBg}; padding: 8px; text-align: center; border: 1px solid ${recColor}; }
+          .fortaleza { background-color: #E8F5E9 !important; color: #1B5E20; font-weight: bold; }
+          .oportunidad { background-color: #E1F5FE !important; color: #0277BD; font-weight: bold; }
+          .debilidad { background-color: #FFF3E0 !important; color: #E65100; font-weight: bold; }
+          .amenaza { background-color: #FFEBEE !important; color: #C62828; font-weight: bold; }
+          .critico { background-color: #FFCDD2 !important; color: #B71C1C; font-weight: bold; }
+          .nota-destacada { font-weight: bold; color: #2F5444; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr>
+            <td colspan="6" class="titulo-principal">GUIOS+ · SISTEMA DE DECISIÓN PARA ADOPCIÓN DE SOFTWARE LIBRE</td>
+          </tr>
+          <tr>
+            <td colspan="6" class="subtitulo">Informe Oficial de Evaluación Multicriterio — Metodología Científica GUIOS (Tesis Doctoral URJC)</td>
+          </tr>
+        </table>
+
+        <table style="width: 70%;">
+          <tr>
+            <td class="meta-th">Software Evaluado:</td>
+            <td class="meta-td" colspan="2"><strong>${softwareActivo || "Software FLOSS"}</strong></td>
+            <td class="meta-th">Fecha de Exportación:</td>
+            <td class="meta-td" colspan="2">${fechaHora}</td>
+          </tr>
+          <tr>
+            <td class="meta-th">Contexto Institucional:</td>
+            <td class="meta-td" colspan="2">${contextoActivo || "Entorno Organizacional"}</td>
+            <td class="meta-th">Código / ID:</td>
+            <td class="meta-td" colspan="2">#${evaluacionId || "1"}</td>
+          </tr>
+          <tr>
+            <td class="meta-th">Índice de Viabilidad FLOSS:</td>
+            <td class="meta-td" colspan="2"><strong style="font-size: 11pt; color: #2E7D32;">${viabilidad}%</strong></td>
+            <td class="meta-th">Nivel de Confianza:</td>
+            <td class="meta-td" colspan="2"><strong>${nivelConfianza || "Alto"}</strong></td>
+          </tr>
+          <tr>
+            <td class="meta-th">Dictamen Metodológico:</td>
+            <td class="badge-rec" colspan="5">
+              RECOMENDACIÓN ${recomendacion}: ${dictamenTitulo}
+            </td>
+          </tr>
+          <tr>
+            <td class="meta-th">Balance FODA:</td>
+            <td class="meta-td" colspan="5">
+              <strong>${strengths}</strong> Fortalezas &nbsp;|&nbsp; 
+              <strong>${opportunities}</strong> Oportunidades &nbsp;|&nbsp; 
+              <strong>${weaknesses}</strong> Debilidades &nbsp;|&nbsp; 
+              <strong>${threats}</strong> Amenazas
+            </td>
+          </tr>
+        </table>
+
+        <div class="seccion-header">1. MATRIZ FODA Y EVALUACIÓN DE FACTORES (18 FACTORES GUIOS)</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Dimensión</th>
+              <th>Factor Evaluado</th>
+              <th class="center">Alcance</th>
+              <th class="center">Importancia Sugerida (IS)</th>
+              <th class="center">Importancia Decisor (ID)</th>
+              <th class="center">Importancia Relativa (IR)</th>
+              <th class="center">Ponderación Media (PM)</th>
+              <th class="center">Clasificación FODA</th>
+              <th class="center">Criticidad</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    (factoresEvaluados || []).forEach((f) => {
+      const fodaLower = (f.foda || "").toLowerCase();
+      const claseFoda = fodaLower.includes("fortaleza")
+        ? "fortaleza"
+        : fodaLower.includes("oportunidad")
+        ? "oportunidad"
+        : fodaLower.includes("debilidad")
+        ? "debilidad"
+        : fodaLower.includes("amenaza")
+        ? "amenaza"
+        : "";
+
+      html += `
+        <tr>
+          <td>${f.dimension || "Tecnológica"}</td>
+          <td><strong>${f.nombre}</strong></td>
+          <td class="center">${f.alcance || "Externo"}</td>
+          <td class="center">${f.IS != null ? f.IS : "—"}</td>
+          <td class="center">${f.ID != null ? f.ID : 2}</td>
+          <td class="center"><strong>${f.IR || "—"}</strong></td>
+          <td class="center nota-destacada">${f.PM_str || f.PM != null ? f.PM_str || f.PM : "—"}</td>
+          <td class="center ${claseFoda}">${f.foda || "—"}</td>
+          <td class="center ${f.isCritical ? "critico" : ""}">${f.isCritical ? "SÍ (CRÍTICO)" : "No"}</td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+
+        <div class="seccion-header">2. CALIFICACIÓN DETALLADA DE REACTIVOS Y OBSERVACIONES (61 SUBFACTORES)</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Factor</th>
+              <th>Dimensión</th>
+              <th>Enunciado del Reactivo / Subfactor</th>
+              <th class="center">Calificación (1-4)</th>
+              <th>Nivel de Cumplimiento</th>
+              <th>Justificación Técnica / Evidencia Registrada</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    (factoresEvaluados || []).forEach((factor) => {
+      const sfs = subfactoresState[factor.id] || [];
+      sfs.forEach((sf) => {
+        const calif = sf.calificacion !== null && sf.calificacion !== undefined ? sf.calificacion : "—";
+        const escalaTexto = MAPA_ESCALA_TEXTO[sf.calificacion] || "Pendiente";
+        const califBg =
+          sf.calificacion === 4
+            ? "#E8F5E9"
+            : sf.calificacion === 3
+            ? "#FFFDE7"
+            : sf.calificacion === 2
+            ? "#FFF3E0"
+            : sf.calificacion === 1
+            ? "#FFEBEE"
+            : "#FFFFFF";
+
+        html += `
+          <tr>
+            <td class="center" style="font-family: Consolas, monospace; font-weight: bold;">${sf.codigo}</td>
+            <td><strong>${factor.nombre}</strong></td>
+            <td>${factor.dimension}</td>
+            <td>${sf.descripcion || ""}</td>
+            <td class="center" style="background-color: ${califBg}; font-weight: bold;">${calif}</td>
+            <td>${escalaTexto}</td>
+            <td>${sf.observacion ? sf.observacion : "<span style='color: #888;'>Sin observaciones registradas.</span>"}</td>
+          </tr>
+        `;
+      });
+    });
+
+    html += `
+          </tbody>
+        </table>
+
+        <br/>
+        <div style="font-size: 8pt; color: #777777; border-top: 1px solid #CCCCCC; padding-top: 6px;">
+          Documento generado por GUIOSPRO FLOSS Web · Algoritmo de Decisión Multicriterio basado en la Ecuación 5.3 y Matriz de Decisión 2021 (PhD. Víctor Hugo Rea Sánchez).
+        </div>
+      </body>
+      </html>
+    `;
+
+    const slug = (softwareActivo || "software").toLowerCase().replace(/[^a-z0-9]/g, "_");
+    descargarArchivoExcel(html, `GUIOS_Informe_Excel_${slug}_${fecha}.xls`);
+    mostrarToast("Libro de Excel estilizado generado y descargado exitosamente.");
+  };
+
   const generarCSV_FODA = () => {
     const fecha = new Date().toISOString().split("T")[0];
     const lineas = [
       `"REPORTE DE EVALUACIÓN FLOSS — MATRIZ FODA Y FACTORES (METODOLOGÍA GUIOS)"`,
-      `"Software Evaluado:",${escaparCSV(softwareActivo)},"Fecha:",${escaparCSV(fecha)}`,
-      `"Contexto Institucional:",${escaparCSV(contextoActivo)},"Evaluación ID:",${escaparCSV(evaluacionId)}`,
-      `"Dictamen Oficial:",${escaparCSV(`Recomendación ${recomendacion}: ${dictamenTitulo}`)}`,
-      `"Índice de Viabilidad:",${escaparCSV(`${viabilidad}%`)},"Nivel de Confianza:",${escaparCSV(nivelConfianza)}`,
-      `"Balance FODA:",${escaparCSV(`Fortalezas (${strengths}) · Oportunidades (${opportunities}) · Debilidades (${weaknesses}) · Amenazas (${threats})`)}`,
+      `"Software Evaluado:";${escaparCSV(softwareActivo)};"Fecha:";${escaparCSV(fecha)}`,
+      `"Contexto Institucional:";${escaparCSV(contextoActivo)};"Evaluación ID:";${escaparCSV(evaluacionId)}`,
+      `"Dictamen Oficial:";${escaparCSV(`Recomendación ${recomendacion}: ${dictamenTitulo}`)}`,
+      `"Índice de Viabilidad:";${escaparCSV(`${viabilidad}%`)};"Nivel de Confianza:";${escaparCSV(nivelConfianza)}`,
+      `"Balance FODA:";${escaparCSV(`Fortalezas (${strengths}) · Oportunidades (${opportunities}) · Debilidades (${weaknesses}) · Amenazas (${threats})`)}`,
       "",
-      `"Dimensión","Factor","Alcance","Importancia Sugerida (IS)","Importancia Decisor (ID)","Importancia Relativa (IR)","Ponderación Media (PM)","Clasificación FODA","Factor Crítico"`,
+      `"Dimensión";"Factor";"Alcance";"Importancia Sugerida (IS)";"Importancia Decisor (ID)";"Importancia Relativa (IR)";"Ponderación Media (PM)";"Clasificación FODA";"Factor Crítico"`,
     ];
 
     (factoresEvaluados || []).forEach((f) => {
@@ -397,7 +617,7 @@ export const ResultadoDictamen = () => {
         escaparCSV(f.PM_str || f.PM),
         escaparCSV(f.foda),
         escaparCSV(f.isCritical ? "SÍ (CRÍTICO)" : "No"),
-      ].join(","));
+      ].join(";"));
     });
 
     const slug = (softwareActivo || "software").toLowerCase().replace(/[^a-z0-9]/g, "_");
@@ -409,10 +629,10 @@ export const ResultadoDictamen = () => {
     const fecha = new Date().toISOString().split("T")[0];
     const lineas = [
       `"REPORTE DE EVALUACIÓN FLOSS — DETALLE DE REACTIVOS Y OBSERVACIONES"`,
-      `"Software Evaluado:",${escaparCSV(softwareActivo)},"Fecha:",${escaparCSV(fecha)}`,
-      `"Contexto:",${escaparCSV(contextoActivo)},"Dictamen:",${escaparCSV(`Recomendación ${recomendacion}`)}`,
+      `"Software Evaluado:";${escaparCSV(softwareActivo)};"Fecha:";${escaparCSV(fecha)}`,
+      `"Contexto:";${escaparCSV(contextoActivo)};"Dictamen:";${escaparCSV(`Recomendación ${recomendacion}`)}`,
       "",
-      `"Dimensión","Factor","Código","Enunciado del Reactivo","Calificación (1-4)","Nivel de Cumplimiento","Observación / Evidencia Registrada"`,
+      `"Dimensión";"Factor";"Código";"Enunciado del Reactivo";"Calificación (1-4)";"Nivel de Cumplimiento";"Observación / Evidencia Registrada"`,
     ];
 
     (factoresEvaluados || []).forEach((factor) => {
@@ -428,7 +648,7 @@ export const ResultadoDictamen = () => {
           escaparCSV(calif),
           escaparCSV(escalaTexto),
           escaparCSV(sf.observacion || ""),
-        ].join(","));
+        ].join(";"));
       });
     });
 
@@ -441,14 +661,14 @@ export const ResultadoDictamen = () => {
     const fecha = new Date().toISOString().split("T")[0];
     const lineas = [
       `"INFORME METODOLÓGICO CONSOLIDADO — GUIOSPRO FLOSS WEB"`,
-      `"Software Evaluado:",${escaparCSV(softwareActivo)},"Fecha:",${escaparCSV(fecha)}`,
-      `"Contexto Institucional:",${escaparCSV(contextoActivo)},"Evaluación ID:",${escaparCSV(evaluacionId)}`,
-      `"Dictamen Final:",${escaparCSV(`Recomendación ${recomendacion}: ${dictamenTitulo}`)}`,
-      `"Índice de Viabilidad FLOSS:",${escaparCSV(`${viabilidad}%`)},"Nivel de Confianza:",${escaparCSV(nivelConfianza)}`,
-      `"Resumen FODA:",${escaparCSV(`Fortalezas: ${strengths} | Oportunidades: ${opportunities} | Debilidades: ${weaknesses} | Amenazas: ${threats}`)}`,
+      `"Software Evaluado:";${escaparCSV(softwareActivo)};"Fecha:";${escaparCSV(fecha)}`,
+      `"Contexto Institucional:";${escaparCSV(contextoActivo)};"Evaluación ID:";${escaparCSV(evaluacionId)}`,
+      `"Dictamen Final:";${escaparCSV(`Recomendación ${recomendacion}: ${dictamenTitulo}`)}`,
+      `"Índice de Viabilidad FLOSS:";${escaparCSV(`${viabilidad}%`)};"Nivel de Confianza:";${escaparCSV(nivelConfianza)}`,
+      `"Resumen FODA:";${escaparCSV(`Fortalezas: ${strengths} | Oportunidades: ${opportunities} | Debilidades: ${weaknesses} | Amenazas: ${threats}`)}`,
       "",
       `"==================== SECCIÓN 1: MATRIZ FODA Y FACTORES ===================="`,
-      `"Dimensión","Factor","Alcance","Importancia Sugerida (IS)","Importancia Decisor (ID)","Importancia Relativa (IR)","Ponderación Media (PM)","Clasificación FODA","Factor Crítico"`,
+      `"Dimensión";"Factor";"Alcance";"Importancia Sugerida (IS)";"Importancia Decisor (ID)";"Importancia Relativa (IR)";"Ponderación Media (PM)";"Clasificación FODA";"Factor Crítico"`,
     ];
 
     (factoresEvaluados || []).forEach((f) => {
@@ -462,12 +682,12 @@ export const ResultadoDictamen = () => {
         escaparCSV(f.PM_str || f.PM),
         escaparCSV(f.foda),
         escaparCSV(f.isCritical ? "SÍ (CRÍTICO)" : "No"),
-      ].join(","));
+      ].join(";"));
     });
 
     lineas.push("");
     lineas.push(`"==================== SECCIÓN 2: CALIFICACIÓN DE REACTIVOS Y OBSERVACIONES ===================="`);
-    lineas.push(`"Dimensión","Factor","Código","Enunciado del Reactivo","Calificación (1-4)","Nivel de Cumplimiento","Observación / Evidencia Registrada"`);
+    lineas.push(`"Dimensión";"Factor";"Código";"Enunciado del Reactivo";"Calificación (1-4)";"Nivel de Cumplimiento";"Observación / Evidencia Registrada"`);
 
     (factoresEvaluados || []).forEach((factor) => {
       const sfs = subfactoresState[factor.id] || [];
@@ -482,7 +702,7 @@ export const ResultadoDictamen = () => {
           escaparCSV(calif),
           escaparCSV(escalaTexto),
           escaparCSV(sf.observacion || ""),
-        ].join(","));
+        ].join(";"));
       });
     });
 
@@ -644,21 +864,68 @@ export const ResultadoDictamen = () => {
             </button>
 
             {menuCsvAbierto && (
-              <div className="absolute right-0 mt-1.5 w-64 bg-white rounded-xl border border-[#DDE7E1] shadow-2xl p-1.5 z-30 animate-in fade-in zoom-in-95 text-xs">
+              <div className="absolute right-0 mt-1.5 w-72 bg-white rounded-xl border border-[#DDE7E1] shadow-2xl p-2 z-30 animate-in fade-in zoom-in-95 text-xs space-y-1">
+                {/* Opción Principal: Excel Estilizado */}
+                <button
+                  onClick={() => {
+                    generarExcelProfesional();
+                    setMenuCsvAbierto(false);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-lg bg-[#F4F8F5] hover:bg-[#E5EFE9] border border-[#CDE1D4] transition-colors flex items-center gap-2.5 cursor-pointer group"
+                >
+                  <FileSpreadsheet size={18} className="text-[#2F5444] shrink-0" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-[#2F5444]">
+                        Libro de Excel (.xls)
+                      </span>
+                      <span className="text-[9px] bg-[#3F6F58] text-white px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                        Recomendado
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-gray-500 block mt-0.5">
+                      Estilizado con colores institucionales, cuadrícula y FODA
+                    </span>
+                  </div>
+                </button>
+
+                <div className="my-1 border-t border-gray-100" />
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2 block pt-0.5">
+                  Archivos Tabulares CSV (con separador ;)
+                </span>
+
+                <button
+                  onClick={() => {
+                    generarCSV_Consolidado();
+                    setMenuCsvAbierto(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2.5 cursor-pointer group"
+                >
+                  <FileSpreadsheet size={16} className="text-emerald-700 shrink-0" />
+                  <div>
+                    <span className="font-semibold block text-gray-800 group-hover:text-[#2F5444]">
+                      Informe Consolidado (.csv)
+                    </span>
+                    <span className="text-[10px] text-gray-400 block">
+                      FODA + 61 reactivos con directiva Excel
+                    </span>
+                  </div>
+                </button>
+
                 <button
                   onClick={() => {
                     generarCSV_FODA();
                     setMenuCsvAbierto(false);
                   }}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#F3F7F4] transition-colors flex items-center gap-2.5 cursor-pointer group"
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2.5 cursor-pointer group"
                 >
                   <Table size={16} className="text-[#3F6F58] shrink-0" />
                   <div>
                     <span className="font-semibold block text-gray-800 group-hover:text-[#2F5444]">
-                      Matriz FODA y Factores
+                      Matriz FODA y Factores (.csv)
                     </span>
                     <span className="text-[10px] text-gray-400 block">
-                      Ponderación PM, alcance y categorías
+                      18 factores, PM, alcance y categorías
                     </span>
                   </div>
                 </button>
@@ -668,35 +935,15 @@ export const ResultadoDictamen = () => {
                     generarCSV_Reactivos();
                     setMenuCsvAbierto(false);
                   }}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#F3F7F4] transition-colors flex items-center gap-2.5 cursor-pointer group"
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2.5 cursor-pointer group"
                 >
                   <FileText size={16} className="text-teal-600 shrink-0" />
                   <div>
                     <span className="font-semibold block text-gray-800 group-hover:text-[#2F5444]">
-                      Reactivos y Observaciones
+                      Reactivos y Observaciones (.csv)
                     </span>
                     <span className="text-[10px] text-gray-400 block">
-                      61 subfactores calificados y notas
-                    </span>
-                  </div>
-                </button>
-
-                <div className="my-1 border-t border-gray-100" />
-
-                <button
-                  onClick={() => {
-                    generarCSV_Consolidado();
-                    setMenuCsvAbierto(false);
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#F3F7F4] transition-colors flex items-center gap-2.5 cursor-pointer group"
-                >
-                  <FileSpreadsheet size={16} className="text-[#3F6F58] shrink-0" />
-                  <div>
-                    <span className="font-semibold block text-[#2F5444]">
-                      Informe Consolidado
-                    </span>
-                    <span className="text-[10px] text-gray-400 block">
-                      FODA + Reactivos en un solo CSV
+                      61 subfactores calificados y justificaciones
                     </span>
                   </div>
                 </button>

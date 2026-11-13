@@ -507,7 +507,7 @@ export const EvaluacionSubfactores = () => {
                 <th className="py-3 px-3 w-20">Código</th>
                 <th className="py-3 px-4">Enunciado del Reactivo</th>
                 <th className="py-3 px-4 text-center w-48">Calificación (1–4)</th>
-                <th className="py-3 px-4 w-72">Observación y Evidencia</th>
+                <th className="py-3 px-4 w-80 sm:w-96 min-w-[260px]">Observación y Evidencia</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EBF1ED]">
@@ -533,10 +533,10 @@ export const EvaluacionSubfactores = () => {
                     />
                   </td>
 
-                  {/* Campo de Observación */}
-                  <td className="py-3.5 px-4 align-top">
-                    <input
-                      type="text"
+                  {/* Campo de Observación Multilínea */}
+                  <td className="py-3 px-4 align-top">
+                    <textarea
+                      rows={2}
                       value={sf.observacion || ""}
                       onChange={(e) =>
                         updateSubfactorScore(
@@ -548,8 +548,9 @@ export const EvaluacionSubfactores = () => {
                           e.target.value
                         )
                       }
-                      placeholder="Añadir observación…"
-                      className="w-full px-2.5 py-1.5 text-xs rounded-md border border-[#DDE7E1] focus:outline-none focus:ring-1 focus:ring-[#3F6F58] text-gray-700 bg-white"
+                      placeholder="Añadir observación o evidencia técnica…"
+                      title={sf.observacion || "Sin observación registrada"}
+                      className="w-full px-2.5 py-1.5 text-xs rounded-md border border-[#DDE7E1] focus:outline-none focus:ring-1 focus:ring-[#3F6F58] focus:border-[#3F6F58] text-gray-700 bg-white resize-y leading-relaxed transition-all shadow-2xs"
                     />
                   </td>
                 </tr>
