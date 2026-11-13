@@ -744,13 +744,29 @@ export const Dashboard = () => {
                                   {cf.dimension}
                                 </td>
                                 <td className="py-2 px-3 text-center">
-                                  {cf.eval1?.pm != null ? `${cf.eval1.pm} · ${cf.eval1.foda || "—"}` : (cf.eval1?.importancia_relativa ? `IR: ${cf.eval1.importancia_relativa}` : "—")}
+                                  {cf.eval1?.pm != null ? (
+                                    <span>
+                                      {cf.eval1.pm} · <span className="capitalize">{cf.eval1.foda || "—"}</span>
+                                    </span>
+                                  ) : cf.eval1?.importancia_relativa && cf.eval1.importancia_relativa !== "—" ? (
+                                    <span className="text-gray-400 italic">IR: {cf.eval1.importancia_relativa}</span>
+                                  ) : (
+                                    <span className="text-gray-300 italic">No evaluado</span>
+                                  )}
                                   {cf.eval1?.critico && (
                                     <span className="text-red-600 font-bold ml-1">(!Crítico)</span>
                                   )}
                                 </td>
                                 <td className="py-2 px-3 text-center">
-                                  {cf.eval2?.pm != null ? `${cf.eval2.pm} · ${cf.eval2.foda || "—"}` : (cf.eval2?.importancia_relativa ? `IR: ${cf.eval2.importancia_relativa}` : "—")}
+                                  {cf.eval2?.pm != null ? (
+                                    <span>
+                                      {cf.eval2.pm} · <span className="capitalize">{cf.eval2.foda || "—"}</span>
+                                    </span>
+                                  ) : cf.eval2?.importancia_relativa && cf.eval2.importancia_relativa !== "—" ? (
+                                    <span className="text-gray-400 italic">IR: {cf.eval2.importancia_relativa}</span>
+                                  ) : (
+                                    <span className="text-gray-300 italic">No evaluado</span>
+                                  )}
                                   {cf.eval2?.critico && (
                                     <span className="text-red-600 font-bold ml-1">(!Crítico)</span>
                                   )}
