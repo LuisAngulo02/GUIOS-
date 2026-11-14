@@ -9,6 +9,9 @@
 
 > **Evaluación inteligente, científica y automatizada para la adopción estratégica de soluciones de Software Libre y Fuentes Abiertas (FLOSS).**
 
+> [!TIP]
+> Consulta la guía visual y matemática completa de principio a fin en **[FLUJO_DEL_SISTEMA.md](FLUJO_DEL_SISTEMA.md)**.
+
 ---
 
 ## 1. Descripción del Sistema
@@ -143,6 +146,17 @@ El sistema cuenta con un panel administrativo completo dividido en 6 pestañas e
    DB_PORT=5432
    OPENALEX_EMAIL=guiospro@research.local
    GEMINI_API_KEY=tu_api_key_de_gemini
+   GEMINI_MODEL=gemini-flash-lite-latest
+
+   # Correo Electrónico Saliente y Recuperación de Contraseña (SMTP)
+   EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+   EMAIL_HOST=smtp.gmail.com
+   EMAIL_PORT=587
+   EMAIL_USE_TLS=True
+   EMAIL_HOST_USER=tu_correo@gmail.com
+   EMAIL_HOST_PASSWORD=tu_contraseña_de_aplicacion
+   DEFAULT_FROM_EMAIL=GUIOS+ <tu_correo@gmail.com>
+   FRONTEND_URL=http://localhost:5173
    ```
 4. Aplica las migraciones de base de datos:
    ```bash
@@ -196,7 +210,7 @@ Para ejecutar la batería completa de pruebas unitarias y de integración del ba
 ```bash
 python manage.py test guio_core users
 ```
-*Garantiza el 100% de éxito en **27 suites de prueba** (autenticación JWT, RBAC, motor matemático GUIOS, protección de histórico, parámetros de cálculo, consultas científicas, generador PDF y CRUD del catálogo).*
+*Garantiza el 100% de éxito en **31 suites de prueba** (autenticación JWT, bloqueo por fuerza bruta, recuperación de contraseña con token criptográfico y envío SMTP, motor matemático GUIOS, protección de histórico, parámetros de cálculo, consultas científicas, generador PDF y CRUD del catálogo).*
 
 Para verificar la compilación del frontend:
 
@@ -211,13 +225,14 @@ npm run build
 
 ```
 GUIOSAD/
+├── FLUJO_DEL_SISTEMA.md                   # Guía visual y matemática del flujo integral
 ├── docs/                                  # Documentación de tesis y arquitectura
 │   ├── context.md                         # Especificación maestra de requisitos y UI
 │   ├── PLAN_DE_DESARROLLO.md              # Estado de avance y hoja de ruta
 │   └── tesis/                             # Resumen metodológico de los 8 capítulos
 │
 ├── guiospro_backend/                      # Configuración Django (settings, urls, wsgi)
-│   ├── settings.py                        # SimpleJWT, CORS, Throttling, Security headers
+│   ├── settings.py                        # SimpleJWT, CORS, Throttling, SMTP, Security headers
 │   └── urls.py                            # Rutas globales de la API REST
 │
 ├── guio_core/                             # Aplicación central de la metodología GUIOS
@@ -227,18 +242,20 @@ GUIOSAD/
 │   ├── engine.py                          # Motor de cálculo matemático (IR, PM, FODA, Dictamen)
 │   ├── pdf_generator.py                   # Generador de reportes oficiales con ReportLab
 │   ├── services/
-│   │   └── academic_ai_service.py         # Cliente OpenAlex Polite Pool y Google Gemini
-│   ├── tests.py                           # 27 pruebas automatizadas de flujo y catálogo
+│   │   ├── academic_ai_service.py         # Cliente OpenAlex Polite Pool y Google Gemini
+│   │   ├── subfactor_ai_service.py        # Asistente de precalificación ágil con IA
+│   │   └── recommendation_ai_service.py   # Recomendaciones personalizadas con IA
+│   ├── tests.py                           # Pruebas automatizadas de flujo y catálogo
 │   └── management/commands/seed_catalog.py# Poblador de fixtures de la tesis
 │
-├── users/                                 # Aplicación de seguridad y cuentas
-│   ├── views.py                           # Login, registro, logout, auditoría
+├── users/                                 # Aplicación de seguridad, autenticación y cuentas
+│   ├── views.py                           # Login, registro, logout, reseteo de clave, auditoría
 │   ├── serializers.py                     # Validaciones de usuario y contraseñas
-│   └── tests.py                           # Pruebas de RBAC y bloqueo por fuerza bruta
+│   └── tests.py                           # 14 pruebas de RBAC, fuerza bruta y restablecimiento
 │
 ├── frontend/                              # SPA React (Vite)
 │   ├── src/
-│   │   ├── pages/                         # Dashboard, Pasos 0-3, Administracion
+│   │   ├── pages/                         # Dashboard, Pasos 0-3, Administracion, ResetPassword
 │   │   ├── components/                    # Modales, Badges, Comparador Side-by-Side
 │   │   ├── context/                       # EvaluationContext (Estado global reactivo)
 │   │   └── services/apiService.js         # Cliente API REST con autenticación JWT
