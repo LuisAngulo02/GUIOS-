@@ -221,3 +221,27 @@ class LogAuditoriaSerializer(serializers.ModelSerializer):
             "fecha",
         ]
         read_only_fields = fields
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """Solicitud de recuperación de contraseña con email institucional."""
+    email = serializers.EmailField(required=True)
+
+    def validate_email(self, value):
+        return value.lower().strip()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Confirmación de restablecimiento con UID, Token criptográfico y nueva contraseña."""
+    uid = serializers.CharField(required=True)
+    token = serializers.CharField(required=True)
+    new_password = serializers.CharField(
+        write_only=True,
+        required=True,
+        min_length=8,
+        error_messages={"min_length": "La contraseña debe tener al menos 8 caracteres."}
+    )
+
+    def validate_new_password(self, value):
+        validate_password(value)
+        return value

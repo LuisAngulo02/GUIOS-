@@ -185,6 +185,21 @@ export const apiService = {
     localStorage.removeItem("guios_user");
   },
 
+  // Recuperación de contraseña
+  async solicitarRecuperacionPassword(email) {
+    return await request("/users/auth/password-reset/", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  async confirmarRecuperacionPassword({ uid, token, new_password }) {
+    return await request("/users/auth/password-reset-confirm/", {
+      method: "POST",
+      body: JSON.stringify({ uid, token, new_password }),
+    });
+  },
+
   // ---------------------------------------------------------------------------
   // 2. Catálogo Oficial & Administración (HU-03)
   // ---------------------------------------------------------------------------

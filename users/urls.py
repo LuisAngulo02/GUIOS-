@@ -8,6 +8,8 @@ from users.views import (
     PerfilView,
     AdminUsuariosViewSet,
     RolesListView,
+    PasswordResetRequestView,
+    PasswordResetConfirmView,
 )
 
 app_name = "users"
@@ -23,6 +25,10 @@ urlpatterns = [
     path("auth/registro/", RegistroView.as_view(), name="registro_alias"),
     path("auth/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/me/", PerfilView.as_view(), name="perfil"),
+
+    # Recuperación segura de contraseña
+    path("auth/password-reset/", PasswordResetRequestView.as_view(), name="password_reset_request"),
+    path("auth/password-reset-confirm/", PasswordResetConfirmView.as_view(), name="password_reset_confirm"),
 
     # HU-02: Gestión administrativa de roles y usuarios
     path("admin/roles/", RolesListView.as_view(), name="roles-list"),

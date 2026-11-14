@@ -1,7 +1,17 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Lock, Eye, EyeOff } from "lucide-react";
+import {
+  Lock,
+  Eye,
+  EyeOff,
+  KeyRound,
+  X,
+  Mail,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
+import { apiService } from "../services/apiService";
 
 /**
  * Pantalla 1: Login (/login)
@@ -14,8 +24,33 @@ export const Login = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Estado para modal de recuperación de contraseña
+  const [modalRecuperarOpen, setModalRecuperarOpen] = useState(false);
+  const [emailRecuperar, setEmailRecuperar] = useState("");
+  const [enviandoRecuperar, setEnviandoRecuperar] = useState(false);
+  const [mensajeRecuperar, setMensajeRecuperar] = useState("");
+  const [errorRecuperar, setErrorRecuperar] = useState("");
+
   const { login } = useEvaluation();
   const navigate = useNavigate();
+
+  const handleSolicitarRecuperacion = async (e) => {
+    e.preventDefault();
+    setErrorRecuperar("");
+    setMensajeRecuperar("");
+    setEnviandoRecuperar(true);
+    try {
+      const res = await apiService.solicitarRecuperacionPassword(emailRecuperar.trim());
+      setMensajeRecuperar(
+        res?.message ||
+          "Si el correo electrónico está registrado en el sistema, recibirás un enlace de recuperación en breve. Revisa tu bandeja de entrada o carpeta de spam."
+      );
+    } catch (err) {
+      setErrorRecuperar(err.message || "Error al procesar la solicitud de recuperación.");
+    } finally {
+      setEnviandoRecuperar(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -128,16 +163,18 @@ export const Login = () => {
               />
               <span>Recordar sesión</span>
             </label>
-            <a
-              href="#recuperar"
-              onClick={(e) => {
-                e.preventDefault();
-                alert("Para restablecer su contraseña, contacte al administrador del sistema.");
+            <button
+              type="button"
+              onClick={() => {
+                setEmailRecuperar(email || "");
+                setErrorRecuperar("");
+                setMensajeRecuperar("");
+                setModalRecuperarOpen(true);
               }}
-              className="text-[#3F6F58] hover:underline font-medium"
+              className="text-[#3F6F58] hover:underline font-medium cursor-pointer"
             >
               ¿Olvidaste tu contraseña?
-            </a>
+            </button>
           </div>
 
           {/* Botón Iniciar sesión */}
@@ -155,6 +192,106 @@ export const Login = () => {
           Ingrese sus credenciales institucionales autorizadas para acceder a la plataforma.
         </p>
       </div>
+
+      {/* Modal de Recuperación de Contraseña */}
+      {modalRecuperarOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-[#DDE7E1] w-full max-w-md p-6 shadow-2xl animate-in fade-in zoom-in-95 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#3F6F58] flex items-center justify-center border border-emerald-200">
+                  <KeyRound size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-sm">
+                    Recuperar contraseña
+                  </h3>
+                  <p className="text-[11px] text-gray-400">
+                    Restablecimiento de credenciales GUIOS+
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalRecuperarOpen(false)}
+                className="w-7 h-7 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {mensajeRecuperar ? (
+              <div className="space-y-4 py-2">
+                <div className="p-3.5 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs flex items-start gap-2.5">
+                  <CheckCircle2 size={16} className="text-[#3F6F58] shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold mb-0.5">Correo enviado</p>
+                    <p className="text-[11px] text-emerald-800 leading-relaxed">
+                      {mensajeRecuperar}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setModalRecuperarOpen(false)}
+                  className="w-full py-2.5 rounded-xl bg-[#2F5444] hover:bg-[#254336] text-white font-semibold text-xs transition-colors cursor-pointer shadow-sm"
+                >
+                  Entendido
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSolicitarRecuperacion} className="space-y-3.5 text-xs">
+                <p className="text-gray-600 leading-relaxed text-[11px]">
+                  Ingresa tu correo institucional registrado. Si la cuenta existe, te enviaremos un enlace seguro de un solo uso para definir una nueva contraseña.
+                </p>
+
+                {errorRecuperar && (
+                  <div className="p-2.5 rounded-lg bg-red-50 text-red-600 text-xs border border-red-200 flex items-center gap-2">
+                    <AlertCircle size={14} className="shrink-0" />
+                    <span>{errorRecuperar}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="font-semibold text-gray-700 block mb-1">
+                    Correo electrónico institucional *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      required
+                      autoFocus
+                      value={emailRecuperar}
+                      onChange={(e) => setEmailRecuperar(e.target.value)}
+                      placeholder="usuario@guiosplus.org"
+                      className="w-full px-3 py-2 pl-9 rounded-lg border border-[#DDE7E1] focus:outline-none focus:ring-2 focus:ring-[#3F6F58]"
+                    />
+                    <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-2 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setModalRecuperarOpen(false)}
+                    className="px-3.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 font-semibold cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={enviandoRecuperar}
+                    className="px-4 py-1.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold cursor-pointer shadow-sm disabled:opacity-50"
+                  >
+                    {enviandoRecuperar ? "Enviando enlace..." : "Enviar enlace"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Pie de página */}
       <div className="text-center z-10 text-xs text-green-100/80 mb-2">

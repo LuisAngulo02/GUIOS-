@@ -201,9 +201,22 @@ if not DEBUG:
 
 # AI & Academic APIs Configuration 
 GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
-GEMINI_MODEL = env('GEMINI_MODEL', default='gemini-3.5-flash-lite')
+GEMINI_MODEL = env('GEMINI_MODEL', default='gemini-flash-lite-latest')
 OPENALEX_EMAIL = env('OPENALEX_EMAIL', default='guiospro@research.local')
+OPENALEX_API_KEY = env('OPENALEX_API_KEY', default='')
 SEMANTIC_SCHOLAR_API_KEY = env('SEMANTIC_SCHOLAR_API_KEY', default='')
 SCOPUS_API_KEY = env('SCOPUS_API_KEY', default='')
+
+# Email & Password Reset Configuration
+EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = env('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = env.int('EMAIL_PORT', default=587)
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='GUIOS+ <no-reply@guiosplus.org>')
+FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:5173')
+PASSWORD_RESET_TIMEOUT = env.int('PASSWORD_RESET_TIMEOUT', default=3600)  # 1 hora de validez
+
 
 

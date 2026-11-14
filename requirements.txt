@@ -7,11 +7,11 @@ djangorestframework-simplejwt>=5.3.1
 psycopg2-binary>=2.9.9
 django-environ>=0.11.2
 
-# Security & CORS
+# Security, CORS & Passwords
 django-cors-headers>=4.3.1
 bcrypt>=4.1.2
 
-# Mathematics & Calculation Engine (para GUIOS Engine y RF-14)
+# Mathematics & Calculation Engine (GUIOS Engine, Cuartiles y RF-14)
 numpy>=1.26.0
 pandas>=2.2.0
 

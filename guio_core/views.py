@@ -467,7 +467,7 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
         factores_relevantes_count = 0
 
         # Si existe cálculo bibliográfico del Paso 0 para esta evaluación, usar sus IS calculados
-        consulta_ev = ConsultaEvidencia.objects.filter(id_evaluacion=evaluacion).first()
+        consulta_ev = ConsultaEvidencia.objects.filter(id_evaluacion=evaluacion).order_by("-fecha_consulta").first()
         mapa_is_evidencia = (
             {d.id_factor_id: d.is_calculado for d in consulta_ev.detalles_factor.all()}
             if consulta_ev
@@ -986,14 +986,15 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
         ).data
 
         # Recuperar contexto y descripción de la consulta bibliográfica asociada si existe
-        consulta_ev = ConsultaEvidencia.objects.filter(id_evaluacion=evaluacion).first()
+        consulta_ev = ConsultaEvidencia.objects.filter(id_evaluacion=evaluacion).order_by("-fecha_consulta").first()
         if not consulta_ev:
             consulta_ev = ConsultaEvidencia.objects.filter(
                 nombre_software__iexact=evaluacion.nombre_software
-            ).first()
+            ).order_by("-fecha_consulta").first()
 
         contexto_uso = consulta_ev.contexto_uso if consulta_ev else ""
         descripcion_caso = consulta_ev.descripcion_caso if consulta_ev else ""
+        evidencia_data = serializar_consulta_evidencia(consulta_ev) if consulta_ev else None
 
         return Response({
             "evaluacion": {
@@ -1002,6 +1003,7 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
                 "descripcion_caso": descripcion_caso,
             },
             "subfactores": subfactores_calificados,
+            "evidencia": evidencia_data,
         }, status=status.HTTP_200_OK)
 
     @action(

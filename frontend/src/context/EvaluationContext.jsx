@@ -378,6 +378,35 @@ export const EvaluationProvider = ({ children }) => {
             };
           });
         }
+
+        // Si la evaluación cuenta con evidencia bibliográfica calculada, sincronizar IS, IL y citas
+        if (data.evidencia && Array.isArray(data.evidencia.items) && data.evidencia.items.length > 0) {
+          const mapaEv = {};
+          data.evidencia.items.forEach((item) => {
+            mapaEv[Number(item.id_factor)] = item;
+          });
+          baseFactores = baseFactores.map((f) => {
+            const evItem = mapaEv[Number(f.id)];
+            if (!evItem) return f;
+            const nuevoIS = evItem.IS ?? f.IS;
+            const irNum = Math.floor((nuevoIS + f.ID) / 2);
+            const irTexto = MAPA_NUMERO_A_TEXTO_IR[irNum] || "Irrelevante";
+            return {
+              ...f,
+              IL: evItem.IL_num ?? f.IL,
+              IE: evItem.IE_num ?? f.IE,
+              IS: nuevoIS,
+              IL_dec: evItem.IL_dec ?? f.IL_dec,
+              IE_dec: evItem.IE_dec ?? f.IE_dec,
+              evidencia_count: evItem.documentos ?? f.evidencia_count,
+              citas_acumuladas: evItem.citas ?? f.citas_acumuladas,
+              articulos: Array.isArray(evItem.articulos) && evItem.articulos.length > 0 ? evItem.articulos : f.articulos,
+              IR: `${irNum} · ${irTexto}`,
+              relevante: irNum > 1,
+            };
+          });
+        }
+
         setFactores(baseFactores);
         localStorage.setItem("guios_factores", JSON.stringify(baseFactores));
 

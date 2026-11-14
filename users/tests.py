@@ -190,3 +190,79 @@ class AdminUsuariosHU02TestCase(TestCase):
             format="json",
         )
         self.assertEqual(refresh_resp.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_solicitar_recuperacion_password_existente(self):
+        """Solicitar recuperación para email registrado debe generar respuesta exitosa y enviar correo."""
+        from django.core import mail
+
+        mail.outbox = []
+        resp = self.client.post(
+            "/api/v1/users/auth/password-reset/",
+            {"email": self.evaluador.email},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn("message", resp.data)
+        # Verificar que el correo fue despachado a la bandeja
+        self.assertEqual(len(mail.outbox), 1)
+        correo = mail.outbox[0]
+        self.assertIn(self.evaluador.email, correo.to)
+        self.assertIn("Recuperación de contraseña", correo.subject)
+        self.assertIn("reset-password?uid=", correo.body)
+
+    def test_solicitar_recuperacion_password_inexistente_anti_enumeracion(self):
+        """Solicitar recuperación para email no registrado debe responder con el mismo mensaje genérico."""
+        resp = self.client.post(
+            "/api/v1/users/auth/password-reset/",
+            {"email": "noexiste@test.com"},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn("message", resp.data)
+
+    def test_confirmar_recuperacion_password_valido(self):
+        """Confirmar reseteo con token y uid válidos debe actualizar el hash y permitir login con la nueva contraseña."""
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.http import urlsafe_base64_encode
+        from django.utils.encoding import force_bytes
+
+        uid = urlsafe_base64_encode(force_bytes(self.evaluador.pk))
+        token = default_token_generator.make_token(self.evaluador)
+
+        nueva_pass = "NuevaClaveSegura2026!"
+        resp = self.client.post(
+            "/api/v1/users/auth/password-reset-confirm/",
+            {
+                "uid": uid,
+                "token": token,
+                "new_password": nueva_pass,
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+        # Probar login con la nueva clave
+        login_resp = self.client.post(
+            "/api/v1/users/auth/login/",
+            {"email": self.evaluador.email, "password": nueva_pass},
+            format="json",
+        )
+        self.assertEqual(login_resp.status_code, status.HTTP_200_OK)
+
+    def test_confirmar_recuperacion_password_token_invalido(self):
+        """Confirmar reseteo con token incorrecto debe retornar 400 Bad Request."""
+        from django.utils.http import urlsafe_base64_encode
+        from django.utils.encoding import force_bytes
+
+        uid = urlsafe_base64_encode(force_bytes(self.evaluador.pk))
+        resp = self.client.post(
+            "/api/v1/users/auth/password-reset-confirm/",
+            {
+                "uid": uid,
+                "token": "token-falso-invalido",
+                "new_password": "NuevaClaveSegura2026!",
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+

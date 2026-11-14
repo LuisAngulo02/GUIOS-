@@ -381,7 +381,7 @@ def generar_recomendaciones_ia(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not api_key:
         return _generar_fallback_determinista(resumen)
 
-    model = getattr(settings, "GEMINI_MODEL", "gemini-3.5-flash-lite") or "gemini-3.5-flash-lite"
+    model = getattr(settings, "GEMINI_MODEL", "gemini-flash-lite-latest") or "gemini-flash-lite-latest"
     endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={urllib.parse.quote(api_key)}"
 
     prompt = (
