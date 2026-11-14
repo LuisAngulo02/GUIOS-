@@ -225,7 +225,7 @@ def precalificar_subfactores_ia(payload: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     # Llamada a Gemini con prompt estructurado y acotado
-    model = getattr(settings, "GEMINI_MODEL", "gemini-3.5-flash-lite") or "gemini-3.5-flash-lite"
+    model = getattr(settings, "GEMINI_MODEL", "gemini-flash-lite-latest") or "gemini-flash-lite-latest"
     endpoint = (
         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         f"?key={urllib.parse.quote(api_key)}"

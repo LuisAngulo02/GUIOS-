@@ -10,6 +10,7 @@ import EvaluacionSubfactores from "./pages/EvaluacionSubfactores";
 import ResultadoDictamen from "./pages/ResultadoDictamen";
 import Evidencia from "./pages/Evidencia";
 import Administracion from "./pages/Administracion";
+import ResetPassword from "./pages/ResetPassword";
 
 // Componente para proteger rutas privadas
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
@@ -33,6 +34,7 @@ export function App() {
         <Routes>
           {/* Ruta pública */}
           <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Rutas protegidas bajo el Layout Común de GUIOS+ */}
           <Route

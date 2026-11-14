@@ -66,13 +66,14 @@ export const Configuracion = () => {
         if (res && !res.sin_consulta && Array.isArray(res.items) && res.items.length > 0) {
           setResultadoConsulta(res);
           setCalculoExitoso(true);
+          aplicarEvidenciaEnFactores(res.items);
         } else {
           setResultadoConsulta(null);
           setCalculoExitoso(false);
         }
       })
       .catch(() => {});
-  }, [evaluacionId]);
+  }, [evaluacionId, aplicarEvidenciaEnFactores]);
 
   const handleCalcular = async () => {
     if (!softwareActivo.trim()) {
