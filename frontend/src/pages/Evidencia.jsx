@@ -321,19 +321,19 @@ export const Evidencia = () => {
         </div>
 
         {/* Tabla de Evidencia */}
-        <div className="w-full overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
+        <div className="w-full overflow-x-auto lg:overflow-x-visible">
+          <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-[#DDE7E1] bg-[#F8FAF9] text-gray-500 font-semibold tracking-wider uppercase text-[11px]">
-                <th className="py-3 px-4">Factor</th>
-                <th className="py-3 px-3 text-center">Documentos</th>
-                <th className="py-3 px-3 text-center">Citas</th>
-                <th className="py-3 px-4">Autores relevantes</th>
-                <th className="py-3 px-3 text-center">IL</th>
-                <th className="py-3 px-3 text-center">IE</th>
-                <th className="py-3 px-3 text-center">IS</th>
-                <th className="py-3 px-3">Fuente principal</th>
-                <th className="py-3 px-4 text-center">Acción</th>
+                <th className="py-3 px-3 sm:px-4">Factor</th>
+                <th className="py-3 px-2 text-center">Documentos</th>
+                <th className="py-3 px-2 text-center">Citas</th>
+                <th className="py-3 px-2 sm:px-3">Autores relevantes</th>
+                <th className="py-3 px-1.5 text-center">IL</th>
+                <th className="py-3 px-1.5 text-center">IE</th>
+                <th className="py-3 px-2 text-center">IS</th>
+                <th className="py-3 px-2">Fuente principal</th>
+                <th className="py-3 px-2 sm:px-3 text-center">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EBF1ED]">
@@ -346,25 +346,25 @@ export const Evidencia = () => {
               ) : (
                 itemsFiltrados.map((item, idx) => (
                   <tr key={idx} className="hover:bg-[#F6FAF7] transition-colors">
-                    <td className="py-3.5 px-4 font-semibold text-gray-800">
+                    <td className="py-2.5 px-3 sm:px-4 font-semibold text-gray-800 text-[13px] leading-tight">
                       {item.factor}
                     </td>
-                    <td className="py-3.5 px-3 text-center font-bold text-[#2F5444]">
+                    <td className="py-2.5 px-2 text-center font-bold text-[#2F5444] whitespace-nowrap">
                       {item.documentos}
                     </td>
-                    <td className="py-3.5 px-3 text-center text-gray-600">
+                    <td className="py-2.5 px-2 text-center text-gray-600 whitespace-nowrap">
                       {item.citas}
                     </td>
-                    <td className="py-3.5 px-4 text-gray-600 text-xs max-w-[220px] truncate" title={item.autores_relevantes}>
+                    <td className="py-2.5 px-2 sm:px-3 text-gray-600 text-xs max-w-[140px] xl:max-w-[190px] truncate" title={item.autores_relevantes}>
                       {item.autores_relevantes}
                     </td>
-                    <td className="py-3.5 px-3 text-center text-gray-500">
+                    <td className="py-2.5 px-1.5 text-center text-gray-500 font-mono whitespace-nowrap">
                       {item.IL}
                     </td>
-                    <td className="py-3.5 px-3 text-center text-gray-500">
+                    <td className="py-2.5 px-1.5 text-center text-gray-500 font-mono whitespace-nowrap">
                       {item.IE}
                     </td>
-                    <td className="py-3.5 px-3 text-center">
+                    <td className="py-2.5 px-2 text-center whitespace-nowrap">
                       <Badge variant="auto" size="sm">
                         {typeof item.IS === "number"
                           ? item.IS === 4
@@ -377,10 +377,10 @@ export const Evidencia = () => {
                           : item.IS}
                       </Badge>
                     </td>
-                    <td className="py-3.5 px-3 text-gray-600 max-w-[160px] truncate" title={item.fuente_principal}>
+                    <td className="py-2.5 px-2 text-gray-600 max-w-[110px] xl:max-w-[150px] truncate" title={item.fuente_principal}>
                       {item.fuente_principal}
                     </td>
-                    <td className="py-3.5 px-4 text-center">
+                    <td className="py-2.5 px-2 sm:px-3 text-center whitespace-nowrap">
                       <button
                         onClick={() => setModalFactor(item)}
                         className="text-[#3F6F58] hover:underline font-semibold text-xs inline-flex items-center gap-1 cursor-pointer"

@@ -14,7 +14,14 @@ from guio_core.engine.domain_models import (
 
 
 class GuiosadEngine:
-    """Motor de cálculo puro desacoplado del framework web."""
+    """
+    Motor de cálculo puro desacoplado del framework web (Tesis Doctoral).
+
+    Nota de Arquitectura / Mantenimiento:
+    El motor de ejecución oficial y persistente en producción reside en guio_core.views.EvaluacionViewSet
+    operando directamente sobre modelos Django/PostgreSQL (Evaluacion, ResultadoFactor, ResultadoSubfactor, ResultadoFoda).
+    Este módulo se mantiene formalmente alineado con dicha regla de oro metodológica.
+    """
 
     @staticmethod
     def calculate_relative_importance(
@@ -65,13 +72,13 @@ class GuiosadEngine:
     def evaluate_recommendation(cls, evaluated_factors: List[Factor]) -> RecommendationResult:
         """
         Evalúa la lista de factores calificados y emite la recomendación final
-        según las reglas de decisión de la Matriz 2021 y el Capítulo 6 de la Tesis:
+        según las reglas de decisión de la Tesis Doctoral:
 
-        - Caso A (Crítico): Al menos una Amenaza o Debilidad en un factor cuya Importancia
-          Relativa es Fundamental o Importante.
-        - Caso B (Reservas): No hay amenazas/debilidades en factores críticos, pero al menos una
+        - Caso A (Favorable): Todos los factores evaluados son Fortalezas u Oportunidades.
+        - Caso B (Observaciones): No hay amenazas/debilidades en factores críticos, pero al menos una
           Amenaza o Debilidad en un factor Opcional.
-        - Caso C (Favorable): Todos los factores evaluados son Fortalezas u Oportunidades.
+        - Caso C (Crítico): Al menos una Amenaza o Debilidad en un factor cuya Importancia
+          Relativa es Fundamental o Importante.
         """
         if not evaluated_factors:
             return RecommendationResult(
@@ -105,8 +112,8 @@ class GuiosadEngine:
 
         if has_critical_issue:
             return RecommendationResult(
-                recommendation_type=RecommendationType.RECOMENDACION_A,
-                title="Recomendación A: No es viable adoptar en el estado actual",
+                recommendation_type=RecommendationType.RECOMENDACION_C,
+                title="Recomendación C: Requiere recursos antes de adoptar",
                 description=(
                     "Se han detectado amenazas y/o debilidades en factores cuya importancia relativa "
                     "es fundamental o importante. Es indispensable que el decisor revise y mitigue los "
@@ -123,7 +130,7 @@ class GuiosadEngine:
         elif has_optional_issue:
             return RecommendationResult(
                 recommendation_type=RecommendationType.RECOMENDACION_B,
-                title="Recomendación B: Es posible adoptar con reservas",
+                title="Recomendación B: Es posible adoptar con observaciones",
                 description=(
                     "Es viable proceder con la adopción. Se han detectado debilidades o amenazas únicamente "
                     "en factores de importancia opcional. Se sugiere establecer un plan de seguimiento para "
@@ -138,8 +145,8 @@ class GuiosadEngine:
             )
         else:
             return RecommendationResult(
-                recommendation_type=RecommendationType.RECOMENDACION_C,
-                title="Recomendación C: Es posible adoptar plenamente",
+                recommendation_type=RecommendationType.RECOMENDACION_A,
+                title="Recomendación A: Adoptar",
                 description=(
                     "Adopción altamente recomendada. Todos los factores relevantes evaluados han sido "
                     "identificados como Oportunidades o Fortalezas. La organización y la solución FLOSS "

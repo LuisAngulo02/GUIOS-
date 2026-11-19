@@ -184,6 +184,7 @@ export const ResultadoDictamen = () => {
     weaknesses,
     threats,
     fetchEvaluaciones,
+    estadoEvaluacionActiva,
     setEstadoEvaluacionActiva,
     softwareActivo,
     contextoActivo,
@@ -712,7 +713,8 @@ export const ResultadoDictamen = () => {
   };
 
   React.useEffect(() => {
-    if (evaluacionId) {
+    // Solo solicitar cálculo si la evaluación aún no ha sido completada
+    if (evaluacionId && estadoEvaluacionActiva !== "completada") {
       apiService.calcularResultado(evaluacionId)
         .then((resp) => {
           if (
@@ -729,12 +731,12 @@ export const ResultadoDictamen = () => {
         })
         .catch(console.warn);
     }
-  }, [evaluacionId, fetchEvaluaciones, setEstadoEvaluacionActiva]);
+  }, [evaluacionId, estadoEvaluacionActiva, fetchEvaluaciones, setEstadoEvaluacionActiva]);
 
   const handleFinalizarYVerDashboard = async () => {
     setFinalizando(true);
     try {
-      if (sincronizarEvaluacionCompletaConBackend) {
+      if (estadoEvaluacionActiva !== "completada" && sincronizarEvaluacionCompletaConBackend) {
         await sincronizarEvaluacionCompletaConBackend();
       }
       if (setEstadoEvaluacionActiva) setEstadoEvaluacionActiva("completada");
