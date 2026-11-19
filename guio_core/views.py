@@ -863,15 +863,30 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
             "foda": ResultadoFodaSerializer(foda_registros, many=True).data,
         }, None
 
-    @action(detail=True, methods=["post"], url_path="resultado")
+    @action(detail=True, methods=["get", "post"], url_path="resultado")
     def calcular_resultado(self, request, pk=None):
         """
         HU-06 (Paso 3): Clasificación FODA y Dictamen Final (Regla de Oro de la Tesis).
-        Usa select_for_update() dentro de transaction.atomic() para prevenir
-        condiciones de carrera por doble clic o peticiones concurrentes (P2).
+        GET: Consulta segura e idempotente del dictamen y matriz FODA consolidada.
+        POST: Ejecuta el cálculo bajo transacción atómica y bloqueo de fila select_for_update().
         """
+        evaluacion = self.get_object()
+        if request.method == "GET" and evaluacion.estado == Evaluacion.EstadoEvaluacion.COMPLETADA:
+            foda_registros = evaluacion.resultados_foda.select_related("id_factor").all()
+            rec_obj = evaluacion.id_recomendacion
+            return Response({
+                "message": "Dictamen consolidado de la evaluación.",
+                "recomendacion_tipo": rec_obj.tipo if rec_obj else "",
+                "recomendacion_titulo": rec_obj.titulo if rec_obj else "",
+                "dictamen_texto": evaluacion.dictamen_texto or (rec_obj.descripcion if rec_obj else ""),
+                "indice_viabilidad": float(evaluacion.indice_viabilidad or 0.0),
+                "nivel_confianza": evaluacion.nivel_confianza or Evaluacion.NivelConfianza.MEDIO,
+                "estado": evaluacion.estado,
+                "total_factores_evaluados": foda_registros.count(),
+                "foda": ResultadoFodaSerializer(foda_registros, many=True).data,
+            }, status=status.HTTP_200_OK)
+
         with transaction.atomic():
-            evaluacion = self.get_object()
             # Bloquear la fila de evaluacion en PostgreSQL sin joins para evitar errores de lock en nullable side
             Evaluacion.objects.filter(pk=evaluacion.pk).select_for_update().first()
             evaluacion.refresh_from_db()

@@ -215,142 +215,144 @@ export const FactoresRelevantes = () => {
       </div>
 
       {/* 5. Contenedor de la Tabla */}
-      <div className="w-full overflow-x-auto rounded-xl border border-gray-100 bg-white shadow-xs">
-        <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
-          <thead>
-            <tr className="border-b border-gray-100 text-gray-500 font-medium text-[11px] bg-white">
-              <th className="py-4 px-4 font-semibold text-gray-600">Factor</th>
-              <th className="py-4 px-3 font-semibold text-gray-600">Dimensión</th>
-              <th className="py-4 px-3 font-semibold text-gray-600">IL</th>
-              <th className="py-4 px-3 font-semibold text-gray-600">IE</th>
-              <th className="py-4 px-3 font-semibold text-gray-600">Import. sugerida</th>
-              <th className="py-4 px-4 font-semibold text-gray-600">Tu importancia</th>
-              <th className="py-4 px-3 font-semibold text-gray-600">Import. relativa</th>
-              <th className="py-4 px-3 font-semibold text-gray-600 text-center">Alcance</th>
-              <th className="py-4 px-3 font-semibold text-gray-600 text-center">Estado</th>
-              <th className="py-4 px-4 font-semibold text-gray-600 text-center">Evidencia</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {factoresFiltrados.map((factor) => {
-              const esSoporte = factor.nombre === "Soporte";
-              const isRelevante = factor.relevante;
+      <div className="w-full rounded-xl border border-gray-100 bg-white shadow-xs overflow-hidden">
+        <div className="w-full overflow-x-auto lg:overflow-x-visible">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-gray-100 text-gray-500 font-medium text-[11px] bg-white">
+                <th className="py-3 px-3 sm:px-4 font-semibold text-gray-700">Factor</th>
+                <th className="py-3 px-2 font-semibold text-gray-700 hidden md:table-cell">Dimensión</th>
+                <th className="py-3 px-1.5 font-semibold text-gray-700 text-center">IL</th>
+                <th className="py-3 px-1.5 font-semibold text-gray-700 text-center">IE</th>
+                <th className="py-3 px-2 font-semibold text-gray-700">Import. sugerida</th>
+                <th className="py-3 px-2 sm:px-3 font-semibold text-gray-700">Tu importancia</th>
+                <th className="py-3 px-2 font-semibold text-gray-700">Import. relativa</th>
+                <th className="py-3 px-2 font-semibold text-gray-700 text-center">Alcance</th>
+                <th className="py-3 px-2 font-semibold text-gray-700 text-center">Estado</th>
+                <th className="py-3 px-2 sm:px-3 font-semibold text-gray-700 text-center">Evidencia</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {factoresFiltrados.map((factor) => {
+                const esSoporte = factor.nombre === "Soporte";
+                const isRelevante = factor.relevante;
 
-              return (
-                <tr
-                  key={factor.id}
-                  className={`transition-colors ${
-                    !isRelevante
-                      ? "bg-gray-50/50 opacity-60 hover:bg-gray-50"
-                      : "hover:bg-[#F9FCFA]"
-                  }`}
-                >
-                  {/* Factor */}
-                  <td className="py-4 px-4 font-semibold text-gray-800 text-[13px]">
-                    {factor.nombre}
-                  </td>
+                return (
+                  <tr
+                    key={factor.id}
+                    className={`transition-colors ${
+                      !isRelevante
+                        ? "bg-gray-50/50 opacity-60 hover:bg-gray-50"
+                        : "hover:bg-[#F9FCFA]"
+                    }`}
+                  >
+                    {/* Factor */}
+                    <td className="py-3 px-3 sm:px-4 font-semibold text-gray-800 text-[13px] leading-tight">
+                      {factor.nombre}
+                    </td>
 
-                  {/* Dimensión */}
-                  <td className="py-4 px-3 text-gray-600 text-xs">
-                    {factor.dimension}
-                  </td>
+                    {/* Dimensión */}
+                    <td className="py-3 px-2 text-gray-600 text-xs hidden md:table-cell whitespace-nowrap">
+                      {factor.dimension}
+                    </td>
 
-                  {/* IL */}
-                  <td className="py-4 px-3 text-gray-600 font-normal text-xs">
-                    {factor.IL_dec || (factor.IL === 4 ? "0.92" : factor.IL === 3 ? "0.76" : "0.55")}
-                  </td>
+                    {/* IL */}
+                    <td className="py-3 px-1.5 text-center text-gray-600 font-mono text-xs whitespace-nowrap">
+                      {factor.IL_dec || (factor.IL === 4 ? "0.92" : factor.IL === 3 ? "0.76" : "0.55")}
+                    </td>
 
-                  {/* IE */}
-                  <td className="py-4 px-3 text-gray-600 font-normal text-xs">
-                    {factor.IE_dec || (factor.IE === 4 ? "0.88" : factor.IE === 3 ? "0.71" : "0.52")}
-                  </td>
+                    {/* IE */}
+                    <td className="py-3 px-1.5 text-center text-gray-600 font-mono text-xs whitespace-nowrap">
+                      {factor.IE_dec || (factor.IE === 4 ? "0.88" : factor.IE === 3 ? "0.71" : "0.52")}
+                    </td>
 
-                  {/* Importancia sugerida (Badge con color semántico según IS) */}
-                  <td className="py-4 px-3">
-                    <Badge variant="auto" size="md">
-                      {formatImportancia(factor.IS)}
-                    </Badge>
-                  </td>
+                    {/* Importancia sugerida (Badge con color semántico según IS) */}
+                    <td className="py-3 px-2 whitespace-nowrap">
+                      <Badge variant="auto" size="sm">
+                        {formatImportancia(factor.IS)}
+                      </Badge>
+                    </td>
 
-                  {/* Tu importancia (Select estilizado armónicamente con ID) */}
-                  <td className="py-4 px-4">
-                    <div className="relative inline-block w-40">
-                      <select
-                        value={factor.ID}
-                        onChange={(e) => updateFactorID(factor.id, e.target.value)}
-                        className={`w-full appearance-none px-3 py-1.5 pr-8 text-xs font-medium rounded-lg border transition-all focus:outline-none focus:ring-1 focus:ring-[#3F6F58] cursor-pointer shadow-2xs ${
-                          idSelectStyles[factor.ID] || "border-gray-200 bg-white text-gray-800"
-                        }`}
-                      >
-                        <option value="4" className="bg-white text-[#14532D] font-medium">4 · Fundamental</option>
-                        <option value="3" className="bg-white text-[#25633C] font-medium">3 · Importante</option>
-                        <option value="2" className="bg-white text-[#854D0E] font-medium">2 · Opcional</option>
-                        <option value="1" className="bg-white text-[#64748B] font-medium">1 · Irrelevante</option>
-                      </select>
-                      <ChevronDown
-                        size={13}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-                      />
-                    </div>
-                  </td>
-
-                  {/* Importancia relativa (Badge con color según IR) */}
-                  <td className="py-4 px-3">
-                    <Badge variant="auto" size="md">
-                      {formatImportancia(factor.IR)}
-                    </Badge>
-                  </td>
-
-                  {/* Alcance (Pill o Select para Soporte) */}
-                  <td className="py-4 px-3 text-center">
-                    {esSoporte && isRelevante ? (
-                      <div className="relative inline-block w-28">
+                    {/* Tu importancia (Select estilizado armónicamente con ID) */}
+                    <td className="py-3 px-2 sm:px-3 whitespace-nowrap">
+                      <div className="relative inline-block w-32 sm:w-36">
                         <select
-                          value={factor.alcance || "Interno"}
-                          onChange={(e) => updateFactorAlcance(factor.id, e.target.value)}
-                          className="w-full appearance-none px-3 py-1 pr-6 text-xs font-medium rounded-full border border-[#CDE1D4] bg-[#F0F7F4] text-[#2F5444] focus:outline-none cursor-pointer"
+                          value={factor.ID}
+                          onChange={(e) => updateFactorID(factor.id, e.target.value)}
+                          className={`w-full appearance-none px-2.5 py-1 pr-6 text-xs font-medium rounded-lg border transition-all focus:outline-none focus:ring-1 focus:ring-[#3F6F58] cursor-pointer shadow-2xs ${
+                            idSelectStyles[factor.ID] || "border-gray-200 bg-white text-gray-800"
+                          }`}
                         >
-                          <option value="Interno">Interno</option>
-                          <option value="Externo">Externo</option>
+                          <option value="4" className="bg-white text-[#14532D] font-medium">4 · Fundamental</option>
+                          <option value="3" className="bg-white text-[#25633C] font-medium">3 · Importante</option>
+                          <option value="2" className="bg-white text-[#854D0E] font-medium">2 · Opcional</option>
+                          <option value="1" className="bg-white text-[#64748B] font-medium">1 · Irrelevante</option>
                         </select>
                         <ChevronDown
                           size={12}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#3F6F58] pointer-events-none"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
                         />
                       </div>
-                    ) : factor.alcance === "Interno" ? (
-                      <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-medium border border-[#CDE1D4] bg-[#F0F7F4] text-[#2F5444]">
-                        Interno
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-normal border border-gray-200 bg-white text-gray-600">
-                        {factor.alcance || "—"}
-                      </span>
-                    )}
-                  </td>
+                    </td>
 
-                  {/* Estado (Badge Relevante en verde institucional / Irrelevante en gris neutro) */}
-                  <td className="py-4 px-3 text-center">
-                    <Badge variant={isRelevante ? "relevante" : "irrelevante"} size="md">
-                      {isRelevante ? "Relevante" : "Irrelevante"}
-                    </Badge>
-                  </td>
+                    {/* Importancia relativa (Badge con color según IR) */}
+                    <td className="py-3 px-2 whitespace-nowrap">
+                      <Badge variant="auto" size="sm">
+                        {formatImportancia(factor.IR)}
+                      </Badge>
+                    </td>
 
-                  {/* Evidencia (Enlace subrayado verde que abre el Drawer) */}
-                  <td className="py-4 px-4 text-center">
-                    <button
-                      type="button"
-                      onClick={() => setDrawerFactor(factor)}
-                      className="text-[#2F5444] hover:text-[#1F3A2E] underline font-medium text-xs cursor-pointer"
-                    >
-                      Ver {factor.evidencia_count || factor.documentos || 10}
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    {/* Alcance (Pill o Select para Soporte) */}
+                    <td className="py-3 px-2 text-center whitespace-nowrap">
+                      {esSoporte && isRelevante ? (
+                        <div className="relative inline-block w-24">
+                          <select
+                            value={factor.alcance || "Interno"}
+                            onChange={(e) => updateFactorAlcance(factor.id, e.target.value)}
+                            className="w-full appearance-none px-2.5 py-0.5 pr-5 text-xs font-medium rounded-full border border-[#CDE1D4] bg-[#F0F7F4] text-[#2F5444] focus:outline-none cursor-pointer"
+                          >
+                            <option value="Interno">Interno</option>
+                            <option value="Externo">Externo</option>
+                          </select>
+                          <ChevronDown
+                            size={11}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-[#3F6F58] pointer-events-none"
+                          />
+                        </div>
+                      ) : factor.alcance === "Interno" ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border border-[#CDE1D4] bg-[#F0F7F4] text-[#2F5444]">
+                          Interno
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-normal border border-gray-200 bg-white text-gray-600">
+                          {factor.alcance || "—"}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Estado (Badge Relevante en verde institucional / Irrelevante en gris neutro) */}
+                    <td className="py-3 px-2 text-center whitespace-nowrap">
+                      <Badge variant={isRelevante ? "relevante" : "irrelevante"} size="sm">
+                        {isRelevante ? "Relevante" : "Irrelevante"}
+                      </Badge>
+                    </td>
+
+                    {/* Evidencia (Enlace subrayado verde que abre el Drawer) */}
+                    <td className="py-3 px-2 sm:px-3 text-center whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => setDrawerFactor(factor)}
+                        className="text-[#2F5444] hover:text-[#1F3A2E] underline font-medium text-xs cursor-pointer"
+                      >
+                        Ver {factor.evidencia_count || factor.documentos || 10}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Pie inferior: Resumen y botón Continuar al Paso 2 */}
