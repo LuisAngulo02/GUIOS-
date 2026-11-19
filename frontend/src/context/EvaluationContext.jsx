@@ -611,6 +611,9 @@ export const EvaluationProvider = ({ children }) => {
   // Sincronizar evaluación completa (Paso 1, Paso 2 y Dictamen Paso 3) con Backend
   const sincronizarEvaluacionCompletaConBackend = useCallback(async (targetId) => {
     let idToUse = targetId || evaluacionId;
+    if (estadoEvaluacionActiva === "completada") {
+      return { id: idToUse, completada: true };
+    }
     if (!idToUse || Number(idToUse) > 100000000 || isNaN(Number(idToUse))) {
       const softName = localStorage.getItem("guios_software_activo") || softwareActivo;
       const contName = localStorage.getItem("guios_contexto_activo") || contextoActivo;
@@ -662,7 +665,7 @@ export const EvaluationProvider = ({ children }) => {
     } finally {
       setTimeout(() => setSaveStatus("Guardado"), 2000);
     }
-  }, [evaluacionId, factores, subfactoresState, softwareActivo, contextoActivo, descripcionCaso]);
+  }, [evaluacionId, estadoEvaluacionActiva, factores, subfactoresState, softwareActivo, contextoActivo, descripcionCaso]);
 
   // Actualizar "Tu importancia" (ID) de un factor con recálculo en vivo
   const updateFactorID = (factorId, nuevoID) => {
@@ -837,10 +840,6 @@ export const EvaluationProvider = ({ children }) => {
     let nivelConfianza = "Alta";
     if (ratioConfianza < 60) nivelConfianza = "Baja";
     else if (ratioConfianza < 90) nivelConfianza = "Media";
-      relevantes.every((f) => {
-        const sfs = subfactoresState[f.id] || [];
-        return sfs.length > 0 && sfs.every((s) => s.calificacion >= 1);
-      });
 
     return {
       totalFactores: factores.length,

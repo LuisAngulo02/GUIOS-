@@ -73,10 +73,10 @@ class FodaCategory(str, Enum):
 
 class RecommendationType(str, Enum):
     """
-    Tipos de recomendación de adopción según la metodología GUIOS y la Matriz 2021:
-    - RECOMENDACION_A: Riesgo crítico detectado. No es viable adoptar sin mitigar debilidades/amenazas clave.
-    - RECOMENDACION_B: Viable adoptar con reservas (revisar aspectos opcionales con baja puntuación).
-    - RECOMENDACION_C: Adoptar plenamente (todos los factores evaluados son fortalezas u oportunidades).
+    Tipos de recomendación de adopción según la metodología GUIOS (Tesis Doctoral):
+    - RECOMENDACION_A: Adoptar (todos los factores evaluados son fortalezas u oportunidades).
+    - RECOMENDACION_B: Es posible adoptar con observaciones (debilidades/amenazas solo en factores opcionales).
+    - RECOMENDACION_C: Requiere recursos antes de adoptar (debilidades/amenazas en factores críticos).
     """
     RECOMENDACION_A = "Recomendación A"
     RECOMENDACION_B = "Recomendación B"

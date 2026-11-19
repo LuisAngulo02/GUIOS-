@@ -87,10 +87,11 @@ def _http_json(
     payload: Optional[Dict[str, Any]] = None,
     headers: Optional[Dict[str, str]] = None,
     timeout: int = 10,
-    retries: int = 1,
+    retries: int = 2,
 ) -> Optional[Dict[str, Any]]:
-    """Realiza peticiones HTTP JSON seguras usando únicamente la librería estándar con soporte de api-key y reintento en 429."""
+    """Realiza peticiones HTTP JSON seguras usando únicamente la librería estándar con soporte de api-key, backoff exponencial y reintento en 429."""
     import time
+    import random
 
     req_headers = {
         "User-Agent": f"GUIOSPRO-AcademicBot/1.0 (mailto:{getattr(settings, 'OPENALEX_EMAIL', 'guiospro@research.local')})",
@@ -116,9 +117,29 @@ def _http_json(
                 return json.loads(raw)
         except urllib.error.HTTPError as exc:
             if exc.code == 429 and intento < retries:
-                time.sleep(0.6 * (intento + 1))
+                # Respetar Retry-After si el servidor lo indica, o aplicar backoff exponencial
+                retry_after_hdr = exc.headers.get("Retry-After") if hasattr(exc, "headers") else None
+                try:
+                    espera = float(retry_after_hdr) if retry_after_hdr else (1.2 * (intento + 1) + random.uniform(0.2, 0.5))
+                except (ValueError, TypeError):
+                    espera = 1.2 * (intento + 1) + random.uniform(0.2, 0.5)
+                logger.info("OpenAlex 429 (Too Many Requests). Esperando %.2fs antes de reintentar (intento %d/%d)...", espera, intento + 1, retries)
+                time.sleep(espera)
                 continue
-            logger.warning("Fallo petición HTTP (%s): %s", url.split("?")[0], exc)
+            if exc.code in (401, 403) and "openalex.org" in url:
+                if "api_key" in url or "Authorization" in req_headers:
+                    logger.info("OpenAlex API key no activada o rechazada (%s). Reintentando bajo el pool público (mailto)...", exc)
+                    req_headers.pop("Authorization", None)
+                    parsed = urllib.parse.urlparse(url)
+                    qs = urllib.parse.parse_qs(parsed.query)
+                    qs.pop("api_key", None)
+                    new_query = urllib.parse.urlencode({k: v[0] if len(v) == 1 else v for k, v in qs.items()}, doseq=True)
+                    url = urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
+                    continue
+            if exc.code == 429:
+                logger.info("OpenAlex con límite de tasa temporal (429). Se aplicará benchmark metodológico de respaldo: %s", exc)
+            else:
+                logger.warning("Fallo petición HTTP (%s): %s", url.split("?")[0], exc)
             return None
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
             logger.warning("Fallo petición HTTP (%s): %s", url.split("?")[0], exc)
@@ -502,6 +523,10 @@ def ejecutar_paso_0(
 
     # 2. Consultas paralelas a OpenAlex
     def _procesar_factor(factor: Factor) -> Dict[str, Any]:
+        import time
+        # Escalonamiento leve para proteger la cuota de peticiones por segundo de OpenAlex
+        time.sleep(0.06 * (factor.id % 4))
+
         kw_info = keywords_map.get(factor.id, {"keywords": [], "usar_sinonimos": True})
         base_kws = kw_info["keywords"]
         ia_kws = sinonimos_ia_map.get(factor.id, [])

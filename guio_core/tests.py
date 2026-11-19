@@ -251,6 +251,39 @@ class EvaluacionApiFlowTestCase(TestCase):
         self.assertNotIn("<script>", content_disp)
         self.assertIn("attachment; filename=", content_disp)
 
+    def test_p2_nivel_confianza_ignora_subfactores_irrelevantes(self):
+        """P2: Verifica que el nivel de confianza ignore subfactores de factores marcados como irrelevantes."""
+        res_crear = self.client.post("/api/v1/guios/evaluations/", {"nombre_software": "Audit Software P2"})
+        eval_id = res_crear.data["id"]
+
+        # Paso 1: F_compat es Relevante (IR=3), F_soporte es Relevante (IR=3)
+        self.client.post(f"/api/v1/guios/evaluations/{eval_id}/paso1/", {
+            "factores": [
+                {"id_factor": self.f_compat.id, "importancia_decisor": 4, "alcance_aplicado": "Externo"},
+                {"id_factor": self.f_soporte.id, "importancia_decisor": 3, "alcance_aplicado": "Interno"},
+            ]
+        }, format="json")
+
+        # Paso 2: Calificar subfactores de ambos. En sf3 (soporte) calificamos con 2 (Desconozco)
+        self.client.post(f"/api/v1/guios/evaluations/{eval_id}/paso2/", {
+            "subfactores": [
+                {"id_subfactor": self.sf1.id, "calificacion": 4, "observacion": "Optimo"},
+                {"id_subfactor": self.sf2.id, "calificacion": 4, "observacion": "Optimo"},
+                {"id_subfactor": self.sf3.id, "calificacion": 2, "observacion": "Desconozco"},
+            ]
+        }, format="json")
+
+        # Ahora el usuario regresa al Paso 1 y descarta soporte (lo marca Irrelevante)
+        rf_soporte = ResultadoFactor.objects.get(id_evaluacion_id=eval_id, id_factor=self.f_soporte)
+        rf_soporte.importancia_relativa = ResultadoFactor.ImportanciaRelativaTexto.IRRELEVANTE
+        rf_soporte.save()
+
+        # Calcular resultado: F_compat tiene 2 subfactores (sf1, sf2) con nota 4 (sin 'Desconozco').
+        # F_soporte tiene sf3 con nota 2, pero como es IRRELEVANTE no debe alterar la certeza (debe ser 100% -> ALTO).
+        res_calc = self.client.post(f"/api/v1/guios/evaluations/{eval_id}/resultado/")
+        self.assertEqual(res_calc.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_calc.data["nivel_confianza"], Evaluacion.NivelConfianza.ALTO)
+
 
 class AdminCatalogoHU03TestCase(TestCase):
     """Pruebas unitarias para HU-03: Gestión del Catálogo de Evaluación (RF-03, RF-04)."""
@@ -557,15 +590,116 @@ class AdminCatalogoHU03TestCase(TestCase):
         self.assertEqual(resp_recarga.status_code, status.HTTP_200_OK)
         self.assertEqual(ConsultaEvidencia.objects.filter(id_evaluacion=ev).count(), 1)
 
-    def test_comparar_evaluaciones_sin_autenticacion(self):
-        """Verifica que el comparador en paralelo funcione sin credenciales (AllowAny) sin lanzar 401."""
-        id1 = Evaluacion.objects.create(nombre_software="App A", id_usuario=self.evaluador).id
-        id2 = Evaluacion.objects.create(nombre_software="App B", id_usuario=self.evaluador).id
+    def test_seguridad_evaluaciones_requiere_autenticacion(self):
+        """P1: Verifica que todas las operaciones de EvaluacionViewSet requieran autenticación JWT (401)."""
+        ev = Evaluacion.objects.create(nombre_software="Software Privado", id_usuario=self.evaluador)
         cliente_anonimo = APIClient()
-        resp = cliente_anonimo.get(f"/api/v1/guios/evaluations/comparar/?eval1={id1}&eval2={id2}")
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertIn("evaluacion_1", resp.data)
-        self.assertIn("evaluacion_2", resp.data)
+
+        # 1. Listar evaluaciones sin token
+        resp_list = cliente_anonimo.get("/api/v1/guios/evaluations/")
+        self.assertEqual(resp_list.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # 2. Crear evaluación sin token
+        resp_create = cliente_anonimo.post("/api/v1/guios/evaluations/", {"nombre_software": "Hacker App"})
+        self.assertEqual(resp_create.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # 3. Detalle de evaluación sin token
+        resp_detail = cliente_anonimo.get(f"/api/v1/guios/evaluations/{ev.id}/")
+        self.assertEqual(resp_detail.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # 4. Cargar activa sin token
+        resp_activa = cliente_anonimo.get(f"/api/v1/guios/evaluations/{ev.id}/cargar_activa/")
+        self.assertEqual(resp_activa.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # 5. Exportar PDF sin token
+        resp_pdf = cliente_anonimo.get(f"/api/v1/guios/evaluations/{ev.id}/pdf/")
+        self.assertEqual(resp_pdf.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # 6. Comparar sin token
+        resp_comp = cliente_anonimo.get(f"/api/v1/guios/evaluations/comparar/?eval1={ev.id}&eval2={ev.id}")
+        self.assertEqual(resp_comp.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # 7. Cargar caso UNEMI sin token
+        resp_unemi = cliente_anonimo.post("/api/v1/guios/evaluations/caso-unemi/")
+        self.assertEqual(resp_unemi.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_seguridad_aislamiento_evaluaciones_idor(self):
+        """P1: Verifica aislamiento estricto de evaluaciones entre evaluadores (mitigación BOLA/IDOR)."""
+        evaluador2 = Usuario.objects.create_user(
+            email="eval2.sec@guiosplus.org",
+            nombre="Evaluador Dos",
+            password="Password456!",
+            id_rol=self.rol_eval,
+        )
+
+        ev1 = Evaluacion.objects.create(nombre_software="Sistema Alfa (User 1)", id_usuario=self.evaluador)
+        ev2 = Evaluacion.objects.create(nombre_software="Sistema Beta (User 2)", id_usuario=evaluador2)
+
+        # Evaluador 1 solo debe ver ev1
+        self.client.force_authenticate(user=self.evaluador)
+        resp_list1 = self.client.get("/api/v1/guios/evaluations/")
+        self.assertEqual(resp_list1.status_code, status.HTTP_200_OK)
+        ids_visibles1 = [e["id"] for e in resp_list1.data]
+        self.assertIn(ev1.id, ids_visibles1)
+        self.assertNotIn(ev2.id, ids_visibles1)
+
+        # Evaluador 1 no puede ver ni modificar ev2 (debe retornar 404 Not Found)
+        resp_det_idor = self.client.get(f"/api/v1/guios/evaluations/{ev2.id}/")
+        self.assertEqual(resp_det_idor.status_code, status.HTTP_404_NOT_FOUND)
+
+        resp_activa_idor = self.client.get(f"/api/v1/guios/evaluations/{ev2.id}/cargar_activa/")
+        self.assertEqual(resp_activa_idor.status_code, status.HTTP_404_NOT_FOUND)
+
+        resp_pdf_idor = self.client.get(f"/api/v1/guios/evaluations/{ev2.id}/pdf/")
+        self.assertEqual(resp_pdf_idor.status_code, status.HTTP_404_NOT_FOUND)
+
+        resp_comp_idor = self.client.get(f"/api/v1/guios/evaluations/comparar/?eval1={ev1.id}&eval2={ev2.id}")
+        self.assertEqual(resp_comp_idor.status_code, status.HTTP_404_NOT_FOUND)
+
+        resp_del_idor = self.client.delete(f"/api/v1/guios/evaluations/{ev2.id}/")
+        self.assertEqual(resp_del_idor.status_code, status.HTTP_404_NOT_FOUND)
+
+        # Evaluador 2 solo debe ver ev2
+        self.client.force_authenticate(user=evaluador2)
+        resp_list2 = self.client.get("/api/v1/guios/evaluations/")
+        self.assertEqual(resp_list2.status_code, status.HTTP_200_OK)
+        ids_visibles2 = [e["id"] for e in resp_list2.data]
+        self.assertIn(ev2.id, ids_visibles2)
+        self.assertNotIn(ev1.id, ids_visibles2)
+
+        resp_det_idor2 = self.client.get(f"/api/v1/guios/evaluations/{ev1.id}/")
+        self.assertEqual(resp_det_idor2.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_seguridad_administrador_acceso_global_evaluaciones(self):
+        """P1: El administrador tiene visibilidad global para auditar y comparar cualquier evaluación."""
+        evaluador2 = Usuario.objects.create_user(
+            email="eval3.sec@guiosplus.org",
+            nombre="Evaluador Tres",
+            password="Password789!",
+            id_rol=self.rol_eval,
+        )
+        ev1 = Evaluacion.objects.create(nombre_software="App Evaluador 1", id_usuario=self.evaluador)
+        ev2 = Evaluacion.objects.create(nombre_software="App Evaluador 2", id_usuario=evaluador2)
+
+        # Admin autenticado
+        self.client.force_authenticate(user=self.admin)
+        resp_list = self.client.get("/api/v1/guios/evaluations/")
+        self.assertEqual(resp_list.status_code, status.HTTP_200_OK)
+        ids_visibles = [e["id"] for e in resp_list.data]
+        self.assertIn(ev1.id, ids_visibles)
+        self.assertIn(ev2.id, ids_visibles)
+
+        # Admin puede cargar activa de cualquiera
+        resp_act1 = self.client.get(f"/api/v1/guios/evaluations/{ev1.id}/cargar_activa/")
+        self.assertEqual(resp_act1.status_code, status.HTTP_200_OK)
+        resp_act2 = self.client.get(f"/api/v1/guios/evaluations/{ev2.id}/cargar_activa/")
+        self.assertEqual(resp_act2.status_code, status.HTTP_200_OK)
+
+        # Admin puede comparar evaluaciones entre distintos usuarios
+        resp_comp = self.client.get(f"/api/v1/guios/evaluations/comparar/?eval1={ev1.id}&eval2={ev2.id}")
+        self.assertEqual(resp_comp.status_code, status.HTTP_200_OK)
+        self.assertIn("evaluacion_1", resp_comp.data)
+        self.assertIn("evaluacion_2", resp_comp.data)
 
     def test_exportar_pdf_caso_unemi_libreoffice_evaluador(self):
         """Valida que un usuario evaluador pueda cargar y descargar el PDF de LibreOffice (UNEMI)."""
@@ -608,6 +742,41 @@ class AdminCatalogoHU03TestCase(TestCase):
         self.assertEqual(resp_save.status_code, status.HTTP_200_OK)
         self.assertEqual(resp_save.data["parametros"]["inicio_ventana"], 2018)
         self.assertEqual(resp_save.data["parametros"]["fin_ventana"], 2028)
+
+    def test_p3_motor_dominio_guiosad_engine_alineado_con_tesis(self):
+        """P3: Valida que el motor puro GuiosadEngine aplique la regla de oro de la Tesis Doctoral."""
+        from guio_core.engine.domain_models import Factor as DomainFactor, Scope, ImportanceLevel, FodaCategory, RecommendationType
+        from guio_core.engine.calculator import GuiosadEngine
+
+        f1 = DomainFactor(
+            name="Factor A",
+            dimension_name="Tecnológica",
+            scope=Scope.EXTERNO,
+            relative_importance=ImportanceLevel.IMPORTANTE,
+        )
+        f1.foda = FodaCategory.OPORTUNIDAD
+
+        f2 = DomainFactor(
+            name="Factor B",
+            dimension_name="Organizacional",
+            scope=Scope.INTERNO,
+            relative_importance=ImportanceLevel.OPCIONAL,
+        )
+        f2.foda = FodaCategory.FORTALEZA
+
+        # 1. Todos positivos -> Recomendación A
+        rec_a = GuiosadEngine.evaluate_recommendation([f1, f2])
+        self.assertEqual(rec_a.recommendation_type, RecommendationType.RECOMENDACION_A)
+
+        # 2. Debilidad solo en factor opcional -> Recomendación B
+        f2.foda = FodaCategory.DEBILIDAD
+        rec_b = GuiosadEngine.evaluate_recommendation([f1, f2])
+        self.assertEqual(rec_b.recommendation_type, RecommendationType.RECOMENDACION_B)
+
+        # 3. Amenaza en factor importante/crítico -> Recomendación C
+        f1.foda = FodaCategory.AMENAZA
+        rec_c = GuiosadEngine.evaluate_recommendation([f1, f2])
+        self.assertEqual(rec_c.recommendation_type, RecommendationType.RECOMENDACION_C)
 
 
 

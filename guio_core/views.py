@@ -363,24 +363,24 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
     Los evaluadores solo ven sus propias evaluaciones; los administradores pueden ver todas.
     Permite lectura y carga activa transparente con autenticación JWT opcional.
     """
-    authentication_classes = [OptionalJWTAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        if self.action in ["list", "retrieve", "cargar_activa", "comparar", "exportar_pdf"]:
-            return [AllowAny()]
         return [IsAuthenticated()]
 
     def get_queryset(self):
         user = self.request.user
+        if not user or not user.is_authenticated:
+            return Evaluacion.objects.none()
+
         qs = Evaluacion.objects.select_related("id_usuario", "id_recomendacion").prefetch_related(
             "resultados_factor__id_factor",
             "resultados_foda__id_factor",
             "resultados_subfactor__id_subfactor",
         )
-        if user and hasattr(user, "is_authenticated") and user.is_authenticated:
-            es_admin = user.is_superuser or (user.id_rol and user.id_rol.nombre == "administrador")
-            if not es_admin:
-                qs = qs.filter(id_usuario=user)
+        es_admin = user.is_superuser or (user.id_rol and user.id_rol.nombre == "administrador")
+        if not es_admin:
+            qs = qs.filter(id_usuario=user)
 
         # Filtros opcionales por query parameters (HU-07)
         estado = self.request.query_params.get("estado")
@@ -720,8 +720,20 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
         factores_criticos = []
         factores_opcionales_da = []
         positivos_count = 0
-        total_calificados = len(calificaciones_map)
-        no_se_count = sum(1 for c in calificaciones_map.values() if c == 2)
+
+        # Filtrar calificaciones_map exclusivamente para los subfactores de factores relevantes (P2)
+        subfactores_relevantes_ids = set()
+        for rf in relevantes_rf:
+            for sf_id in rf.id_factor.subfactores.filter(activo=True).values_list("id", flat=True):
+                subfactores_relevantes_ids.add(sf_id)
+
+        notas_relevantes = [
+            calificaciones_map[sf_id]
+            for sf_id in subfactores_relevantes_ids
+            if sf_id in calificaciones_map
+        ]
+        total_calificados = len(notas_relevantes)
+        no_se_count = sum(1 for c in notas_relevantes if c == 2)
 
         with transaction.atomic():
             # Limpiar resultados FODA previos si se recalcula
@@ -855,19 +867,24 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
     def calcular_resultado(self, request, pk=None):
         """
         HU-06 (Paso 3): Clasificación FODA y Dictamen Final (Regla de Oro de la Tesis).
+        Usa select_for_update() dentro de transaction.atomic() para prevenir
+        condiciones de carrera por doble clic o peticiones concurrentes (P2).
         """
-        evaluacion = self.get_object()
-        data, err = self._ejecutar_calculo_foda_interno(evaluacion, user=request.user)
-        if err:
-            return Response({"detail": err}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(data, status=status.HTTP_200_OK)
+        with transaction.atomic():
+            evaluacion = self.get_object()
+            # Bloquear la fila de evaluacion en PostgreSQL sin joins para evitar errores de lock en nullable side
+            Evaluacion.objects.filter(pk=evaluacion.pk).select_for_update().first()
+            evaluacion.refresh_from_db()
+            data, err = self._ejecutar_calculo_foda_interno(evaluacion, user=request.user)
+            if err:
+                return Response({"detail": err}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(data, status=status.HTTP_200_OK)
 
     @action(
         detail=False,
         methods=["get"],
         url_path="comparar",
-        permission_classes=[AllowAny],
-        authentication_classes=[OptionalJWTAuthentication],
+        permission_classes=[IsAuthenticated],
     )
     def comparar(self, request):
         """
@@ -890,12 +907,13 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        eval1 = Evaluacion.objects.filter(id=eval1_id).first()
-        eval2 = Evaluacion.objects.filter(id=eval2_id).first()
+        qs = self.get_queryset()
+        eval1 = qs.filter(id=eval1_id).first()
+        eval2 = qs.filter(id=eval2_id).first()
 
         if not eval1 or not eval2:
             return Response(
-                {"detail": "Una o ambas evaluaciones seleccionadas no existen en la base de datos."},
+                {"detail": "Una o ambas evaluaciones seleccionadas no existen o no tiene permisos para acceder a ellas."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -970,14 +988,13 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=["get"],
         url_path="cargar_activa",
-        permission_classes=[AllowAny],
-        authentication_classes=[OptionalJWTAuthentication],
+        permission_classes=[IsAuthenticated],
     )
     def cargar_activa(self, request, pk=None):
         """
         Carga el estado completo de una evaluación para reanudarla en el frontend.
         """
-        evaluacion = get_object_or_404(Evaluacion, pk=pk)
+        evaluacion = self.get_object()
         serializer = EvaluacionDetalleSerializer(evaluacion)
 
         # Mapeo de subfactores calificados
@@ -1010,8 +1027,7 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=["get", "post"],
         url_path="pdf",
-        permission_classes=[AllowAny],
-        authentication_classes=[OptionalJWTAuthentication],
+        permission_classes=[IsAuthenticated],
     )
     def exportar_pdf(self, request, pk=None):
         """
@@ -1019,12 +1035,7 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
         Genera el documento en tiempo real (< 5 s) con portada, dictamen de adopción,
         matriz FODA, desglose metodológico y anexo técnico de subfactores.
         """
-        evaluacion = Evaluacion.objects.filter(pk=pk).first()
-        if not evaluacion:
-            return Response(
-                {"detail": f"Evaluación #{pk} no encontrada."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+        evaluacion = self.get_object()
         try:
             # 1. Si vienen factores o subfactores en el body de POST y la evaluación NO está completada, persistirlos
             if request.method == "POST" and request.data and evaluacion.estado != Evaluacion.EstadoEvaluacion.COMPLETADA:
@@ -1381,8 +1392,7 @@ class CargarCasoUNEMIView(views.APIView):
     documentada en el Capítulo 6 de la tesis doctoral (migración hacia LibreOffice).
     Popula los 18 factores, los 61 reactivos calificados, genera la matriz FODA y el dictamen.
     """
-    permission_classes = [AllowAny]
-    authentication_classes = [OptionalJWTAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         return self._ejecutar_carga(request)
@@ -1395,21 +1405,7 @@ class CargarCasoUNEMIView(views.APIView):
         if Subfactor.objects.filter(activo=True).count() < 61:
             call_command("seed_catalog")
 
-        user = (
-            request.user
-            if (request.user and request.user.is_authenticated)
-            else Usuario.objects.filter(is_active=True).first()
-        )
-        if not user:
-            from guio_core.models import Rol
-            rol_eval = Rol.objects.filter(nombre="evaluador").first()
-            user = Usuario.objects.create(
-                correo="evaluador.unemi@guiospro.local",
-                nombre="Especialista TI",
-                apellido="UNEMI",
-                id_rol=rol_eval,
-                is_active=True,
-            )
+        user = request.user
 
         with transaction.atomic():
             evaluacion = Evaluacion.objects.filter(
