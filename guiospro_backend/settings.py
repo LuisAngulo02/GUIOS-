@@ -204,7 +204,6 @@ GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
 GEMINI_MODEL = env('GEMINI_MODEL', default='gemini-flash-lite-latest')
 OPENALEX_EMAIL = env('OPENALEX_EMAIL', default='guiospro@research.local')
 OPENALEX_API_KEY = env('OPENALEX_API_KEY', default='')
-SEMANTIC_SCHOLAR_API_KEY = env('SEMANTIC_SCHOLAR_API_KEY', default='')
 SCOPUS_API_KEY = env('SCOPUS_API_KEY', default='')
 
 # Email & Password Reset Configuration

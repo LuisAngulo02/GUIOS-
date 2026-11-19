@@ -1245,7 +1245,7 @@ class EvidenciaView(views.APIView):
 class CalcularEvidenciaView(views.APIView):
     """
     POST /api/v1/guios/evidencia/calcular/
-    Paso 0 (RF-14): Ejecuta expansión de sinónimos vía IA + búsqueda real en OpenAlex/Semantic Scholar
+    Paso 0 (RF-14): Ejecuta expansión de sinónimos vía IA + búsqueda real en OpenAlex (con fallback Scopus RSL)
     y calcula IL, IE e IS según los cuartiles de la tesis doctoral.
     """
     permission_classes = [AllowAny]

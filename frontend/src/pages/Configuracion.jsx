@@ -39,7 +39,6 @@ export const Configuracion = () => {
   const [fuentes, setFuentes] = useState({
     scopus: true,
     openAlex: true,
-    semanticScholar: false, // Desactivado temporalmente hasta aprobación de API key
   });
 
   // Estado de cálculo real con backend + IA + APIs académicas
@@ -233,9 +232,8 @@ export const Configuracion = () => {
             </label>
             <div className="space-y-2.5">
               {[
-                { key: "scopus", name: "Scopus (Elsevier)", desc: "54 estudios primarios indexados" },
-                { key: "openAlex", name: "OpenAlex", desc: "Metadatos abiertos globales y citas" },
-                { key: "semanticScholar", name: "Semantic Scholar", desc: "En espera de API Key (desactivado temporalmente)" },
+                { key: "scopus", name: "Scopus (Elsevier)", desc: "54 estudios primarios indexados (RSL de la Tesis)" },
+                { key: "openAlex", name: "OpenAlex", desc: "Metadatos abiertos globales y citas en vivo" },
               ].map((src) => {
                 const conectada = !!fuentes[src.key];
                 return (
@@ -293,7 +291,7 @@ export const Configuracion = () => {
           {calculando && (
             <div className="p-4 rounded-lg bg-[#EBF4EE] border border-[#CDE1D4]">
               <div className="flex justify-between items-center text-xs font-semibold text-[#2F5444] mb-1">
-                <span>Consultando OpenAlex / Semantic Scholar y procesando sinónimos...</span>
+                <span>Consultando OpenAlex y procesando sinónimos con IA...</span>
                 <span>{progreso}%</span>
               </div>
               <div className="w-full bg-white rounded-full h-2 overflow-hidden">

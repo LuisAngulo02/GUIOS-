@@ -450,7 +450,7 @@ class AdminCatalogoHU03TestCase(TestCase):
             "evaluacion_id": ev.id,
             "nombre_software": "Moodle",
             "contexto_uso": "Educación",
-            "fuentes": {"scopus": True, "openAlex": True, "semanticScholar": False},
+            "fuentes": {"scopus": True, "openAlex": True},
         }, format="json")
         self.assertEqual(resp_calc.status_code, status.HTTP_200_OK)
         self.assertEqual(resp_calc.data["software"], "Moodle")

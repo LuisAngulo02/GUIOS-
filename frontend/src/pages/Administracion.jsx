@@ -1623,22 +1623,6 @@ export const Administracion = () => {
                 Conectada
               </span>
             </div>
-
-            {/* Semantic Scholar */}
-            <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/60 flex items-center justify-between gap-4 shadow-2xs">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-xs shrink-0">
-                  SS
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-700 text-sm">Semantic Scholar</h4>
-                  <p className="text-[11px] text-gray-400">En espera de API Key (opcional, desactivado temporalmente)</p>
-                </div>
-              </div>
-              <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-200 text-gray-600 shrink-0">
-                Desconectada
-              </span>
-            </div>
           </div>
         </div>
       )}

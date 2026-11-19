@@ -3,7 +3,7 @@ Servicio de Inteligencia Artificial y Conectores Académicos (RF-14 / Paso 0).
 
 Combina:
 1. Expansión multilingüe (ES/EN/PT) de palabras clave con Google Gemini API (opcional vía GEMINI_API_KEY).
-2. Búsqueda bibliográfica real en APIs abiertas: OpenAlex y Semantic Scholar.
+2. Búsqueda bibliográfica real en APIs abiertas: OpenAlex (con fallback Scopus RSL).
 3. Cálculo metodológico exacto de la tesis doctoral para IL, IE e IS:
    - r_i = TC_i / NS_i (citas del factor / número de subfactores)
    - IL según cuartiles (1 a 4)
@@ -211,7 +211,7 @@ def generar_sinonimos_gemini(
     prompt = (
         f"Eres un asistente bibliométrico experto en evaluación de software libre (FLOSS). "
         f"Para el software '{nombre_software}' en el contexto '{contexto_uso or 'Institucional'}', "
-        f"genera exactamente 2 términos de búsqueda académicos concisos en inglés (para maximizar cobertura en OpenAlex y Semantic Scholar) "
+        f"genera exactamente 2 términos de búsqueda académicos concisos en inglés (para maximizar cobertura en OpenAlex) "
         f"adicionales a los base para cada factor. "
         f"Devuelve estrictamente un objeto JSON donde cada clave sea el 'id' en string (ej. \"1\") "
         f"y el valor sea un arreglo de 2 strings cortos (1 a 3 palabras cada uno).\n\n"
@@ -361,51 +361,6 @@ def consultar_openalex_factor(
     }
 
 
-def consultar_semantic_scholar_factor(
-    nombre_software: str,
-    keywords: List[str],
-) -> Optional[Dict[str, Any]]:
-    """Consulta complementaria a Semantic Scholar (opcional, con tolerancia a rate-limit)."""
-    kw_str = " ".join(keywords[:2])
-    params = urllib.parse.urlencode({
-        "query": f"{nombre_software} {kw_str}",
-        "limit": 3,
-        "fields": "title,year,citationCount,authors,venue,url",
-    })
-    headers = {}
-    s2_key = getattr(settings, "SEMANTIC_SCHOLAR_API_KEY", "").strip()
-    if s2_key:
-        headers["x-api-key"] = s2_key
-
-    url = f"https://api.semanticscholar.org/graph/v1/paper/search?{params}"
-    data = _http_json(url, headers=headers, timeout=6)
-    if not data or "data" not in data:
-        return None
-
-    papers = data.get("data") or []
-    articulos = []
-    for p in papers:
-        autores_list = [a.get("name", "") for a in (p.get("authors") or [])[:2] if a.get("name")]
-        autores_str = "; ".join(autores_list) or "Autores varios"
-        anio = p.get("year") or 2024
-        citas = int(p.get("citationCount") or 0)
-        articulos.append({
-            "fuente": p.get("venue") or "Semantic Scholar",
-            "titulo": p.get("title") or "Documento",
-            "autores": autores_str,
-            "anio": anio,
-            "citas": citas,
-            "meta": f"{anio} · {citas} citas",
-            "url": p.get("url") or "",
-        })
-
-    return {
-        "total": int(data.get("total") or len(papers)),
-        "citas": sum(a["citas"] for a in articulos),
-        "articulos": articulos,
-    }
-
-
 def calcular_indicadores_tesis(
     resultados_crudos: List[Dict[str, Any]],
     subfactores_por_factor: Dict[int, int],
@@ -488,13 +443,12 @@ def ejecutar_paso_0(
     Orquesta el Paso 0 completo:
     1. Carga los factores activos y sus keywords personalizadas en BD.
     2. Enriquece keywords con Gemini IA (si GEMINI_API_KEY está configurada).
-    3. Consulta OpenAlex (y opcionalmente Semantic Scholar) en paralelo.
+    3. Consulta OpenAlex en paralelo (con fallback al catálogo benchmark Scopus de la tesis).
     4. Calcula IL, IE e IS según los cuartiles de la tesis doctoral.
     5. Persiste ConsultaEvidencia y EvidenciaFactor en PostgreSQL.
     """
-    fuentes_cfg = fuentes or {"scopus": True, "openAlex": True, "semanticScholar": True}
+    fuentes_cfg = fuentes or {"scopus": True, "openAlex": True}
     usar_openalex = bool(fuentes_cfg.get("openAlex", True))
-    usar_semantic = bool(fuentes_cfg.get("semanticScholar", False))
     usar_scopus = bool(fuentes_cfg.get("scopus", True))
 
     factores = list(
@@ -614,28 +568,12 @@ def ejecutar_paso_0(
                 }
         resultados_crudos = [mapa_temp[f.id] for f in factores]
 
-    # 3. Complemento opcional con Semantic Scholar (TEMPORALMENTE COMENTADO hasta aprobación de SEMANTIC_SCHOLAR_API_KEY)
-    # s2_exitoso = False
-    # if usar_semantic and getattr(settings, "SEMANTIC_SCHOLAR_API_KEY", "").strip():
-    #     for item in resultados_crudos[:3]:
-    #         res_s2 = consultar_semantic_scholar_factor(nombre_software, item["keywords_usadas"])
-    #         if res_s2 and res_s2["articulos"]:
-    #             s2_exitoso = True
-    #             titulos_existentes = {a["titulo"].lower() for a in item["articulos"]}
-    #             for art in res_s2["articulos"]:
-    #                 if art["titulo"].lower() not in titulos_existentes:
-    #                     item["articulos"].append(art)
-    #                     item["citas"] += art["citas"]
-    #             item["articulos"] = item["articulos"][:6]
-
-    # 4. Calcular IL, IE e IS exactos según la tesis
+    # 3. Calcular IL, IE e IS exactos según la tesis
     resultados_calculados = calcular_indicadores_tesis(resultados_crudos, subfactores_por_factor)
 
     fuentes_usadas: List[str] = []
     if usar_openalex:
         fuentes_usadas.append("OpenAlex (API en vivo)")
-    # if usar_semantic:
-    #     fuentes_usadas.append("Semantic Scholar" if s2_exitoso else "Semantic Scholar (Rate-limited / Fallback)")
     if usar_scopus:
         fuentes_usadas.append("Scopus (Base Tesis 54 estudios)")
 

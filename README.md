@@ -10,7 +10,8 @@
 > **Evaluación inteligente, científica y automatizada para la adopción estratégica de soluciones de Software Libre y Fuentes Abiertas (FLOSS).**
 
 > [!TIP]
-> Consulta la guía visual y matemática completa de principio a fin en **[FLUJO_DEL_SISTEMA.md](FLUJO_DEL_SISTEMA.md)**.
+> • Para aprender a usar cada pantalla y función paso a paso, consulta el **[MANUAL_DE_USUARIO.md](MANUAL_DE_USUARIO.md)**.  
+> • Para comprender la arquitectura y formulación matemática integral, revisa **[FLUJO_DEL_SISTEMA.md](FLUJO_DEL_SISTEMA.md)**.
 
 ---
 
@@ -106,7 +107,7 @@ El sistema implementa una arquitectura desacoplada de 3 capas orientada a micros
 
 El sistema cuenta con un panel administrativo completo dividido en 6 pestañas especializadas:
 1. **Usuarios:** Control de accesos, roles (Administrador / Evaluador) y estado activo.
-2. **Fuentes Bibliográficas:** Monitoreo y estado de conexión de proveedores científicos (OpenAlex, Scopus, Google Gemini, Semantic Scholar).
+2. **Fuentes Bibliográficas:** Monitoreo y estado de conexión de proveedores científicos (OpenAlex en vivo, Scopus RSL y Google Gemini IA).
 3. **Factores GUIOS:** Visualización y edición del catálogo oficial de 18 factores de la tesis.
 4. **Palabras Clave por Factor:** Mapeo de descriptores en español e inglés para búsquedas bibliográficas automatizadas.
 5. **Historial de Consultas:** Registro persistente de consultas académicas ejecutadas por software y contexto con conteo de documentos recuperados.

@@ -123,7 +123,7 @@ flowchart LR
   - Integración en frontend `Administracion.jsx` y `apiService.js`, permitiendo guardar y cargar de forma persistente los filtros de búsqueda bibliográfica.
 - [x] **Paso 0 y Evidencia Bibliográfica Real con IA (RF-14):**
   - Modelos `ConsultaEvidencia` y `EvidenciaFactor` en PostgreSQL (migración `0004`).
-  - Servicio `academic_ai_service.py` con conector en vivo a **OpenAlex** (`title_and_abstract.search`, 2016–2026) en paralelo y expansión de sinónimos vía **Google Gemini (`gemini-3.5-flash-lite`)**. *(Semantic Scholar preparado y comentado temporalmente hasta aprobación de API key).*
+  - Servicio `academic_ai_service.py` con conector en vivo a **OpenAlex** (`title_and_abstract.search`, 2016–2026) en paralelo, fallback benchmark a **Scopus (RSL Tesis)** y expansión de sinónimos vía **Google Gemini (`gemini-flash-lite-latest`)**.
   - Cálculo exacto de $IL$ por cuartiles ($r_i = c_i / NS_i$) e $IS = \lfloor (IL + IE) / 2 \rfloor$.
   - Pantallas `Configuracion.jsx`, `Evidencia.jsx` (con modal de artículos y enlaces DOI + exportación CSV) y botón `"Probar consulta"` en `Administracion.jsx` conectados en tiempo real.
 - [x] **Recomendaciones Personalizadas con IA en Paso 3:**
@@ -196,7 +196,7 @@ flowchart TD
     A --> F["7. Validación Caso Real UNEMI (LibreOffice) ✅"]
 
     B --> B1["Implementado: Modal, reseteo limpio en contexto y catálogo base"]
-    C --> C1["Implementado: OpenAlex + Gemini IA (Semantic Scholar preparado para API Key)"]
+    C --> C1["Implementado: OpenAlex en vivo + Scopus RSL + Gemini IA"]
     D --> D1["Implementado: Modelo FactorKeywords en PostgreSQL y CRUD Admin"]
     E --> E1["Implementado: Descarga de FODA, Reactivos e Informe en CSV (BOM UTF-8)"]
     G --> G1["Implementado: Diagnóstico y plan de acción Gemini según notas 1-4"]
@@ -207,7 +207,7 @@ flowchart TD
 ### 4.1. Tareas Completadas
 
 - [x] **Tarea 1: Flujo Completo de Creación de "Nueva Evaluación" en Blanco** *(Completada)*
-- [x] **Tarea 2: Conexión Real del Módulo de Evidencia Bibliográfica (`RF-14`)** *(Completada con OpenAlex + Gemini; Semantic Scholar preparado para activación de API key)*
+- [x] **Tarea 2: Conexión Real del Módulo de Evidencia Bibliográfica (`RF-14`)** *(Completada con OpenAlex en vivo, Scopus RSL y Google Gemini)*
 - [x] **Tarea 3: Persistencia de Palabras Clave y Filtros por Factor (Admin)** *(Completada)*
 - [x] **Tarea 4: Exportación de Datos en Formato Tabular (Excel / CSV)** *(Completada)*
 - [x] **Tarea 5: Validación Metodológica con el Caso de Estudio de la Tesis (UNEMI / LibreOffice)** *(Completada)*
@@ -228,7 +228,7 @@ flowchart TD
     - Insignia de trazabilidad `{softwareActivo} #{evaluacionId}` en cabecera.
 
 ### 4.2. Próximo Paso Operativo
-- [ ] **Activación de Semantic Scholar:** Una vez recibida la aprobación y API Key de Semantic Scholar, pegarla en el `.env` en `SEMANTIC_SCHOLAR_API_KEY` y descomentar las líneas correspondientes en `academic_ai_service.py` y `Configuracion.jsx`.
+- [x] **Consolidación de APIs Científicas:** OpenAlex y Scopus RSL operando activamente con Google Gemini para sinónimos multilingües.
 
 ---
 
