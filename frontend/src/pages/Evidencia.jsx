@@ -21,7 +21,7 @@ import Badge from "../components/Badge";
 
 /**
  * Pantalla 7: Evidencia bibliográfica (/evidencia)
- * Conectada a PostgreSQL, OpenAlex, Semantic Scholar y Gemini IA (RF-14).
+ * Conectada a PostgreSQL, OpenAlex, Scopus y Gemini IA (RF-14).
  */
 export const Evidencia = () => {
   const {
@@ -94,7 +94,7 @@ export const Evidencia = () => {
         nombre_software: softwareActivo,
         contexto_uso: contextoActivo,
         descripcion_caso: descripcionCaso,
-        fuentes: { scopus: true, openAlex: true, semanticScholar: false },
+        fuentes: { scopus: true, openAlex: true },
       });
       if (res && Array.isArray(res.items)) {
         setEvidenciaData(res);

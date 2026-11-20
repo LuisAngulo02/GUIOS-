@@ -34,6 +34,8 @@ export function App() {
         <Routes>
           {/* Ruta pública */}
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Login defaultTab="registro" />} />
+          <Route path="/registro" element={<Login defaultTab="registro" />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Rutas protegidas bajo el Layout Común de GUIOS+ */}

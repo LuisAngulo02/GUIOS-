@@ -1,6 +1,5 @@
 """
 Generador de Informes Oficiales en PDF para GUIOS+ (HU-08 / RF-13).
-Basado en la Tesis Doctoral GUIOS (Universidad Rey Juan Carlos).
 Genera un informe ejecutivo y técnico con portada, dictamen de adopción A/B/C,
 matriz FODA, tablas de factores y anexo de trazabilidad de subfactores.
 """
@@ -83,7 +82,7 @@ class NumberedCanvas(canvas.Canvas):
         self.setFont("Helvetica", 7.5)
         self.setFillColor(HexColor("#6B7280"))
         self.drawString(
-            36, 30, "Metodología GUIOS · Tesis Doctoral URJC · Confidencial y Oficial"
+            36, 30, "Metodología GUIOS · Plataforma GUIOS+ · Confidencial y Oficial"
         )
         self.drawRightString(
             559, 30, f"Página {self._pageNumber} de {page_count}"
@@ -221,7 +220,7 @@ def generar_informe_pdf(evaluacion, user=None):
             Paragraph("<b>GUIOS+</b>", ParagraphStyle("Logo", fontName="Helvetica-Bold", fontSize=22, textColor=color_primary)),
             Paragraph(
                 "<b>INFORME OFICIAL DE EVALUACIÓN Y DICTAMEN DE ADOPCIÓN FLOSS</b><br/>"
-                "<font size=7.5 color='#6B7280'>Metodología científica GUIOS · Tesis Doctoral URJC · Decisión multicriterio</font>",
+                "<font size=7.5 color='#6B7280'>Metodología científica GUIOS · Decisión multicriterio</font>",
                 ParagraphStyle("HeaderR", fontName="Helvetica", fontSize=10, leading=13, alignment=2)
             ),
         ]
@@ -515,7 +514,7 @@ def generar_informe_pdf(evaluacion, user=None):
         story.append(Paragraph("<b>Anexo Técnico de Auditoría: Subfactores y Reactivos Calificados</b>", style_h2))
         story.append(Paragraph(
             "Detalle pormenorizado de los 61 reactivos oficiales (SF-01 a SF-61) evaluados con escala 1 a 4: "
-            "1 = No cumple el requisito, 2 = Desconozco / No sé, 3 = Cumple parcialmente, 4 = Cumple el requisito plenamente.",
+            "1 = No cumple, 2 = Cumple parcialmente, 3 = Cumple satisfactoriamente, 4 = Cumple totalmente.",
             style_subtitle
         ))
         story.append(Spacer(1, 6))
@@ -560,24 +559,9 @@ def generar_informe_pdf(evaluacion, user=None):
         story.append(t_sfs)
 
     # --------------------------------------------------------------------------
-    # 7. CIERRE Y FIRMA DEL EVALUADOR
+    # 7. CIERRE DEL INFORME
     # --------------------------------------------------------------------------
-    story.append(Spacer(1, 20))
-    firma_data = [
-        [
-            Paragraph("____________________________________________<br/><b>Firma del Evaluador / Decisor</b><br/>"
-                      f"<font color='#6B7280'>{safe_text(evaluador_str)}</font>", ParagraphStyle("Firma1", alignment=1, leading=12)),
-            Paragraph("____________________________________________<br/><b>Sello Institucional / Validez</b><br/>"
-                      "<font color='#6B7280'>GUIOS+ Adopción FLOSS Verificada</font>", ParagraphStyle("Firma2", alignment=1, leading=12)),
-        ]
-    ]
-    t_firma = Table(firma_data, colWidths=[261, 262])
-    t_firma.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("TOPPADDING", (0, 0), (-1, -1), 10),
-    ]))
-    story.append(KeepTogether([t_firma]))
+    story.append(Spacer(1, 15))
 
     # Construir documento
     canvas_maker = lambda *args, **kwargs: NumberedCanvas(

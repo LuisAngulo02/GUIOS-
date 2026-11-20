@@ -146,6 +146,26 @@ CATALOGO_EXPERTO_FACTORES: Dict[str, Dict[str, Any]] = {
         "entregable": "Plan de gestión del cambio institucional y protocolo de comunicación interna.",
         "plazo": "Semanas 1 a 4",
     },
+    "Actitud hacia el cambio": {
+        "accion": "Implementar un plan integral de gestión del cambio, sensibilización y acompañamiento para reducir la resistencia de usuarios.",
+        "pasos": [
+            "Realizar sesiones de sensibilización sobre los beneficios de LibreOffice y formatos abiertos ODF.",
+            "Identificar e involucrar a promotores del cambio ('champions') en áreas docentes y administrativas.",
+            "Habilitar mesas de ayuda y acompañamiento personalizado durante las primeras semanas de adopción.",
+        ],
+        "entregable": "Plan institucional de gestión del cambio y cronograma de talleres de sensibilización.",
+        "plazo": "Semanas 1 a 4",
+    },
+    "Soporte": {
+        "accion": "Formalizar la estructura de soporte técnico institucional y capacitación continua del equipo de TI.",
+        "pasos": [
+            "Capacitar al personal de TI en resolución de incidencias comunes de LibreOffice y conversión de plantillas.",
+            "Establecer canales de escalamiento técnico a la comunidad oficial y pólizas comerciales si aplica.",
+            "Publicar guías de autoservicio y preguntas frecuentes en el portal interno de la institución.",
+        ],
+        "entregable": "Protocolo de soporte técnico institucional y matriz de escalamiento de incidencias.",
+        "plazo": "Semanas 1 a 3",
+    },
 }
 
 
@@ -197,9 +217,9 @@ def _extraer_resumen_calificaciones(payload: Dict[str, Any]) -> Dict[str, Any]:
                     "descripcion": desc[:160],
                     "observacion": obs[:180],
                 })
-                sfs_bajos.append(f"{cod} (Desconozco)")
+                sfs_bajos.append(f"{cod} (Cumple parcialmente)")
             elif calif == 3 and obs:
-                sfs_bajos.append(f"{cod} (Parcial): {obs}")
+                sfs_bajos.append(f"{cod} (Cumple satisfactoriamente): {obs}")
 
         if foda in ("Debilidad", "Amenaza", "debilidad", "amenaza"):
             factores_negativos.append({
@@ -328,6 +348,12 @@ def _generar_fallback_determinista(resumen: Dict[str, Any]) -> Dict[str, Any]:
         if any(w in desc.lower() for w in ("licencia", "propietari", "legal", "código")):
             rol = "Auditor de Software"
             proto = f"Auditar encabezados de licencia y compatibilidad en el repositorio oficial de {raw_sw}."
+        elif any(w in desc.lower() for w in ("resistencia", "cambio", "actitud", "personal")):
+            rol = "Gestión del Cambio / Talento Humano"
+            proto = f"Ejecutar talleres de sensibilización y diagnóstico de adopción: '{desc[:75]}'."
+        elif any(w in desc.lower() for w in ("soporte", "desarrollador", "mesa")):
+            rol = "Jefatura de Soporte TI"
+            proto = f"Levantar inventario de competencias del equipo de TI y plan de capacitación: '{desc[:75]}'."
         elif any(w in desc.lower() for w in ("gui", "interfaz", "fácil", "usabilidad", "usuario")):
             rol = "Líder UX"
             proto = f"Realizar prueba piloto con usuarios finales en tareas típicas de {raw_sw}."
@@ -335,8 +361,8 @@ def _generar_fallback_determinista(resumen: Dict[str, Any]) -> Dict[str, Any]:
             rol = "Arquitecto de Software"
             proto = f"Ejecutar prueba de concepto (PoC) sobre APIs o módulos de integración de {raw_sw}."
         else:
-            rol = "Especialista TI"
-            proto = f"Validar en laboratorio técnico: '{desc[:75]}'."
+            rol = "Comité de TI / Evaluador"
+            proto = f"Auditar y documentar plan de refuerzo para: '{desc[:75]}'."
 
         plan_incertidumbre.append({
             "codigo": cod,
@@ -354,7 +380,7 @@ def _generar_fallback_determinista(resumen: Dict[str, Any]) -> Dict[str, Any]:
     if internos_neg:
         chips.append("Capacitación y Gestión Interna")
     if desconozco:
-        chips.append(f"Validar {len(desconozco)} reactivo(s) incierto(s)")
+        chips.append(f"Atender {len(desconozco)} reactivo(s) parcial(es)")
     if not chips:
         chips = ["Despliegue gradual", "Monitoreo de SLAs", "Documentación operativa"]
 

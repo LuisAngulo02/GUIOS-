@@ -6,7 +6,7 @@ export const MOCK_EVIDENCIA = {
   contexto: "Educación · Plataforma de aprendizaje virtual",
   fecha_consulta: "24 de Octubre de 2026",
   cadena_booleana: 'TITLE-ABS-KEY ("Moodle" AND ("compatibility" OR "customization" OR "TCO" OR "open source adoption" OR "reliability"))',
-  fuentes_conectadas: ["Scopus", "OpenAlex", "Semantic Scholar"],
+  fuentes_conectadas: ["Scopus", "OpenAlex"],
   kpis: {
     documentos: 126,
     citas_acumuladas: 976,

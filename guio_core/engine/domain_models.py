@@ -1,5 +1,5 @@
 """
-Modelos de dominio puro del Sistema GUIOSAD / GUIOS-PRO.
+Modelos de dominio puro del Sistema GUIOS/ GUIOS-PRO.
 Basado en la Tesis Doctoral de Víctor Hugo Rea Sánchez (Universidad de Sevilla / UNEMI).
 """
 from dataclasses import dataclass, field
@@ -41,17 +41,21 @@ class ImportanceLevel(int, Enum):
 class SubfactorComplianceLevel(int, Enum):
     """Nivel de cumplimiento de un subfactor (reactivo/pregunta)."""
     NO_CUMPLE = 1
+    CUMPLE_PARCIALMENTE = 2
+    CUMPLE_SATISFACTORIAMENTE = 3
+    CUMPLE_TOTALMENTE = 4
+
+    # Alias de compatibilidad
     DESCONOZCO = 2
-    CUMPLE_PARCIALMENTE = 3
     CUMPLE = 4
 
     @property
     def label(self) -> str:
         labels = {
-            SubfactorComplianceLevel.NO_CUMPLE: "No cumple el requisito",
-            SubfactorComplianceLevel.DESCONOZCO: "Desconozco si cumple requisito",
-            SubfactorComplianceLevel.CUMPLE_PARCIALMENTE: "Cumple parcialmente el requisito",
-            SubfactorComplianceLevel.CUMPLE: "Cumple el requisito",
+            SubfactorComplianceLevel.NO_CUMPLE: "No cumple",
+            SubfactorComplianceLevel.CUMPLE_PARCIALMENTE: "Cumple parcialmente",
+            SubfactorComplianceLevel.CUMPLE_SATISFACTORIAMENTE: "Cumple satisfactoriamente",
+            SubfactorComplianceLevel.CUMPLE_TOTALMENTE: "Cumple totalmente",
         }
         return labels[self]
 
