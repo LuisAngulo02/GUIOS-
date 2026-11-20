@@ -85,8 +85,8 @@ El sistema implementa una arquitectura desacoplada de 3 capas orientada a micros
 
 1. **Nueva Evaluación:** Crea el expediente de software, versión y contexto en blanco, redirigiendo automáticamente al Paso 0.
 2. **Paso 0 — Configuración y Evidencia Bibliográfica:** Conexión con bases de datos científicas e IA para rastrear publicaciones, citas mundiales y calcular la Importancia Sugerida ($IS$) preliminar.
-3. **Paso 1 — Factores Relevantes:** Asignación de la *Importancia del Decisor* ($ID \in [1, 4]$) y cálculo de la *Importancia Relativa* ($IR = \lfloor (IS + ID)/2 \rfloor$). Factores con $IR = 1$ se descartan automáticamente por irrelevantes.
-4. **Paso 2 — Calificación de Subfactores:** Calificación granular (1 a 4) de cada reactivo con área de texto multilínea para redactar observaciones, argumentos técnicos y enlaces a evidencias.
+3. **Paso 1 — Factores Relevantes:** Asignación de la *Importancia del Decisor* ($ID \in [1, 4]$) y cálculo de la *Importancia Relativa* ($IR = \lfloor (IS + ID)/2 \rfloor$). Factores con $IR = 1$ se descartan automáticamente por irrelevantes. Soporte dual con selector de alcance aplicado obligatorio.
+4. **Paso 2 — Calificación de Subfactores:** Calificación granular (1 a 4) de cada reactivo según la escala oficial (`1 = No cumple`, `2 = Cumple parcialmente`, `3 = Cumple satisfactoriamente`, `4 = Cumple totalmente`), con asistencia inteligente de IA (Gemini) y área para observaciones.
 5. **Paso 3 — Matriz FODA y Recomendación Final:**
    - Cálculo de la Ponderación Media ($PM \in [1.00, 4.00]$).
    - Clasificación FODA con umbral metodológico en $3.00$ y asignación de alcance (Interno/Externo).
@@ -193,14 +193,30 @@ El sistema cuenta con un panel administrativo completo dividido en 6 pestañas e
 
 ---
 
-## 6. Credenciales Semilla por Defecto
+## 6. Credenciales y Script de Usuarios para Presentaciones
+
+Para presentaciones en vivo o pruebas inmediatas, se dispone del script utilitario `crear_usuarios.py` que prepara y desbloquea las cuentas demo al instante:
+
+```powershell
+python crear_usuarios.py
+```
+*(O también vía Django: `python manage.py crear_usuarios`)*
+
+### Cuentas Listas para Demostración:
 
 | Rol | Correo Electrónico | Contraseña | Permisos |
 | :--- | :--- | :--- | :--- |
-| **Administrador** | `admin@guiosplus.org` | `Admin2026!` | Control total, gestión de usuarios, auditoría, parámetros de cálculo y catálogo. |
-| **Evaluador** | `evaluador@guiosplus.org` | `Evaluador2026!` | Creación y eliminación de evaluaciones, matriz FODA, historial, comparador, PDF y Excel. |
+| **Administrador** | `admin@presentacion.com` | `Admin123*` | Control total, `/administracion`, catálogo, parámetros y auditoría. |
+| **Administrador** | `admin@guiosplus.org` | `Admin123*` | Control total del sistema. |
+| **Evaluador** | `evaluador@presentacion.com` | `Evaluador123*` | Dashboard, flujo de evaluación (Pasos 0 a 3), FODA y exportación. |
+| **Evaluador** | `evaluador@guiosplus.org` | `Evaluador123*` | Flujo completo de evaluación y reportes. |
 
-> *Nota: También se incluye el botón de acceso directo para cargar el **Caso de Validación Oficial UNEMI · LibreOffice** (Capítulo 6 de la tesis) con 18 factores y 61 reactivos calificados.*
+Para registrar un usuario personalizado en segundos durante una sustentación:
+```powershell
+python crear_usuarios.py "Ing. Sofía Valenzuela" sofia@demo.org Clave123* evaluador
+```
+
+> *Nota: En el login también se incluye el botón de acceso directo para cargar el **Caso de Validación Oficial UNEMI · LibreOffice** (Capítulo 6 de la tesis) con los 18 factores y 61 reactivos ya calificados.*
 
 ---
 
@@ -211,7 +227,13 @@ Para ejecutar la batería completa de pruebas unitarias y de integración del ba
 ```bash
 python manage.py test guio_core users
 ```
-*Garantiza el 100% de éxito en **31 suites de prueba** (autenticación JWT, bloqueo por fuerza bruta, recuperación de contraseña con token criptográfico y envío SMTP, motor matemático GUIOS, protección de histórico, parámetros de cálculo, consultas científicas, generador PDF y CRUD del catálogo).*
+*Garantiza el 100% de éxito en **35 suites de prueba** (21 en `guio_core` y 14 en `users`: autenticación JWT, bloqueo por fuerza bruta, recuperación de contraseña con token criptográfico y envío SMTP, motor matemático GUIOS, protección de histórico, parámetros de cálculo, consultas científicas, generador PDF limpio y CRUD del catálogo).*
+
+Para ejecutar la prueba funcional de flujo completo de principio a fin (End-to-End):
+
+```bash
+python scratch/test_full_system_flow.py
+```
 
 Para verificar la compilación del frontend:
 
@@ -226,7 +248,9 @@ npm run build
 
 ```
 GUIOSAD/
+├── MANUAL_DE_USUARIO.md                   # Manual de usuario unificado en texto y tablas
 ├── FLUJO_DEL_SISTEMA.md                   # Guía visual y matemática del flujo integral
+├── crear_usuarios.py                      # Script rápido para gestión de usuarios demo
 ├── docs/                                  # Documentación de tesis y arquitectura
 │   ├── context.md                         # Especificación maestra de requisitos y UI
 │   ├── PLAN_DE_DESARROLLO.md              # Estado de avance y hoja de ruta
