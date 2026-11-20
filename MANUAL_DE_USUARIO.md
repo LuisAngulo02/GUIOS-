@@ -42,7 +42,6 @@
    - 8.3. [Sincronización Directa de Evidencia](#83-sincronización-directa-de-evidencia)
 9. [Módulo 6: Generación y Descarga del Informe Oficial en PDF](#9-módulo-6-generación-y-descarga-del-informe-oficial-en-pdf)
    - 9.1. [Estructura del Informe Generado](#91-estructura-del-informe-generado)
-   - 9.2. [Uso Institucional y Firmas de Responsabilidad](#92-uso-institucional-y-firmas-de-responsabilidad)
 10. [Módulo 7: Panel de Administración Avanzada (Solo Administradores - `/administracion`)](#10-módulo-7-panel-de-administración-avanzada-solo-administradores---administracion)
     - 10.1. [Pestaña 1: Gestión Integral de Usuarios y Permisos](#101-pestaña-1-gestión-integral-de-usuarios-y-permisos)
     - 10.2. [Pestaña 2: Parámetros Globales y Umbrales Matemáticos](#102-pestaña-2-parámetros-globales-y-umbrales-matemáticos)
@@ -76,35 +75,11 @@ La adopción de software libre y de fuentes abiertas (**FLOSS**, *Free/Libre Ope
 
 El sistema está concebido bajo una arquitectura moderna desacoplada en tres capas:
 
-```mermaid
-flowchart TD
-    subgraph Cliente["Capa 1: Cliente Web (Frontend SPA)"]
-        ReactUI["React 18 + Vite"]
-        TailwindCSS["Tailwind CSS + Responsive Design"]
-        Context["Estado Global React (EvaluationContext)"]
-    end
-
-    subgraph Servidor["Capa 2: Servidor de Aplicaciones (Backend API REST)"]
-        Django["Django 5.x + Django REST Framework"]
-        JWTAuth["Autenticación SimpleJWT (Bcrypt + Blacklist)"]
-        Engine["Motor Metodológico GUIOS (IR, PM, FODA)"]
-        AIService["academic_ai_service.py (Orquestador IA)"]
-        PDFGen["ReportLab PDF Builder"]
-    end
-
-    subgraph Datos["Capa 3: Datos y Servicios Externos"]
-        PostgreSQL[("PostgreSQL 15+")]
-        OpenAlexAPI["OpenAlex REST API (En vivo)"]
-        GeminiAPI["Google Gemini AI (gemini-flash-lite)"]
-        SMTPServer["Servidor SMTP (Gmail / Institucional)"]
-    end
-
-    ReactUI <-->|JSON / Bearer JWT| Django
-    Django <--> PostgreSQL
-    AIService <-->|HTTPS REST| OpenAlexAPI
-    AIService <-->|HTTPS REST| GeminiAPI
-    JWTAuth <-->|SMTP TLS 587| SMTPServer
-```
+| Capa | Componente | Tecnologías Clave | Responsabilidad Metodológica |
+| :--- | :--- | :--- | :--- |
+| **Capa 1: Cliente Web (Frontend SPA)** | Interfaz de Usuario | React 18, Vite, Tailwind CSS | Gestión de vistas interactivas, tablas responsivas y estado global reactivo (`EvaluationContext`). |
+| **Capa 2: Servidor (Backend API REST)** | Lógica de Negocio y Motor GUIOS | Django 5.x, DRF, SimpleJWT, ReportLab | Autenticación JWT con Bcrypt, ejecución de fórmulas ($IR, PM$), orquestación de IA y generación de reportes PDF. |
+| **Capa 3: Datos y Servicios Externos** | Persistencia e Integración | PostgreSQL 15+, OpenAlex API, Google Gemini, SMTP | Almacenamiento relacional normalizado (3FN), minería de citas científicas en vivo, asistencia inteligente y recuperación de credenciales. |
 
 ### Requisitos Mínimos del Cliente
 * **Navegador Web:** Google Chrome (versión 100+), Mozilla Firefox (versión 100+), Microsoft Edge (versión 100+), Safari (versión 15+).
@@ -144,32 +119,14 @@ La plataforma aplica un modelo estricto de control de acceso basado en roles:
 
 Al acceder a la plataforma, se presenta la pantalla de autenticación protegida con diseño institucional en tonos verde esmeralda corporativo (`#3F6F58`).
 
-```
-+--------------------------------------------------------------+
-|                           G+ GUIOS+                          |
-|         Evaluación inteligente para adopción FLOSS           |
-|                                                              |
-|        +--------------------------------------------+        |
-|        |           [ Círculo con Candado ]          |        |
-|        |     [ Iniciar Sesión ]  [ Crear Cuenta ]   |        |
-|        |                                            |        |
-|        |  Bienvenido de nuevo                       |        |
-|        |  Accede al sistema de evaluación FLOSS.    |        |
-|        |                                            |        |
-|        |  Correo electrónico institucional:         |        |
-|        |  [ usuario@institucion.edu               ] |        |
-|        |                                            |        |
-|        |  Contraseña:                               |        |
-|        |  [ ••••••••••••             ] [Mostrar]    |        |
-|        |                                            |        |
-|        |  [X] Recordar sesión   ¿Olvidaste clave?   |        |
-|        |                                            |        |
-|        |  [        BOTÓN: INICIAR SESIÓN          ] |        |
-|        |                                            |        |
-|        |  ¿No tienes cuenta? Regístrate aquí        |        |
-|        +--------------------------------------------+        |
-+--------------------------------------------------------------+
-```
+| Elemento del Formulario | Tipo de Campo / Control | Descripción |
+| :--- | :--- | :--- |
+| **Pestañas de Modo** | Pestañas superiores | Permite alternar entre **"Iniciar Sesión"** y **"Crear Cuenta"**. |
+| **Correo Institucional** | Campo de texto (`email`) | Dirección de correo del evaluador o administrador. |
+| **Contraseña** | Campo protegido (`password`) | Clave de acceso con botón para visualizar/ocultar caracteres. |
+| **Recordar sesión** | Casilla de verificación (`checkbox`) | Mantiene la validez del token de sesión local. |
+| **¿Olvidaste tu contraseña?** | Enlace modal | Abre la ventana para despacho del enlace de recuperación vía correo. |
+| **Botón Iniciar Sesión** | Botón de acción (`submit`) | Valida credenciales contra la API y genera los tokens JWT. |
 
 #### Procedimiento para Iniciar Sesión:
 1. Asegúrese de que la pestaña **"Iniciar Sesión"** se encuentre seleccionada.
@@ -243,21 +200,11 @@ Para finalizar la jornada de trabajo de forma segura:
 
 Toda la aplicación una vez autenticado se organiza bajo una disposición ergonómica (*MainLayout*):
 
-```
-+------------------------------------------------------------------------------------+
-|  [Logo G+ GUIOS+]   [Evaluación Activa: LibreOffice (En progreso)]  [Perfil / Salir] |
-+-------------------+----------------------------------------------------------------+
-| MENÚ LATERAL      | CONTENIDO PRINCIPAL                                            |
-|                   |                                                                |
-| 📊 Dashboard      |  [Migas de Pan: Inicio > Evaluación > Paso ...]                |
-| ⚙️ Paso 0: Config |                                                                |
-| ⚖️ Paso 1: Factores|  [Área de Trabajo Específica de la Pantalla Seleccionada]     |
-| 📝 Paso 2: Subfact|                                                                |
-| 🎯 Paso 3: FODA   |                                                                |
-| 📚 Evidencia      |                                                                |
-| 🛠️ Administración |                                                                |
-+-------------------+----------------------------------------------------------------+
-```
+| Sección del Layout | Ubicación | Funcionalidad Principal |
+| :--- | :--- | :--- |
+| **Barra Superior (Topbar)** | Franja superior fija | Despliega el logotipo institucional, la pastilla de evaluación activa y el menú de usuario / cierre de sesión. |
+| **Menú Lateral (Sidebar)** | Panel izquierdo vertical | Enlaces de navegación metodológica: Dashboard, Paso 0, Paso 1, Paso 2, Paso 3, Evidencia y Administración. |
+| **Área Central de Trabajo** | Panel central adaptable | Contenedor principal donde se presentan las métricas, tablas de evaluación, asistentes de IA y formularios. |
 
 ### 5.1. Barra Lateral de Navegación (Sidebar)
 * Permite alternar de manera directa entre las distintas etapas de la metodología.
@@ -305,33 +252,13 @@ Para dar inicio a la evaluación de una solución de software libre:
 
 ## 7. El Flujo Metodológico de Evaluación (Paso a Paso)
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Decisor as Evaluador de TI
-    participant P0 as Paso 0: Configuración & IA
-    participant P1 as Paso 1: Ponderación Factores
-    participant P2 as Paso 2: Calificación Subfactores
-    participant P3 as Paso 3: FODA & Dictamen
-    participant Engine as Motor Matemático GUIOS
-
-    Decisor->>P0: Define Software FLOSS y Contexto
-    P0->>P0: Consulta OpenAlex (En vivo) + Expansión Gemini IA
-    P0->>Engine: Calcula densidad cuartílica (r_i = Citas / Subfactores)
-    Engine-->>P0: Asigna IL e Importancia Sugerida (IS)
-    Decisor->>P1: Declara Importancia del Decisor (ID: 1 a 4)
-    P1->>Engine: Calcula IR = floor((IS + ID) / 2)
-    Engine-->>P1: Filtra factores con IR > 1 (Relevantes)
-    Decisor->>P2: Califica los reactivos de los subfactores (Notas 1 a 4)
-    opt Asistencia IA
-        Decisor->>P2: Solicita recomendación a Gemini para reactivo técnico
-    end
-    P2->>Engine: Calcula Ponderación Media: PM = Sum(Notas) / N
-    Decisor->>P3: Solicita Generación del Diagnóstico
-    Engine->>P3: Mapea a Matriz FODA (Umbral PM = 3.00)
-    Engine->>P3: Emite Recomendación Oficial (A, B o C)
-    Decisor->>P3: Descarga Informe Oficial Ejecutivo en PDF
-```
+| Paso | Etapa Metodológica | Actor Principal | Operación del Sistema y Cálculos |
+| :---: | :--- | :--- | :--- |
+| **0** | Configuración & Evidencia IA | Evaluador / IA | Define el software FLOSS y contexto. Consulta OpenAlex y Gemini para obtener citas y calcular la Importancia Sugerida ($IS$). |
+| **1** | Ponderación de Factores | Evaluador | Califica la Importancia del Decisor ($ID$). El sistema calcula la Importancia Relativa ($IR$) y filtra los factores relevantes ($IR \ge 2$). |
+| **2** | Calificación de Subfactores | Evaluador / IA | Califica reactivos (escala 1 a 4) con opción de sugerencia asistida por IA. El sistema computa la Ponderación Media ($PM$). |
+| **3** | Matriz FODA y Dictamen | Motor GUIOS | Mapea factores a cuadrantes FODA (umbral $PM = 3.00$) y emite la recomendación oficial (A, B o C). |
+| **Salida** | Exportación de Resultados | Evaluador | Descarga el informe oficial ejecutivo en formato PDF o exporta las tablas a Excel / CSV. |
 
 ---
 
@@ -440,19 +367,10 @@ El sistema procesa integralmente las valoraciones técnicas y genera el diagnós
 #### 1. Reglas de Mapeo a la Matriz FODA
 El umbral oficial de aprobación metodológico es **$PM \ge 3.00$**:
 
-```
-                          ÁMBITO DE IMPACTO
-                   INTERNO                    EXTERNO
-            ┌──────────────────────────┬──────────────────────────┐
-   PM ≥ 3.00│     FORTALEZAS (F)       │     OPORTUNIDADES (O)    │
- (Favorable)│ Factores internos donde  │ Ventajas externas del    │
-            │ la organización es fuerte│ software en el mercado   │
-            ├──────────────────────────┼──────────────────────────┤
-    PM < 3.00│     DEBILIDADES (D)      │       AMENAZAS (A)       │
-(Desfavorable)│ Carencias internas de    │ Riesgos del entorno o del│
-            │ capacitación o personal  │ software sin soporte     │
-            └──────────────────────────┴──────────────────────────┘
-```
+| Ponderación Media ($PM$) / Impacto | Ámbito Interno (Organización) | Ámbito Externo (Entorno y Software) |
+| :--- | :--- | :--- |
+| **Favorable ($PM \ge 3.00$)** | **Fortalezas (F):** Factores internos donde la institución dispone de madurez, capacitación o capacidad técnica suficiente. | **Oportunidades (O):** Ventajas externas y fortalezas intrínsecas del software FLOSS en el mercado y la comunidad. |
+| **Desfavorable ($PM < 3.00$)** | **Debilidades (D):** Carencias institucionales internas de soporte, cultura o infraestructura que requieren mitigación previa. | **Amenazas (A):** Riesgos originados en el entorno tecnológico o deficiencias críticas del software evaluado. |
 
 #### 2. Clasificación de la Recomendación Final
 El motor metodológico analiza el balance de cuadrantes y emite el dictamen:
@@ -503,8 +421,7 @@ El documento PDF contiene:
 2. **Ficha Técnica del Proyecto:** Nombre del software evaluado, área solicitante, fecha exacta y evaluador responsable.
 3. **Resumen Ejecutivo del Veredicto:** Recuadro destacado con la Recomendación oficial (A, B o C) y su interpretación técnica.
 4. **Tabla Metodológica Completa:** Relación pormenorizada de los 18 factores con sus valores de $IS$, $ID$, $IR$, Ponderación Media ($PM$) y cuadrante asignado.
-5. **Matriz FODA Gráfica:** Representación en 4 cuadrantes con el balance consolidado de Fortalezas, Oportunidades, Debilidades y Amenazas.
-6. **Sección de Firmas:** Bloques formales para la rúbrica del Evaluador Técnico y la Autorización de la Dirección de TI.
+5. **Matriz FODA:** Representación tabular y estructurada en cuadrantes con el balance consolidado de Fortalezas, Oportunidades, Debilidades y Amenazas.
 
 ---
 

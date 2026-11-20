@@ -466,18 +466,18 @@ export const EvaluacionSubfactores = () => {
                 type="button"
                 onClick={() => calificarBloqueFactor(factorActual.id, 4)}
                 className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 cursor-pointer"
-                title="Marcar todos los subfactores de este factor como 4 (Cumple)"
+                title="Marcar todos los subfactores de este factor como 4 (Cumple totalmente)"
               >
                 <CheckCheck size={12} />
-                <span>Marcar todo Cumple (4)</span>
+                <span>Marcar todo Cumple totalmente (4)</span>
               </button>
               <button
                 type="button"
                 onClick={() => calificarBloqueFactor(factorActual.id, 3, true)}
                 className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-white hover:bg-amber-50 text-amber-800 border border-amber-200 transition-colors flex items-center gap-1 cursor-pointer"
-                title="Asignar nota 3 (Cumple parcialmente) a los reactivos sin responder de este factor"
+                title="Asignar nota 3 (Cumple satisfactoriamente) a los reactivos sin responder de este factor"
               >
-                <span>Pendientes a Parcial (3)</span>
+                <span>Pendientes a Satisfactorio (3)</span>
               </button>
               <button
                 type="button"
@@ -491,10 +491,10 @@ export const EvaluacionSubfactores = () => {
 
             {/* Escala */}
             <div className="text-[11px] text-gray-500 bg-[#F8FAF9] px-2.5 py-1 rounded-lg border border-gray-200">
-              <span className="font-semibold text-gray-700">1</span>=No ·{" "}
-              <span className="font-semibold text-gray-700">2</span>=Desc ·{" "}
-              <span className="font-semibold text-gray-700">3</span>=Parcial ·{" "}
-              <span className="font-semibold text-gray-700">4</span>=Cumple
+              <span className="font-semibold text-gray-700">1</span> = No cumple ·{" "}
+              <span className="font-semibold text-gray-700">2</span> = Cumple parcialmente ·{" "}
+              <span className="font-semibold text-gray-700">3</span> = Cumple satisfactoriamente ·{" "}
+              <span className="font-semibold text-gray-700">4</span> = Cumple totalmente
             </div>
           </div>
         </div>

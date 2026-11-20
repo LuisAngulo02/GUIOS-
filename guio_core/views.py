@@ -733,7 +733,9 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
             if sf_id in calificaciones_map
         ]
         total_calificados = len(notas_relevantes)
-        no_se_count = sum(1 for c in notas_relevantes if c == 2)
+        # En la escala GUIOS (1=No cumple, 2=Cumple parcialmente, 3=Cumple satisfactoriamente, 4=Cumple totalmente)
+        # la certeza se mide sobre la proporción de subfactores relevantes calificados
+        no_se_count = 0
 
         with transaction.atomic():
             # Limpiar resultados FODA previos si se recalcula

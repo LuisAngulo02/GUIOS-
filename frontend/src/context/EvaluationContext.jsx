@@ -821,14 +821,14 @@ export const EvaluationProvider = ({ children }) => {
         ? parseFloat((((strengths + opportunities) / totalConFoda) * 100).toFixed(1))
         : 0;
 
-    // Nivel de Confianza: % de respuestas distintas de 2 (Desconozco)
+    // Nivel de Confianza: % de respuestas calificadas
     let totalSubfactoresRelevantes = 0;
     let respuestasConocidas = 0;
     relevantes.forEach((factor) => {
       const sfs = subfactoresState[factor.id] || [];
       totalSubfactoresRelevantes += sfs.length;
       respuestasConocidas += sfs.filter(
-        (s) => s.calificacion !== null && s.calificacion !== undefined && Number(s.calificacion) !== 2
+        (s) => s.calificacion !== null && s.calificacion !== undefined && Number(s.calificacion) > 0
       ).length;
     });
 

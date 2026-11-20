@@ -148,7 +148,7 @@ export const Dashboard = () => {
       <body>
         <table>
           <tr><td colspan="5" class="titulo">GUIOS+ · COMPARATIVA EN PARALELO DE SOLUCIONES FLOSS</td></tr>
-          <tr><td colspan="5" class="subtitulo">Análisis contrastado según los 18 factores y la Ecuación 5.3 (Tesis Doctoral URJC) · Fecha: ${fechaHora}</td></tr>
+          <tr><td colspan="5" class="subtitulo">Análisis contrastado según los 18 factores y la Ecuación 5.3 · Fecha: ${fechaHora}</td></tr>
         </table>
         <br/>
         <table>
@@ -840,7 +840,7 @@ export const Dashboard = () => {
                     </span>
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Evaluación contrastada según la Ecuación 5.3 y Matriz de Decisión Oficial (Tesis Doctoral URJC)
+                    Evaluación contrastada según la Ecuación 5.3 y Matriz de Decisión Oficial
                   </p>
                 </div>
               </div>

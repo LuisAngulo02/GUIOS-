@@ -2,15 +2,15 @@ import React from "react";
 
 /**
  * Botonera de Escala 1 a 4 según GUIOS+
- * 1 = No cumple · 2 = Desconozco · 3 = Cumple parcialmente · 4 = Cumple
+ * 1 = No cumple · 2 = Cumple parcialmente · 3 = Cumple satisfactoriamente · 4 = Cumple totalmente
  * El botón seleccionado se rellena del verde principal (#3F6F58).
  */
 export const ScaleButtons = ({ value, onChange, disabled = false }) => {
   const options = [
     { num: 1, label: "1 · No cumple", short: "1" },
-    { num: 2, label: "2 · Desconozco", short: "2" },
-    { num: 3, label: "3 · Cumple parcialmente", short: "3" },
-    { num: 4, label: "4 · Cumple", short: "4" },
+    { num: 2, label: "2 · Cumple parcialmente", short: "2" },
+    { num: 3, label: "3 · Cumple satisfactoriamente", short: "3" },
+    { num: 4, label: "4 · Cumple totalmente", short: "4" },
   ];
 
   return (

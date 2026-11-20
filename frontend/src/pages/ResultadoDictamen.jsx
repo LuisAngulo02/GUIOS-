@@ -146,6 +146,26 @@ const CATALOGO_METODOLOGICO_LOCAL = {
     ],
     entregable: "Plan de gestión del cambio institucional y protocolo de comunicación interna.",
     plazo: "Semanas 1 a 4"
+  },
+  "Actitud hacia el cambio": {
+    accion: "Implementar un plan integral de gestión del cambio, sensibilización y acompañamiento para reducir la resistencia de usuarios.",
+    pasos: [
+      "Realizar sesiones de sensibilización sobre los beneficios de LibreOffice y formatos abiertos ODF.",
+      "Identificar e involucrar a promotores del cambio ('champions') en áreas docentes y administrativas.",
+      "Habilitar mesas de ayuda y acompañamiento personalizado durante las primeras semanas de adopción."
+    ],
+    entregable: "Plan institucional de gestión del cambio y cronograma de talleres de sensibilización.",
+    plazo: "Semanas 1 a 4"
+  },
+  Soporte: {
+    accion: "Formalizar la estructura de soporte técnico institucional y capacitación continua del equipo de TI.",
+    pasos: [
+      "Capacitar al personal de TI en resolución de incidencias comunes de LibreOffice y conversión de plantillas.",
+      "Establecer canales de escalamiento técnico a la comunidad oficial y pólizas comerciales si aplica.",
+      "Publicar guías de autoservicio y preguntas frecuentes en el portal interno de la institución."
+    ],
+    entregable: "Protocolo de soporte técnico institucional y matriz de escalamiento de incidencias.",
+    plazo: "Semanas 1 a 3"
   }
 };
 
@@ -212,27 +232,33 @@ export const ResultadoDictamen = () => {
     const internos = negativos.filter((f) => f.alcance === "Interno");
     const externos = negativos.filter((f) => f.alcance === "Externo");
 
-    const reactivosDesconozco = [];
+    const reactivosParciales = [];
     (factoresEvaluados || []).forEach((f) => {
       const sfs = subfactoresState[f.id] || [];
       sfs.forEach((sf) => {
         if (sf.calificacion === 2) {
           const desc = sf.descripcion || "";
           let rol = "Comité de TI / Evaluador";
-          let proto = `Ejecutar un ensayo en entorno de laboratorio para verificar experimentalmente: '${desc.slice(0, 80)}'.`;
+          let proto = `Auditar y documentar plan de refuerzo para: '${desc.slice(0, 80)}'.`;
           const dLower = desc.toLowerCase();
           if (dLower.includes("licencia") || dLower.includes("propietari") || dLower.includes("legal")) {
             rol = "Asesor Legal / Auditor de Software";
             proto = `Revisar archivos LICENSE y avisos SPDX en el repositorio oficial de ${swNom} para contrastar con directrices OSI/FSF.`;
+          } else if (dLower.includes("resistencia") || dLower.includes("cambio") || dLower.includes("actitud") || dLower.includes("personal")) {
+            rol = "Gestión del Cambio / Talento Humano";
+            proto = `Ejecutar talleres de sensibilización y diagnóstico de adopción: '${desc.slice(0, 80)}'.`;
+          } else if (dLower.includes("soporte") || dLower.includes("desarrollador") || dLower.includes("mesa")) {
+            rol = "Jefatura de Soporte TI";
+            proto = `Levantar inventario de competencias del equipo de TI y plan de capacitación: '${desc.slice(0, 80)}'.`;
           } else if (dLower.includes("gui") || dLower.includes("interfaz") || dLower.includes("usabilidad")) {
             rol = "Especialista UX / Líder de Usuarios";
-            proto = `Instalar ${swNom} en un entorno de pruebas y aplicar un test de tareas típicas con 3 usuarios finales.`;
+            proto = `Instalar ${swNom} en un entorno de pruebas y aplicar un test de tareas típicas con usuarios finales.`;
           } else if (dLower.includes("biblioteca") || dLower.includes("api") || dLower.includes("marco")) {
             rol = "Arquitecto de Software / Desarrollador";
             proto = `Inspeccionar la documentación técnica y generar una prueba de concepto (PoC) invocando las APIs de ${swNom}.`;
           }
 
-          reactivosDesconozco.push({
+          reactivosParciales.push({
             codigo: sf.codigo,
             factor: f.nombre,
             reactivo: desc.slice(0, 130),
@@ -279,15 +305,15 @@ export const ResultadoDictamen = () => {
     const chips = [];
     if (criticos.length > 0) chips.push(`Mitigar ${criticos.length} factor(es) crítico(s)`);
     if (externos.length > 0) chips.push("Ingeniería FLOSS");
-    if (internos.length > 0) chips.push("Capacitación Interna");
-    if (reactivosDesconozco.length > 0) chips.push(`Validar ${reactivosDesconozco.length} incierto(s)`);
+    if (internos.length > 0) chips.push("Capacitación y Gestión Interna");
+    if (reactivosParciales.length > 0) chips.push(`Atender ${reactivosParciales.length} cumplimiento(s) parcial(es)`);
     if (chips.length === 0) chips.push("Despliegue gradual", "Monitoreo");
 
     return {
       diagnostico_ejecutivo: diag,
       chips_accion: chips.slice(0, 4),
       recomendaciones_priorizadas: priorizadas,
-      plan_desconocimiento: reactivosDesconozco.slice(0, 4),
+      plan_desconocimiento: reactivosParciales.slice(0, 4),
       generado_por_ia: false,
       modelo: "Motor Metodológico GUIOS+ (Tesis Cap. 6)",
     };
@@ -384,10 +410,10 @@ export const ResultadoDictamen = () => {
   };
 
   const MAPA_ESCALA_TEXTO = {
-    1: "1 - No cumple el requisito",
-    2: "2 - Desconozco si cumple el requisito",
-    3: "3 - Cumple parcialmente",
-    4: "4 - Cumple el requisito",
+    1: "1 - No cumple",
+    2: "2 - Cumple parcialmente",
+    3: "3 - Cumple satisfactoriamente",
+    4: "4 - Cumple totalmente",
   };
 
   const generarExcelProfesional = () => {
@@ -442,7 +468,7 @@ export const ResultadoDictamen = () => {
             <td colspan="6" class="titulo-principal">GUIOS+ · SISTEMA DE DECISIÓN PARA ADOPCIÓN DE SOFTWARE LIBRE</td>
           </tr>
           <tr>
-            <td colspan="6" class="subtitulo">Informe Oficial de Evaluación Multicriterio — Metodología Científica GUIOS (Tesis Doctoral URJC)</td>
+            <td colspan="6" class="subtitulo">Informe Oficial de Evaluación Multicriterio — Metodología Científica GUIOS</td>
           </tr>
         </table>
 
@@ -1064,7 +1090,7 @@ export const ResultadoDictamen = () => {
                   Recomendaciones personalizadas según calificación
                 </h3>
                 <p className="text-[11px] text-gray-500">
-                  Plan de acción específico generado a partir de tus puntuaciones FODA, reactivos reprobados (1) o inciertos (2) y observaciones.
+                  Plan de acción específico generado a partir de tus puntuaciones FODA, reactivos no cumplidos (1) o con cumplimiento parcial (2) y observaciones.
                 </p>
               </div>
             </div>
@@ -1185,13 +1211,13 @@ export const ResultadoDictamen = () => {
                 </div>
               )}
 
-              {/* Puntos ciegos o incertidumbres a verificar (reactivos marcados 'Desconozco') */}
+              {/* Requisitos que cumplen parcialmente y requieren atención */}
               {analisisIA.plan_desconocimiento?.length > 0 && (
                 <div className="p-3.5 rounded-xl bg-blue-50/50 border border-blue-100 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-xs font-bold text-blue-950">
                       <HelpCircle size={14} className="text-blue-600 shrink-0" />
-                      <span>Incertidumbres técnicas a despejar (reactivos marcados "Desconozco")</span>
+                      <span>Requisitos con cumplimiento parcial que requieren atención (nota 2)</span>
                     </div>
                     <span className="text-[10px] font-semibold text-blue-700 bg-blue-100/70 px-2.5 py-0.5 rounded-full">
                       {analisisIA.plan_desconocimiento.length} reactivo(s)
