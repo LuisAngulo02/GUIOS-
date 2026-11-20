@@ -406,12 +406,14 @@ class PasswordResetRequestView(views.APIView):
                 accion="solicitar_reset_password",
                 entidad="usuario",
                 id_entidad=str(user.id),
-                detalle=f"Solicitud de restablecimiento de contraseña para {user.email}",
+                detalle=f"Solicitud de restablecimiento de contraseña para {user.email}. Enlace de recuperación: {reset_url}",
             )
 
         resp_data = {
             "message": "Si el correo electrónico está registrado en el sistema, recibirás un enlace de recuperación en breve. Revisa tu bandeja de entrada o carpeta de spam.",
         }
+        if getattr(settings, "DEBUG", False) and user:
+            resp_data["dev_reset_url"] = reset_url
 
         return Response(resp_data, status=status.HTTP_200_OK)
 

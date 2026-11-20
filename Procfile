@@ -1,2 +1,3 @@
-web: gunicorn guiospro_backend.wsgi:application
+web: gunicorn guiospro_backend.wsgi:application --timeout 120 --workers 2
+
 

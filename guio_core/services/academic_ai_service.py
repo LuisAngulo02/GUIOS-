@@ -226,7 +226,7 @@ def generar_sinonimos_gemini(
         },
     }
 
-    resp = _http_json(endpoint, method="POST", payload=payload, timeout=15)
+    resp = _http_json(endpoint, method="POST", payload=payload, timeout=8, retries=1)
     if not resp:
         return {}, False, ""
 
@@ -325,7 +325,7 @@ def consultar_openalex_factor(
 
     params = urllib.parse.urlencode(query_params)
     url = f"https://api.openalex.org/works?{params}"
-    data = _http_json(url, timeout=10)
+    data = _http_json(url, timeout=6, retries=1)
 
     if not data or "meta" not in data:
         return {
@@ -479,7 +479,7 @@ def ejecutar_paso_0(
     def _procesar_factor(factor: Factor) -> Dict[str, Any]:
         import time
         # Escalonamiento leve para proteger la cuota de peticiones por segundo de OpenAlex
-        time.sleep(0.06 * (factor.id % 4))
+        time.sleep(0.01 * (factor.id % 3))
 
         kw_info = keywords_map.get(factor.id, {"keywords": [], "usar_sinonimos": True})
         base_kws = kw_info["keywords"]
@@ -546,7 +546,7 @@ def ejecutar_paso_0(
         }
 
     resultados_crudos: List[Dict[str, Any]] = []
-    with ThreadPoolExecutor(max_workers=3) as executor:
+    with ThreadPoolExecutor(max_workers=6) as executor:
         futures = {executor.submit(_procesar_factor, f): f.id for f in factores}
         mapa_temp: Dict[int, Dict[str, Any]] = {}
         for future in as_completed(futures):
