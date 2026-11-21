@@ -391,9 +391,8 @@ export const ResultadoDictamen = () => {
   };
 
   const descargarArchivoCSV = (contenido, nombreArchivo) => {
-    // Añadimos la directiva sep=; para compatibilidad total con Excel en Windows y español
-    const contenidoConDirectiva = `sep=;\r\n` + contenido;
-    const blob = new Blob(["\uFEFF" + contenidoConDirectiva], { type: "text/csv;charset=utf-8;" });
+    // UTF-8 con BOM puro (\uFEFF) para que Excel en Windows decodifique correctamente tildes, ñ y caracteres especiales
+    const blob = new Blob(["\uFEFF" + contenido], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);

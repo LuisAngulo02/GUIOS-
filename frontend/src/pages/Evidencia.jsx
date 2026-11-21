@@ -154,10 +154,10 @@ export const Evidencia = () => {
     const fecha = new Date().toISOString().split("T")[0];
     const lineas = [
       `"REPORTE DE EVIDENCIA BIBLIOGRÁFICA — METODOLOGÍA GUIOS (RF-14)"`,
-      `"Software:",${escapar(data.software || softwareActivo)},"Fecha:",${escapar(fecha)}`,
-      `"Cadena Booleana:",${escapar(data.cadena_booleana)}`,
+      `"Software:";${escapar(softwareActivo || data.software)};"Fecha:";${escapar(fecha)}`,
+      `"Cadena Booleana:";${escapar(data.cadena_booleana)}`,
       "",
-      `"Factor","Documentos","Citas","Autores Relevantes","IL","IE","IS","Fuente Principal"`,
+      `"Factor";"Documentos";"Citas";"Autores Relevantes";"IL";"IE";"IS";"Fuente Principal"`,
     ];
 
     (data.items || []).forEach((item) => {
@@ -181,7 +181,7 @@ export const Evidencia = () => {
               : item.IS
           ),
           escapar(item.fuente_principal),
-        ].join(",")
+        ].join(";")
       );
     });
 

@@ -251,7 +251,7 @@ export const Dashboard = () => {
     const nom2 = ev2.nombre_software || "Opción 2";
 
     const lineas = [
-      `sep=;\r\n"GUIOS+ — COMPARATIVA EN PARALELO DE SOLUCIONES FLOSS"`,
+      `"GUIOS+ — COMPARATIVA EN PARALELO DE SOLUCIONES FLOSS"`,
       `"Opción 1:";"${nom1}";"ID:";"${ev1.id || ""}";"Viabilidad:";"${ev1.indice_viabilidad || 0}%";"Dictamen:";"${ev1.dictamen_oficial || ""}"`,
       `"Opción 2:";"${nom2}";"ID:";"${ev2.id || ""}";"Viabilidad:";"${ev2.indice_viabilidad || 0}%";"Dictamen:";"${ev2.dictamen_oficial || ""}"`,
       "",
