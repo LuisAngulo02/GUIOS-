@@ -823,7 +823,7 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
 
             ResultadoFoda.objects.bulk_create(foda_registros)
 
-            total_relevantes = relevantes_rf.count()
+            total_relevantes = len(relevantes_rf)
             indice_viabilidad = round((positivos_count / total_relevantes) * 100, 2) if total_relevantes > 0 else 100.0
 
             if total_calificados > 0:
