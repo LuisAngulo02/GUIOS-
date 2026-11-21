@@ -398,54 +398,22 @@ class PasswordResetRequestView(views.APIView):
                 detalle=f"Solicitud de restablecimiento de contraseña para {user.email}. Enlace de recuperación: {reset_url}",
             )
 
-            # 2. Intentar envío de correo saliente
-            # Si se configuró RESEND_API_KEY se usa su API REST sobre HTTPS (puerto 443, no bloqueado por Render Free)
-            resend_key = getattr(settings, "RESEND_API_KEY", "")
-            correo_enviado = False
-            if resend_key:
-                try:
-                    import urllib.request, json
-                    post_data = json.dumps({
-                        "from": getattr(settings, "DEFAULT_FROM_EMAIL", "GUIOS+ <onboarding@resend.dev>"),
-                        "to": [user.email],
-                        "subject": asunto,
-                        "html": mensaje_html,
-                        "text": mensaje_texto,
-                    }).encode("utf-8")
-                    req = urllib.request.Request(
-                        "https://api.resend.com/emails",
-                        data=post_data,
-                        headers={
-                            "Authorization": f"Bearer {resend_key}",
-                            "Content-Type": "application/json",
-                            "User-Agent": "GUIOS-Plus/1.0",
-                        },
-                        method="POST"
-                    )
-                    with urllib.request.urlopen(req, timeout=5) as r:
-                        if r.status in (200, 201):
-                            correo_enviado = True
-                            logger.info("Correo enviado exitosamente vía Resend API a %s", user.email)
-                except Exception as e:
-                    logger.warning("Fallo envío de correo vía Resend API a %s: %s", user.email, e)
-
-            # Si no se envió por Resend, intentar SMTP estándar (con timeout protegido)
-            if not correo_enviado:
-                try:
-                    send_mail(
-                        subject=asunto,
-                        message=mensaje_texto,
-                        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "GUIOS+ <no-reply@guiosplus.org>"),
-                        recipient_list=[user.email],
-                        fail_silently=False,
-                        html_message=mensaje_html,
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "Aviso al enviar correo SMTP a %s (en Render Free los puertos SMTP salientes 587/465 suelen estar bloqueados): %s",
-                        user.email,
-                        e,
-                    )
+            # 2. Intentar envío de correo saliente vía SMTP (en local envía directo; en Render Free queda protegido sin bloquear)
+            try:
+                send_mail(
+                    subject=asunto,
+                    message=mensaje_texto,
+                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "GUIOS+ <no-reply@guiosplus.org>"),
+                    recipient_list=[user.email],
+                    fail_silently=False,
+                    html_message=mensaje_html,
+                )
+            except Exception as e:
+                logger.warning(
+                    "Aviso al enviar correo SMTP a %s (en Render Free los puertos SMTP salientes 587/465 están bloqueados): %s",
+                    user.email,
+                    e,
+                )
 
         resp_data = {
             "message": "Si el correo electrónico está registrado en el sistema, recibirás un enlace de recuperación en breve. Revisa tu bandeja de entrada o carpeta de spam.",

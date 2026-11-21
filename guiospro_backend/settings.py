@@ -229,7 +229,6 @@ EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='GUIOS+ <no-reply@guiosplus.org>')
 FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:5173')
 PASSWORD_RESET_TIMEOUT = env.int('PASSWORD_RESET_TIMEOUT', default=3600)  # 1 hora de validez
-RESEND_API_KEY = env('RESEND_API_KEY', default='')
 
 
 
