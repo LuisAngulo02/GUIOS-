@@ -102,7 +102,7 @@ export const Dashboard = () => {
   const [filtroComp, setFiltroComp] = useState("todos");
   const [busquedaComp, setBusquedaComp] = useState("");
 
-  const exportarComparativaExcel = (ev1, ev2, factores) => {
+  const exportarComparativaExcel = (ev1, ev2, factores, resumenDiferencias = []) => {
     const fecha = new Date().toISOString().split("T")[0];
     const fechaHora = new Date().toLocaleString("es-ES");
     const nom1 = ev1.nombre_software || "Opción 1";
@@ -114,6 +114,52 @@ export const Dashboard = () => {
       if (typeof e.recomendacion === "string") return e.recomendacion;
       if (e.dictamen_oficial) return e.dictamen_oficial;
       return "—";
+    };
+
+    const rec1 = getRec(ev1);
+    const rec2 = getRec(ev2);
+
+    const getRecStyle = (r) => {
+      if (r === "A") return { color: "#2E7D32", bg: "#E8F5E9", border: "#2E7D32" };
+      if (r === "B") return { color: "#E65100", bg: "#FFF3E0", border: "#E65100" };
+      if (r === "C") return { color: "#C62828", bg: "#FFEBEE", border: "#C62828" };
+      return { color: "#424242", bg: "#EEEEEE", border: "#BDBDBD" };
+    };
+
+    const styleRec1 = getRecStyle(rec1);
+    const styleRec2 = getRecStyle(rec2);
+
+    const getCriticosCount = (e) => {
+      if (e?.resumen_foda?.criticos != null) return e.resumen_foda.criticos;
+      if (Array.isArray(e?.resultados_foda)) return e.resultados_foda.filter((f) => f.critico).length;
+      return 0;
+    };
+
+    const crit1 = getCriticosCount(ev1);
+    const crit2 = getCriticosCount(ev2);
+
+    const viab1 = Number(ev1.indice_viabilidad || 0);
+    const viab2 = Number(ev2.indice_viabilidad || 0);
+
+    let balanceGlobalTxt = "";
+    if (viab1 > viab2) {
+      balanceGlobalTxt = `Mayor viabilidad metodológica en ${nom1} (+${(viab1 - viab2).toFixed(1)}%)`;
+    } else if (viab2 > viab1) {
+      balanceGlobalTxt = `Mayor viabilidad metodológica en ${nom2} (+${(viab2 - viab1).toFixed(1)}%)`;
+    } else {
+      balanceGlobalTxt = "Viabilidad metodológica idéntica";
+    }
+    if (crit1 !== crit2) {
+      balanceGlobalTxt += ` · ${crit1 < crit2 ? `Menor riesgo crítico en ${nom1}` : `Menor riesgo crítico en ${nom2}`}`;
+    }
+
+    const getFodaClass = (fodaStr) => {
+      const f = (fodaStr || "").toLowerCase();
+      if (f.includes("fortaleza")) return "fortaleza";
+      if (f.includes("oportunidad")) return "oportunidad";
+      if (f.includes("debilidad")) return "debilidad";
+      if (f.includes("amenaza")) return "amenaza";
+      return "";
     };
 
     let html = `
@@ -136,101 +182,234 @@ export const Dashboard = () => {
         <![endif]-->
         <style>
           body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; }
-          .titulo { font-size: 15pt; font-weight: bold; color: #2F5444; }
+          .titulo-principal { font-size: 16pt; font-weight: bold; color: #2F5444; }
           .subtitulo { font-size: 10pt; color: #555555; }
-          th { background-color: #2F5444; color: #FFFFFF; font-weight: bold; font-size: 9pt; border: 1px solid #1F382E; padding: 7px 10px; }
+          .seccion-header { font-size: 11pt; font-weight: bold; color: #2F5444; border-bottom: 2px solid #3F6F58; padding-top: 15px; margin-bottom: 6px; }
+          table { border-collapse: collapse; width: 100%; margin-top: 6px; margin-bottom: 18px; }
+          th { background-color: #2F5444; color: #FFFFFF; font-weight: bold; font-size: 9pt; border: 1px solid #1F382E; padding: 7px 10px; text-align: left; }
+          th.center, td.center { text-align: center; }
+          th.right, td.right { text-align: right; }
           td { border: 1px solid #DDE7E1; padding: 6px 10px; font-size: 9pt; vertical-align: middle; }
-          .center { text-align: center; }
-          .fortaleza { background-color: #E8F5E9; color: #1B5E20; font-weight: bold; }
-          .oportunidad { background-color: #E1F5FE; color: #0277BD; font-weight: bold; }
-          .debilidad { background-color: #FFF3E0; color: #E65100; font-weight: bold; }
-          .amenaza { background-color: #FFEBEE; color: #C62828; font-weight: bold; }
+          tr:nth-child(even) td { background-color: #F8FAF9; }
+          .meta-th { background-color: #EBF4EE; color: #2F5444; font-weight: bold; width: 170px; }
+          .meta-td { background-color: #FFFFFF; }
+          .badge-rec { font-weight: bold; padding: 6px 10px; text-align: center; }
+          .fortaleza { background-color: #E8F5E9 !important; color: #1B5E20; font-weight: bold; }
+          .oportunidad { background-color: #E1F5FE !important; color: #0277BD; font-weight: bold; }
+          .debilidad { background-color: #FFF3E0 !important; color: #E65100; font-weight: bold; }
+          .amenaza { background-color: #FFEBEE !important; color: #C62828; font-weight: bold; }
+          .critico { background-color: #FFCDD2 !important; color: #B71C1C; font-weight: bold; }
+          .ventaja-1 { background-color: #E8F5E9 !important; color: #1B5E20; font-weight: bold; }
+          .ventaja-2 { background-color: #E1F5FE !important; color: #0277BD; font-weight: bold; }
+          .ventaja-empate { color: #616161; }
+          .nota-destacada { font-weight: bold; color: #2F5444; }
         </style>
       </head>
       <body>
         <table>
-          <tr><td colspan="5" class="titulo">GUIOS+ · COMPARATIVA EN PARALELO DE SOLUCIONES FLOSS</td></tr>
-          <tr><td colspan="5" class="subtitulo">Análisis contrastado según los 18 factores y la Ecuación 5.3 · Fecha: ${fechaHora}</td></tr>
+          <tr>
+            <td colspan="5" class="titulo-principal">GUIOS+ · COMPARATIVA EN PARALELO DE SOLUCIONES FLOSS</td>
+          </tr>
+          <tr>
+            <td colspan="5" class="subtitulo">Informe Oficial de Evaluación Multicriterio Contrastada — Metodología Científica GUIOS · Ecuación 5.3</td>
+          </tr>
         </table>
-        <br/>
+
+        <table>
+          <tr>
+            <td class="meta-th">Software Opción 1:</td>
+            <td class="meta-td"><strong>${nom1}</strong> ${ev1.id ? `(#${ev1.id})` : ""}</td>
+            <td class="meta-th">Software Opción 2:</td>
+            <td class="meta-td" colspan="2"><strong>${nom2}</strong> ${ev2.id ? `(#${ev2.id})` : ""}</td>
+          </tr>
+          <tr>
+            <td class="meta-th">Contexto de Uso (Op. 1):</td>
+            <td class="meta-td">${ev1.contexto_uso || ev1.contexto || "Entorno Organizacional"}</td>
+            <td class="meta-th">Contexto de Uso (Op. 2):</td>
+            <td class="meta-td" colspan="2">${ev2.contexto_uso || ev2.contexto || "Entorno Organizacional"}</td>
+          </tr>
+          <tr>
+            <td class="meta-th">Fecha de Comparativa:</td>
+            <td class="meta-td">${fechaHora}</td>
+            <td class="meta-th">Balance Global:</td>
+            <td class="meta-td" colspan="2"><strong>${balanceGlobalTxt}</strong></td>
+          </tr>
+        </table>
+
+        <div class="seccion-header">1. RESUMEN COMPARATIVO DE MÉTRICAS Y DICTAMEN OFICIAL</div>
         <table>
           <thead>
             <tr>
-              <th>Métrica de Decisión</th>
-              <th class="center">${nom1} (Opción 1)</th>
-              <th class="center">${nom2} (Opción 2)</th>
-              <th>Diferencial / Balance Comparativo</th>
+              <th style="width: 220px;">Métrica de Decisión</th>
+              <th class="center" style="width: 170px;">${nom1} (Opción 1)</th>
+              <th class="center" style="width: 170px;">${nom2} (Opción 2)</th>
+              <th colspan="2">Diferencial / Balance Comparativo</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td><strong>Dictamen Oficial</strong></td>
-              <td class="center"><strong>Recomendación ${getRec(ev1)}</strong></td>
-              <td class="center"><strong>Recomendación ${getRec(ev2)}</strong></td>
-              <td>${getRec(ev1) === getRec(ev2) ? "Dictámenes equivalentes" : `Difieren (${getRec(ev1)} vs ${getRec(ev2)})`}</td>
+              <td class="center" style="background-color: ${styleRec1.bg}; color: ${styleRec1.color}; font-weight: bold; border: 1px solid ${styleRec1.border};">
+                RECOMENDACIÓN ${rec1}
+              </td>
+              <td class="center" style="background-color: ${styleRec2.bg}; color: ${styleRec2.color}; font-weight: bold; border: 1px solid ${styleRec2.border};">
+                RECOMENDACIÓN ${rec2}
+              </td>
+              <td colspan="2">
+                <strong>${rec1 === rec2 ? "Dictámenes equivalentes" : `Difieren (Recomendación ${rec1} vs ${rec2})`}</strong>
+              </td>
             </tr>
             <tr>
               <td><strong>Índice de Viabilidad FLOSS</strong></td>
-              <td class="center" style="font-weight: bold; color: #2E7D32;">${ev1.indice_viabilidad != null ? `${ev1.indice_viabilidad}%` : "0%"}</td>
-              <td class="center" style="font-weight: bold; color: #0277BD;">${ev2.indice_viabilidad != null ? `${ev2.indice_viabilidad}%` : "0%"}</td>
-              <td>${(ev1.indice_viabilidad || 0) > (ev2.indice_viabilidad || 0) ? `+${((ev1.indice_viabilidad || 0) - (ev2.indice_viabilidad || 0)).toFixed(1)}% a favor de ${nom1}` : (ev2.indice_viabilidad || 0) > (ev1.indice_viabilidad || 0) ? `+${((ev2.indice_viabilidad || 0) - (ev1.indice_viabilidad || 0)).toFixed(1)}% a favor de ${nom2}` : "Misma viabilidad"}</td>
+              <td class="center" style="font-size: 11pt; font-weight: bold; color: #2E7D32;">
+                ${ev1.indice_viabilidad != null ? `${ev1.indice_viabilidad}%` : "0%"}
+              </td>
+              <td class="center" style="font-size: 11pt; font-weight: bold; color: #0277BD;">
+                ${ev2.indice_viabilidad != null ? `${ev2.indice_viabilidad}%` : "0%"}
+              </td>
+              <td colspan="2" style="font-weight: bold;">
+                ${viab1 > viab2 
+                  ? `<span style="color: #2E7D32;">+${(viab1 - viab2).toFixed(1)}% a favor de ${nom1}</span>`
+                  : viab2 > viab1
+                  ? `<span style="color: #0277BD;">+${(viab2 - viab1).toFixed(1)}% a favor de ${nom2}</span>`
+                  : "Misma viabilidad técnica"}
+              </td>
             </tr>
             <tr>
-              <td><strong>Nivel de Confianza</strong></td>
-              <td class="center">${ev1.nivel_confianza || "—"}</td>
-              <td class="center">${ev2.nivel_confianza || "—"}</td>
-              <td>—</td>
+              <td><strong>Nivel de Confianza Metodológica</strong></td>
+              <td class="center"><strong>${ev1.nivel_confianza || "Alto"}</strong></td>
+              <td class="center"><strong>${ev2.nivel_confianza || "Alto"}</strong></td>
+              <td colspan="2">${(ev1.nivel_confianza || "Alto") === (ev2.nivel_confianza || "Alto") ? "Confiabilidad metodológica equivalente" : "Diferente nivel de confianza"}</td>
             </tr>
             <tr>
-              <td><strong>Factores Críticos</strong></td>
-              <td class="center">${ev1?.resumen_foda?.criticos || 0}</td>
-              <td class="center">${ev2?.resumen_foda?.criticos || 0}</td>
-              <td>${(ev1?.resumen_foda?.criticos || 0) < (ev2?.resumen_foda?.criticos || 0) ? `Menor riesgo en ${nom1}` : (ev2?.resumen_foda?.criticos || 0) < (ev1?.resumen_foda?.criticos || 0) ? `Menor riesgo en ${nom2}` : "Mismo riesgo"}</td>
+              <td><strong>Factores Críticos (Riesgo Bloqueante)</strong></td>
+              <td class="center ${crit1 > 0 ? "critico" : ""}">
+                ${crit1 === 0 ? '<strong style="color: #2E7D32;">0 (Sin bloqueo)</strong>' : `<strong>${crit1} Crítico(s)</strong>`}
+              </td>
+              <td class="center ${crit2 > 0 ? "critico" : ""}">
+                ${crit2 === 0 ? '<strong style="color: #2E7D32;">0 (Sin bloqueo)</strong>' : `<strong>${crit2} Crítico(s)</strong>`}
+              </td>
+              <td colspan="2" style="font-weight: bold;">
+                ${crit1 < crit2 
+                  ? `<span style="color: #2E7D32;">Menor riesgo de adopción en ${nom1} (${crit1} vs ${crit2})</span>` 
+                  : crit2 < crit1 
+                  ? `<span style="color: #0277BD;">Menor riesgo de adopción en ${nom2} (${crit2} vs ${crit1})</span>` 
+                  : "Mismo nivel de riesgo crítico"}
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Balance FODA (F / O / D / A)</strong></td>
+              <td class="center">
+                <span class="fortaleza" style="padding: 2px 4px;">${ev1.resumen_foda?.fortalezas || 0}F</span>&nbsp;
+                <span class="oportunidad" style="padding: 2px 4px;">${ev1.resumen_foda?.oportunidades || 0}O</span>&nbsp;
+                <span class="debilidad" style="padding: 2px 4px;">${ev1.resumen_foda?.debilidades || 0}D</span>&nbsp;
+                <span class="amenaza" style="padding: 2px 4px;">${ev1.resumen_foda?.amenazas || 0}A</span>
+              </td>
+              <td class="center">
+                <span class="fortaleza" style="padding: 2px 4px;">${ev2.resumen_foda?.fortalezas || 0}F</span>&nbsp;
+                <span class="oportunidad" style="padding: 2px 4px;">${ev2.resumen_foda?.oportunidades || 0}O</span>&nbsp;
+                <span class="debilidad" style="padding: 2px 4px;">${ev2.resumen_foda?.debilidades || 0}D</span>&nbsp;
+                <span class="amenaza" style="padding: 2px 4px;">${ev2.resumen_foda?.amenazas || 0}A</span>
+              </td>
+              <td colspan="2">
+                ${(ev1.resumen_foda?.fortalezas || 0) > (ev2.resumen_foda?.fortalezas || 0) 
+                  ? `Mayor potencial interno en ${nom1} (+${(ev1.resumen_foda?.fortalezas || 0) - (ev2.resumen_foda?.fortalezas || 0)} fortalezas)`
+                  : (ev2.resumen_foda?.fortalezas || 0) > (ev1.resumen_foda?.fortalezas || 0)
+                  ? `Mayor potencial interno en ${nom2} (+${(ev2.resumen_foda?.fortalezas || 0) - (ev1.resumen_foda?.fortalezas || 0)} fortalezas)`
+                  : "Potencial interno equivalente"}
+              </td>
             </tr>
           </tbody>
         </table>
-        <br/>
+
+        <div class="seccion-header">2. MATRIZ CONTRASTADA DE FACTORES (18 FACTORES GUIOS)</div>
         <table>
           <thead>
             <tr>
-              <th>Factor</th>
-              <th>Dimensión</th>
-              <th class="center">${nom1} (PM / FODA)</th>
-              <th class="center">${nom2} (PM / FODA)</th>
-              <th>Ventaja Técnica</th>
+              <th style="width: 200px;">Factor Evaluado</th>
+              <th class="center" style="width: 120px;">Dimensión</th>
+              <th class="center" style="width: 180px;">${nom1} (PM / FODA)</th>
+              <th class="center" style="width: 180px;">${nom2} (PM / FODA)</th>
+              <th class="center" style="width: 170px;">Ventaja Técnica</th>
             </tr>
           </thead>
           <tbody>
             ${(factores || []).map((cf) => {
               const pm1 = cf.eval1?.pm != null ? Number(cf.eval1.pm) : null;
               const pm2 = cf.eval2?.pm != null ? Number(cf.eval2.pm) : null;
+              const foda1Raw = cf.eval1?.foda || "";
+              const foda2Raw = cf.eval2?.foda || "";
+              const claseFoda1 = getFodaClass(foda1Raw);
+              const claseFoda2 = getFodaClass(foda2Raw);
+
               let ventaja = "Empate";
+              let ventajaClase = "ventaja-empate";
+
               if (pm1 != null && pm2 != null) {
-                if (pm1 > pm2) ventaja = `+${(pm1 - pm2).toFixed(2)} ${nom1}`;
-                else if (pm2 > pm1) ventaja = `+${(pm2 - pm1).toFixed(2)} ${nom2}`;
+                if (pm1 > pm2) {
+                  ventaja = `+${(pm1 - pm2).toFixed(2)} ${nom1}`;
+                  ventajaClase = "ventaja-1";
+                } else if (pm2 > pm1) {
+                  ventaja = `+${(pm2 - pm1).toFixed(2)} ${nom2}`;
+                  ventajaClase = "ventaja-2";
+                } else {
+                  ventaja = "Empate";
+                  ventajaClase = "ventaja-empate";
+                }
               } else if (pm1 != null && pm2 == null) {
                 ventaja = `Evaluado solo en ${nom1}`;
+                ventajaClase = "ventaja-1";
               } else if (pm2 != null && pm1 == null) {
                 ventaja = `Evaluado solo en ${nom2}`;
+                ventajaClase = "ventaja-2";
               } else {
                 ventaja = "No evaluado";
+                ventajaClase = "ventaja-empate";
               }
 
-              const txt1 = cf.eval1?.pm != null ? `${cf.eval1.pm} · ${cf.eval1.foda || "—"}` : cf.eval1?.importancia_relativa && cf.eval1.importancia_relativa !== "—" ? `IR: ${cf.eval1.importancia_relativa}` : "No evaluado";
-              const txt2 = cf.eval2?.pm != null ? `${cf.eval2.pm} · ${cf.eval2.foda || "—"}` : cf.eval2?.importancia_relativa && cf.eval2.importancia_relativa !== "—" ? `IR: ${cf.eval2.importancia_relativa}` : "No evaluado";
+              const txt1 = pm1 != null 
+                ? `${pm1.toFixed(2)} · ${foda1Raw || "—"}` 
+                : cf.eval1?.importancia_relativa && cf.eval1.importancia_relativa !== "—" 
+                ? `IR: ${cf.eval1.importancia_relativa}` 
+                : "No evaluado";
+
+              const txt2 = pm2 != null 
+                ? `${pm2.toFixed(2)} · ${foda2Raw || "—"}` 
+                : cf.eval2?.importancia_relativa && cf.eval2.importancia_relativa !== "—" 
+                ? `IR: ${cf.eval2.importancia_relativa}` 
+                : "No evaluado";
 
               return `
                 <tr>
                   <td><strong>${cf.nombre_factor}</strong></td>
-                  <td>${cf.dimension}</td>
-                  <td class="center">${txt1}</td>
-                  <td class="center">${txt2}</td>
-                  <td><strong>${ventaja}</strong></td>
+                  <td class="center">${cf.dimension}</td>
+                  <td class="center ${claseFoda1}">${txt1}</td>
+                  <td class="center ${claseFoda2}">${txt2}</td>
+                  <td class="center ${ventajaClase}"><strong>${ventaja}</strong></td>
                 </tr>
               `;
             }).join("")}
           </tbody>
         </table>
+
+        ${Array.isArray(resumenDiferencias) && resumenDiferencias.length > 0 ? `
+          <div class="seccion-header">3. CONCLUSIONES Y SÍNTESIS DE DIFERENCIAS CLAVE</div>
+          <table>
+            <tr>
+              <td colspan="5" style="background-color: #EBF4EE; border: 1px solid #CDE1D4; padding: 10px 14px; font-size: 9pt;">
+                <strong style="color: #2F5444; font-size: 10pt;">Hallazgos comparativos destacados:</strong>
+                <ul style="margin: 6px 0 0 16px; padding: 0;">
+                  ${resumenDiferencias.map((d) => `<li style="margin-bottom: 4px; color: #333333;">${d}</li>`).join("")}
+                </ul>
+              </td>
+            </tr>
+          </table>
+        ` : ""}
+
+        <br/>
+        <div style="font-size: 8pt; color: #777777; border-top: 1px solid #CCCCCC; padding-top: 6px;">
+          Documento generado por GUIOSPRO FLOSS Web · Comparativa Multicriterio basada en la Ecuación 5.3 y Matriz de Decisión 2021 (PhD. Víctor Hugo Rea Sánchez).
+        </div>
       </body>
       </html>
     `;
@@ -896,7 +1075,8 @@ export const Dashboard = () => {
                     exportarComparativaExcel(
                       comparacionData?.evaluacion_1 || comparacionData?.evaluacion1 || {},
                       comparacionData?.evaluacion_2 || comparacionData?.evaluacion2 || {},
-                      comparacionData?.comparativa_factores || []
+                      comparacionData?.comparativa_factores || [],
+                      comparacionData?.resumen_diferencias || []
                     )
                   }
                   className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#2F5444] hover:bg-[#254336] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
@@ -1417,7 +1597,8 @@ export const Dashboard = () => {
                     exportarComparativaExcel(
                       comparacionData?.evaluacion_1 || comparacionData?.evaluacion1 || {},
                       comparacionData?.evaluacion_2 || comparacionData?.evaluacion2 || {},
-                      comparacionData?.comparativa_factores || []
+                      comparacionData?.comparativa_factores || [],
+                      comparacionData?.resumen_diferencias || []
                     )
                   }
                   className="sm:hidden px-3 py-2 rounded-lg bg-[#2F5444] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
