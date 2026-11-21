@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { Search, Save, ChevronDown, X, ArrowRight, AlertTriangle } from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
@@ -378,16 +379,16 @@ export const FactoresRelevantes = () => {
       {/* ============================================================== */}
       {/* DRAWER LATERAL DERECHO: Evidencia Bibliográfica               */}
       {/* ============================================================== */}
-      {drawerFactor && (
-        <div className="fixed inset-0 z-50 overflow-hidden">
+      {drawerFactor && createPortal(
+        <div className="fixed inset-0 z-[100] overflow-hidden animate-in fade-in duration-200">
           {/* Backdrop translúcido */}
           <div
-            className="fixed inset-0 bg-black/40 backdrop-blur-2xs transition-opacity duration-300"
+            className="fixed inset-0 bg-black/80 backdrop-blur-md backdrop-grayscale transition-opacity duration-300"
             onClick={() => setDrawerFactor(null)}
           />
 
           {/* Panel deslizante lateral derecho */}
-          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10 z-50">
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10 z-[100]">
             <div className="w-screen max-w-md bg-white shadow-2xl flex flex-col p-6 sm:p-8 overflow-y-auto">
               {/* Encabezado del Drawer */}
               <div className="flex items-start justify-between">
@@ -478,11 +479,12 @@ export const FactoresRelevantes = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       {/* Modal: Sin Factores Relevantes */}
-      {modalSinRelevantesOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+      {modalSinRelevantesOpen && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md backdrop-grayscale flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-md w-full border border-[#DDE7E1] shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-start justify-between gap-3 pb-3 border-b border-gray-100">
               <div className="flex items-center gap-3">
@@ -520,7 +522,8 @@ export const FactoresRelevantes = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

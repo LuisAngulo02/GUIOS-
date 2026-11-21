@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   Save,
@@ -613,8 +614,8 @@ export const EvaluacionSubfactores = () => {
       </div>
 
       {/* 6. Modal Asistente IA (Precalificación Ágil) */}
-      {modalIaOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+      {modalIaOpen && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md backdrop-grayscale flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-md w-full border border-[#DDE7E1] shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-start justify-between gap-3 pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2.5">
@@ -719,12 +720,13 @@ export const EvaluacionSubfactores = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 7. Modal Metodológico: Evaluación Incompleta */}
-      {modalIncompletoOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+      {modalIncompletoOpen && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md backdrop-grayscale flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-lg w-full border border-[#DDE7E1] shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-start justify-between gap-3 pb-3 border-b border-gray-100">
               <div className="flex items-center gap-3">
@@ -819,7 +821,8 @@ export const EvaluacionSubfactores = () => {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

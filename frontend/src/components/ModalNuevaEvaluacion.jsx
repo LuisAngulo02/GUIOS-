@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { PlusCircle, X, Sparkles, Layers, BookOpen, ArrowRight } from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
@@ -60,8 +61,8 @@ export const ModalNuevaEvaluacion = ({ isOpen, onClose }) => {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md backdrop-grayscale flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl border border-[#DDE7E1] w-full max-w-md p-6 shadow-2xl animate-in fade-in zoom-in-95 space-y-4">
         {/* Encabezado */}
         <div className="flex items-center justify-between pb-3 border-b border-gray-100">
@@ -198,7 +199,8 @@ export const ModalNuevaEvaluacion = ({ isOpen, onClose }) => {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

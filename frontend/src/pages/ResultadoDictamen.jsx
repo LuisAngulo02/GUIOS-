@@ -354,6 +354,15 @@ export const ResultadoDictamen = () => {
   };
 
   useEffect(() => {
+    // Asegurar que la vista inicie en la parte superior del dictamen
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    const mainEl = document.querySelector("main");
+    if (mainEl) {
+      mainEl.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    }
+  }, []);
+
+  useEffect(() => {
     setAnalisisIA(null);
     if (recomendacion !== "Pendiente" && factoresEvaluados.length > 0) {
       solicitarRecomendacionesIA(false);

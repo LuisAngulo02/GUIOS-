@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   Lock,
@@ -469,9 +470,9 @@ export const Login = ({ defaultTab = "login" }) => {
       </div>
 
       {/* Modal de Recuperación de Contraseña */}
-      {modalRecuperarOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 border border-gray-100 relative">
+      {modalRecuperarOpen && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md backdrop-grayscale p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 border border-gray-100 relative animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#3F6F58] flex items-center justify-center border border-emerald-200">
@@ -565,7 +566,8 @@ export const Login = ({ defaultTab = "login" }) => {
               </form>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Pie de página */}

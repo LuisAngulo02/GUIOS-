@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Search,
   Plus,
@@ -1825,8 +1826,8 @@ export const Administracion = () => {
       {/* ======================================================================= */}
       {/* MODAL 1: CREAR NUEVO USUARIO (HU-02) */}
       {/* ======================================================================= */}
-      {modalCrearAbierto && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+      {modalCrearAbierto && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md backdrop-grayscale flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-md w-full border border-[#DDE7E1] shadow-2xl p-6 space-y-5 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2.5">
@@ -1929,14 +1930,15 @@ export const Administracion = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ======================================================================= */}
       {/* MODAL 2: BITÁCORA DE AUDITORÍA (HU-02 / RF-02) */}
       {/* ======================================================================= */}
-      {modalAuditoriaAbierto && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+      {modalAuditoriaAbierto && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md backdrop-grayscale flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-3xl w-full border border-[#DDE7E1] shadow-2xl p-6 space-y-4 max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2.5">
@@ -2024,14 +2026,15 @@ export const Administracion = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ======================================================================= */}
       {/* MODAL HU-03: CREAR / EDITAR FACTOR METODOLÓGICO */}
       {/* ======================================================================= */}
-      {modalFactor.abierto && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+      {modalFactor.abierto && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md backdrop-grayscale flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-lg w-full border border-[#DDE7E1] shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2">
@@ -2163,14 +2166,15 @@ export const Administracion = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ======================================================================= */}
       {/* MODAL HU-03: CREAR / EDITAR SUBFACTOR (REACTIVO GUIOS) */}
       {/* ======================================================================= */}
-      {modalSubfactor.abierto && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+      {modalSubfactor.abierto && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md backdrop-grayscale flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-md w-full border border-[#DDE7E1] shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2">
@@ -2251,14 +2255,15 @@ export const Administracion = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ======================================================================= */}
       {/* MODAL 3: CONFIRMACIÓN MODERNA (Sustituye alert/confirm nativo) */}
       {/* ======================================================================= */}
-      {modalConfirm.abierto && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+      {modalConfirm.abierto && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md backdrop-grayscale flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-md w-full border border-[#DDE7E1] shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-start gap-3.5">
               <div
@@ -2351,7 +2356,8 @@ export const Administracion = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

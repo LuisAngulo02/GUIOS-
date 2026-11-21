@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Check,
@@ -821,8 +822,8 @@ export const Dashboard = () => {
       </div>
 
       {/* 5. MODAL: Comparador en Paralelo (Side-by-Side Profesional) */}
-      {modalComparacionOpen && comparacionData && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
+      {modalComparacionOpen && comparacionData && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md backdrop-grayscale flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl border border-[#DDE7E1] w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
             {/* Header del Modal */}
             <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-[#F4F8F5] via-white to-[#F4F8F5]">
@@ -1392,7 +1393,8 @@ export const Dashboard = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 6. MODAL: Nueva Evaluación (Compartido) */}
@@ -1402,8 +1404,8 @@ export const Dashboard = () => {
       />
 
       {/* 7. MODAL: Confirmación de Eliminación */}
-      {evaluacionAEliminar && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+      {evaluacionAEliminar && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md backdrop-grayscale flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl border border-red-100 max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-red-50 border border-red-200 text-red-600 flex items-center justify-center shrink-0">
@@ -1440,7 +1442,8 @@ export const Dashboard = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

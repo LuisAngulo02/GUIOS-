@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   RefreshCw,
   Download,
@@ -413,9 +414,9 @@ export const Evidencia = () => {
       </div>
 
       {/* Modal de Artículos Científicos Reales por Factor */}
-      {modalFactor && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full border border-[#DDE7E1] shadow-2xl p-6 space-y-4 max-h-[85vh] flex flex-col">
+      {modalFactor && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md backdrop-grayscale flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-2xl w-full border border-[#DDE7E1] shadow-2xl p-6 space-y-4 max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-[#EBF4EE] text-[#3F6F58] flex items-center justify-center">
@@ -513,7 +514,8 @@ export const Evidencia = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {toastMsg && (
