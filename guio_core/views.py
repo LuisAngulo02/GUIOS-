@@ -1258,7 +1258,17 @@ class EvidenciaView(views.APIView):
                     .order_by("-fecha_consulta")
                     .first()
                 )
-            # Si se solicitó una evaluación específica y no tiene cálculo bibliográfico propio,
+                # Si esta evaluación aún no tiene consulta propia, buscar si ya existe
+                # una consulta académica previa para el MISMO software
+                if not consulta and ev_check.nombre_software:
+                    consulta = (
+                        ConsultaEvidencia.objects.filter(
+                            nombre_software__iexact=ev_check.nombre_software.strip()
+                        )
+                        .order_by("-fecha_consulta")
+                        .first()
+                    )
+            # Si se solicitó una evaluación específica y no tiene cálculo bibliográfico propio ni de ese software,
             # retornar sin_consulta inmediatamente para no mezclar con otra evaluación.
             if not consulta:
                 return Response({"sin_consulta": True, "items": []}, status=status.HTTP_200_OK)

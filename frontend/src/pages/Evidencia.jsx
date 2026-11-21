@@ -48,40 +48,6 @@ export const Evidencia = () => {
     setTimeout(() => setToastMsg(""), 3500);
   };
 
-  useEffect(() => {
-    let cancelado = false;
-    setCargando(true);
-    setErrorMsg("");
-
-    apiService
-      .getEvidenciaBibliografica(!isNaN(Number(evaluacionId)) ? evaluacionId : null)
-      .then((res) => {
-        if (cancelado) return;
-        if (res && !res.sin_consulta && Array.isArray(res.items) && res.items.length > 0) {
-          setEvidenciaData(res);
-          setEsReferenciaMock(false);
-        } else {
-          setEvidenciaData(MOCK_EVIDENCIA);
-          setEsReferenciaMock(true);
-        }
-      })
-      .catch(() => {
-        if (!cancelado) {
-          setEvidenciaData(MOCK_EVIDENCIA);
-          setEsReferenciaMock(true);
-        }
-      })
-      .finally(() => {
-        if (!cancelado) setCargando(false);
-      });
-
-    return () => {
-      cancelado = true;
-    };
-  }, [evaluacionId]);
-
-  const data = evidenciaData || MOCK_EVIDENCIA;
-
   const handleActualizar = async () => {
     if (!softwareActivo?.trim()) {
       setErrorMsg("Define un software en Paso 0 antes de consultar.");
@@ -111,6 +77,77 @@ export const Evidencia = () => {
       setActualizando(false);
     }
   };
+
+  useEffect(() => {
+    let cancelado = false;
+    setCargando(true);
+    setErrorMsg("");
+
+    apiService
+      .getEvidenciaBibliografica(!isNaN(Number(evaluacionId)) ? evaluacionId : null)
+      .then(async (res) => {
+        if (cancelado) return;
+        if (res && !res.sin_consulta && Array.isArray(res.items) && res.items.length > 0) {
+          setEvidenciaData(res);
+          setEsReferenciaMock(false);
+          setCargando(false);
+        } else if (softwareActivo?.trim()) {
+          // Si no existe consulta previa para esta evaluación, autoejecutar la consulta en vivo para el software activo
+          setActualizando(true);
+          try {
+            const autoRes = await apiService.calcularImportanciaSugerida({
+              evaluacion_id: !isNaN(Number(evaluacionId)) ? Number(evaluacionId) : null,
+              nombre_software: softwareActivo,
+              contexto_uso: contextoActivo,
+              descripcion_caso: descripcionCaso,
+              fuentes: { scopus: true, openAlex: true },
+            });
+            if (cancelado) return;
+            if (autoRes && Array.isArray(autoRes.items) && autoRes.items.length > 0) {
+              setEvidenciaData(autoRes);
+              setEsReferenciaMock(false);
+              aplicarEvidenciaEnFactores(autoRes.items);
+            } else {
+              setEvidenciaData(MOCK_EVIDENCIA);
+              setEsReferenciaMock(true);
+            }
+          } catch (autoErr) {
+            if (!cancelado) {
+              setEvidenciaData(MOCK_EVIDENCIA);
+              setEsReferenciaMock(true);
+            }
+          } finally {
+            if (!cancelado) {
+              setActualizando(false);
+              setCargando(false);
+            }
+          }
+        } else {
+          setEvidenciaData(MOCK_EVIDENCIA);
+          setEsReferenciaMock(true);
+          setCargando(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelado) {
+          setEvidenciaData(MOCK_EVIDENCIA);
+          setEsReferenciaMock(true);
+          setCargando(false);
+        }
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [evaluacionId, softwareActivo, contextoActivo, descripcionCaso, aplicarEvidenciaEnFactores]);
+
+  const data = useMemo(() => {
+    if (evidenciaData) return evidenciaData;
+    return {
+      ...MOCK_EVIDENCIA,
+      software: softwareActivo || MOCK_EVIDENCIA.software,
+    };
+  }, [evidenciaData, softwareActivo]);
 
   const handleExportar = () => {
     const escapar = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -233,7 +270,7 @@ export const Evidencia = () => {
           <div className="flex items-center gap-2">
             <Database size={16} className="text-[#3F6F58]" />
             <h3 className="font-semibold text-gray-800 text-xs tracking-wide">
-              Resumen de la consulta académica · {data.software || softwareActivo}
+              Resumen de la consulta académica · {softwareActivo || data.software}
             </h3>
             {data.ia_utilizada && (
               <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-[#EBF4EE] text-[#2F5444] px-2 py-0.5 rounded-full border border-[#CDE1D4]">
