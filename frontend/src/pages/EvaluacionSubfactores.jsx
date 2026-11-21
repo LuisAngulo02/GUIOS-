@@ -406,16 +406,16 @@ export const EvaluacionSubfactores = () => {
       </div>
 
       {/* 3. Tarjeta de Contexto del Factor Seleccionado */}
-      <div className="bg-white rounded-card border border-[#DDE7E1] p-5 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-4 w-full md:w-auto">
-          <div className="w-12 h-12 rounded-xl bg-[#EBF4EE] border border-[#CDE1D4] flex items-center justify-center font-bold text-xl text-[#2F5444] shrink-0">
+      <div className="bg-white rounded-card border border-[#DDE7E1] p-4 sm:p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 w-full md:w-auto">
+          <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-[#EBF4EE] border border-[#CDE1D4] flex items-center justify-center font-bold text-lg sm:text-xl text-[#2F5444] shrink-0">
             {softwareActivo.charAt(0)}
           </div>
-          <div>
-            <h3 className="font-semibold text-gray-800 text-sm">
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-gray-800 text-sm truncate">
               {softwareActivo} / {contextoActivo ? contextoActivo.split("·")[0].trim() : "Evaluación activa"}
             </h3>
-            <div className="flex flex-wrap items-center gap-2 mt-1.5">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1">
               <Badge variant="auto" size="xs">
                 {factorActual.IR}
               </Badge>
@@ -429,26 +429,28 @@ export const EvaluacionSubfactores = () => {
         </div>
 
         {/* Selector de Factor */}
-        <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-          <label className="text-xs font-semibold text-gray-600">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 w-full md:w-auto justify-start md:justify-end border-t md:border-t-0 pt-3 md:pt-0 border-gray-100">
+          <label className="text-xs font-semibold text-gray-600 shrink-0">
             Factor ({indiceActual + 1} de {factoresRelevantes.length}):
           </label>
-          <select
-            value={selectedFactorId}
-            onChange={(e) => setSelectedFactorId(Number(e.target.value))}
-            className="px-3 py-2 text-xs font-semibold rounded-lg border border-[#DDE7E1] bg-white text-[#2F5444] focus:outline-none focus:ring-2 focus:ring-[#3F6F58]"
-          >
-            {factoresRelevantes.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.nombre} ({f.dimension})
-              </option>
-            ))}
-          </select>
+          <div className="w-full sm:w-auto min-w-0">
+            <select
+              value={selectedFactorId}
+              onChange={(e) => setSelectedFactorId(Number(e.target.value))}
+              className="w-full sm:w-auto max-w-full px-3 py-2 text-xs font-semibold rounded-lg border border-[#DDE7E1] bg-white text-[#2F5444] focus:outline-none focus:ring-2 focus:ring-[#3F6F58] cursor-pointer"
+            >
+              {factoresRelevantes.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.nombre} ({f.dimension})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
       {/* 4. Tarjeta de Subfactores con Acciones Rápidas en Bloque */}
-      <div className="bg-white rounded-card border border-[#DDE7E1] p-6 shadow-sm space-y-4">
+      <div className="bg-white rounded-card border border-[#DDE7E1] p-4 sm:p-6 shadow-sm space-y-4">
         {/* Cabecera con Título, Leyenda de Escala y Botonera Rápida en Bloque */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between pb-4 border-b border-gray-100 gap-3">
           <div>

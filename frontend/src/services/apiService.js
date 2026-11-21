@@ -32,15 +32,30 @@ async function doFetch(url, config) {
   }
 }
 
-async function ensureValidToken() {
+function isTokenExpired(token) {
+  if (!token || typeof token !== "string") return true;
+  if (token.startsWith("mock-")) return false;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1]));
+    if (!payload.exp) return false;
+    // Considerar expirado si le quedan menos de 60 segundos
+    return payload.exp * 1000 < Date.now() + 60000;
+  } catch {
+    return true;
+  }
+}
+
+async function ensureValidToken(forceRefresh = false) {
   const currentToken = getStoredToken();
-  if (currentToken && !currentToken.startsWith("mock-")) {
+  if (!forceRefresh && currentToken && !currentToken.startsWith("mock-") && !isTokenExpired(currentToken)) {
     return currentToken;
   }
 
-  // Si el access token expiró pero existe un refresh token, renovarlo de forma segura
+  // Si el access token expiró o se forzó refresco, renovarlo con el refresh token
   const refreshToken = localStorage.getItem("guios_refresh_token");
-  if (refreshToken && !refreshToken.startsWith("mock-")) {
+  if (refreshToken && !refreshToken.startsWith("mock-") && !isTokenExpired(refreshToken)) {
     try {
       const res = await doFetch(`${API_BASE_URL}/users/auth/refresh/`, {
         method: "POST",
@@ -51,6 +66,9 @@ async function ensureValidToken() {
         const data = await res.json();
         if (data.access) {
           localStorage.setItem("guios_access_token", data.access);
+          if (data.refresh) {
+            localStorage.setItem("guios_refresh_token", data.refresh);
+          }
           return data.access;
         }
       }
@@ -59,7 +77,7 @@ async function ensureValidToken() {
     }
   }
 
-  return "";
+  return currentToken && !forceRefresh ? currentToken : "";
 }
 
 /**
@@ -67,11 +85,7 @@ async function ensureValidToken() {
  */
 async function request(endpoint, options = {}, isRetry = false) {
   const isAuthEndpoint = endpoint.includes("/users/auth/");
-  let token = getStoredToken();
-
-  if (!isAuthEndpoint && (!token || token.startsWith("mock-"))) {
-    token = await ensureValidToken();
-  }
+  let token = isAuthEndpoint ? getStoredToken() : await ensureValidToken();
 
   const headers = {
     "Content-Type": "application/json",
@@ -655,11 +669,8 @@ export const apiService = {
   },
 
   // Exportación oficial en PDF (HU-08 / RF-13)
-  async descargarInformePDF(evaluacionId, nombreSoftware = "Software", payload = null) {
-    let token = getStoredToken();
-    if (!token || token.startsWith("mock-")) {
-      token = await ensureValidToken();
-    }
+  async descargarInformePDF(evaluacionId, nombreSoftware = "Software", payload = null, isRetry = false) {
+    let token = await ensureValidToken();
     const headers = {
       ...(token && !token.startsWith("mock-") ? { Authorization: `Bearer ${token}` } : {}),
       ...(payload ? { "Content-Type": "application/json" } : {}),
@@ -670,6 +681,17 @@ export const apiService = {
       ...(payload ? { body: JSON.stringify(payload) } : {}),
     };
     const response = await doFetch(`${API_BASE_URL}/guios/evaluations/${evaluacionId}/pdf/`, options);
+
+    // Si responde 401 (token expirado) y no es reintento, renovar token y reintentar
+    if (response.status === 401 && !isRetry) {
+      console.info("Token expirado al descargar PDF (401). Renovando sesión...");
+      localStorage.removeItem("guios_access_token");
+      const newToken = await ensureValidToken(true);
+      if (newToken) {
+        return await this.descargarInformePDF(evaluacionId, nombreSoftware, payload, true);
+      }
+    }
+
     if (!response.ok) {
       let errText = "";
       try {
