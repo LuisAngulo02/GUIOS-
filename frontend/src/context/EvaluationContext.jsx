@@ -21,7 +21,7 @@ const MAPA_TEXTO_A_NUMERO_IR = {
 // Generar factores en blanco para una nueva evaluación (catálogo maestro de 18 factores)
 export const getFactoresEnBlanco = () => {
   return MOCK_FACTORES.map((mf) => {
-    const defaultID = mf.ID || 2;
+    const defaultID = 1; // 1 · Irrelevante por defecto (mínimo absoluto)
     const irNum = Math.floor((mf.IS + defaultID) / 2);
     const irTexto = MAPA_NUMERO_A_TEXTO_IR[irNum] || "Irrelevante";
     return {
@@ -112,7 +112,7 @@ export const EvaluationProvider = ({ children }) => {
   // 5. Lista de Factores con sus Importancias y Evidencia
   const [factores, setFactores] = useState(() => {
     const saved = localStorage.getItem("guios_factores");
-    if (!saved) return MOCK_FACTORES;
+    if (!saved) return getFactoresEnBlanco();
     try {
       const parsed = JSON.parse(saved);
       return MOCK_FACTORES.map((mf) => {
