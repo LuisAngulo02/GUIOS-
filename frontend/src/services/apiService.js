@@ -194,9 +194,19 @@ export const apiService = {
         console.warn("Aviso al cerrar sesión en servidor:", e.message);
       }
     }
-    localStorage.removeItem("guios_access_token");
-    localStorage.removeItem("guios_refresh_token");
-    localStorage.removeItem("guios_user");
+    const keysToRemove = [
+      "guios_access_token",
+      "guios_refresh_token",
+      "guios_user",
+      "guios_evaluacion_id",
+      "guios_software_activo",
+      "guios_contexto_activo",
+      "guios_descripcion_caso",
+      "guios_evaluacion_estado",
+      "guios_factores",
+      "guios_subfactores",
+    ];
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
   },
 
   // Recuperación de contraseña

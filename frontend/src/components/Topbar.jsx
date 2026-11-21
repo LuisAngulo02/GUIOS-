@@ -47,11 +47,17 @@ export const Topbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
       {/* Lado derecho: Software activo, Estado de guardado y Perfil */}
       <div className="flex items-center gap-3 sm:gap-5">
         {/* Pill Software Activo */}
-        <div className="hidden md:flex items-center bg-[#4F8169] text-white px-3.5 py-1 rounded-full text-xs font-medium border border-[#62977D]">
-          <span className="font-semibold">{softwareActivo}</span>
-          <span className="mx-1.5 opacity-60">·</span>
-          <span className="opacity-90">{contextoActivo.split("·")[0].trim()}</span>
-        </div>
+        {softwareActivo ? (
+          <div className="hidden md:flex items-center bg-[#4F8169] text-white px-3.5 py-1 rounded-full text-xs font-medium border border-[#62977D]">
+            <span className="font-semibold">{softwareActivo}</span>
+            {contextoActivo ? (
+              <>
+                <span className="mx-1.5 opacity-60">·</span>
+                <span className="opacity-90">{contextoActivo.split("·")[0].trim()}</span>
+              </>
+            ) : null}
+          </div>
+        ) : null}
 
         {/* Indicador de Guardado */}
         <div className="flex items-center gap-1.5 text-xs text-green-100 bg-[#355E4A] px-2.5 py-1 rounded-full">

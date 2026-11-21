@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -6,6 +6,7 @@ import {
   ArrowRight,
   BookOpen,
   PlusCircle,
+  Plus,
   Search,
   Filter,
   GitCompare,
@@ -328,9 +329,24 @@ export const Dashboard = () => {
     });
   };
 
+  // Limpiar selecciones de comparación si ya no existen en la lista de evaluaciones
+  useEffect(() => {
+    setSelectedForCompare((prev) =>
+      prev.filter((id) => evaluacionesList.some((e) => String(e.id) === String(id)))
+    );
+  }, [evaluacionesList]);
+
   // Ejecutar comparador lado a lado
   const handleEjecutarComparacion = async () => {
     if (selectedForCompare.length !== 2) return;
+    const existen = selectedForCompare.every((id) =>
+      evaluacionesList.some((e) => String(e.id) === String(id))
+    );
+    if (!existen) {
+      mostrarError("Una o ambas evaluaciones seleccionadas ya no están disponibles en tu cuenta.");
+      setSelectedForCompare([]);
+      return;
+    }
     setLoadingComparacion(true);
     try {
       const data = await apiService.compararEvaluaciones(
@@ -470,103 +486,129 @@ export const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Tarjeta Evaluación Activa (2 columnas) */}
         <div className="lg:col-span-2 bg-white rounded-card border border-[#DDE7E1] p-6 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                <Sparkles size={13} className="text-[#3F6F58]" />
-                EVALUACIÓN ACTIVA #{evaluacionId}
-              </span>
-              <Badge variant={esCompletadaActiva ? "green" : "amber"} size="md">
-                {esCompletadaActiva ? "Completada" : "En sesión"}
-              </Badge>
-            </div>
-
-            <div className="flex items-start gap-4 mb-6">
-              <div className="w-14 h-14 rounded-2xl bg-[#EBF4EE] border border-[#CDE1D4] flex items-center justify-center font-bold text-2xl text-[#2F5444] shrink-0 shadow-inner">
-                {softwareActivo.charAt(0)}
+          {!evaluacionId || !softwareActivo ? (
+            <div className="py-8 flex flex-col items-center justify-center text-center space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-[#EBF4EE] border border-[#CDE1D4] flex items-center justify-center text-[#2F5444] shadow-inner">
+                <Sparkles size={24} />
               </div>
               <div>
-                <h3 className="text-xl font-light text-gray-800">
-                  {softwareActivo}
+                <h3 className="text-lg font-medium text-gray-800">
+                  No tienes ninguna evaluación activa
                 </h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {contextoActivo}
+                <p className="text-xs text-gray-500 max-w-sm mt-1">
+                  Inicia una nueva evaluación para evaluar la viabilidad de adopción FLOSS o selecciona una del historial.
                 </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalNuevaOpen(true)}
+                className="mt-2 px-5 py-2.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
+              >
+                <Plus size={14} />
+                <span>Iniciar nueva evaluación</span>
+              </button>
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <Sparkles size={13} className="text-[#3F6F58]" />
+                  EVALUACIÓN ACTIVA #{evaluacionId}
+                </span>
+                <Badge variant={esCompletadaActiva ? "green" : "amber"} size="md">
+                  {esCompletadaActiva ? "Completada" : "En sesión"}
+                </Badge>
+              </div>
 
-                {/* Metadatos en 3 columnas */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-100 text-xs">
-                  <div>
-                    <span className="text-gray-400 block text-[11px]">Metodología</span>
-                    <span className="font-semibold text-[#2F5444]">Tesis Doctoral GUIOS</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400 block text-[11px]">Resultado Dictamen</span>
-                    <span className="font-semibold text-[#25633C]">
-                      {esCompletadaActiva
-                        ? `Rec. ${evaluacionActualObj?.recomendacion?.tipo || "C"} (${evaluacionActualObj?.indice_viabilidad || 100}%)`
-                        : "En proceso de cálculo"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400 block text-[11px]">Estado Persistencia</span>
-                    <span className="font-semibold text-gray-700">
-                      {esCompletadaActiva ? "Completada en PostgreSQL" : "En sesión activa"}
-                    </span>
+              <div className="flex items-start gap-4 mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-[#EBF4EE] border border-[#CDE1D4] flex items-center justify-center font-bold text-2xl text-[#2F5444] shrink-0 shadow-inner">
+                  {softwareActivo.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="text-xl font-light text-gray-800">
+                    {softwareActivo}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {contextoActivo}
+                  </p>
+
+                  {/* Metadatos en 3 columnas */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-100 text-xs">
+                    <div>
+                      <span className="text-gray-400 block text-[11px]">Metodología</span>
+                      <span className="font-semibold text-[#2F5444]">Tesis Doctoral GUIOS</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block text-[11px]">Resultado Dictamen</span>
+                      <span className="font-semibold text-[#25633C]">
+                        {esCompletadaActiva
+                          ? `Rec. ${evaluacionActualObj?.recomendacion?.tipo || "C"} (${evaluacionActualObj?.indice_viabilidad || 100}%)`
+                          : "En proceso de cálculo"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block text-[11px]">Estado Persistencia</span>
+                      <span className="font-semibold text-gray-700">
+                        {esCompletadaActiva ? "Completada en PostgreSQL" : "En sesión activa"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Botones de Navegación Rápida */}
-          <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-gray-100">
-            {esCompletadaActiva ? (
-              <>
-                <button
-                  onClick={() => navigate("/resultado")}
-                  className="px-5 py-2.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
-                >
-                  <CheckCircle2 size={14} />
-                  <span>Ver Dictamen Final (Paso 3)</span>
-                  <ArrowRight size={14} />
-                </button>
-                <button
-                  onClick={() => navigate("/factores")}
-                  className="px-4 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
-                >
-                  <span>Revisar Paso 1</span>
-                </button>
-                <button
-                  onClick={() => navigate("/subfactores")}
-                  className="px-4 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
-                >
-                  <span>Revisar Paso 2</span>
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => navigate("/factores")}
-                  className="px-5 py-2.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
-                >
-                  <span>Ir a Paso 1 (Factores)</span>
-                  <ArrowRight size={14} />
-                </button>
-                <button
-                  onClick={() => navigate("/subfactores")}
-                  className="px-4 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
-                >
-                  <span>Paso 2 (Subfactores)</span>
-                </button>
-                <button
-                  onClick={() => navigate("/resultado")}
-                  className="px-4 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
-                >
-                  <span>Paso 3 (Resultado)</span>
-                </button>
-              </>
-            )}
-          </div>
+          {/* Botones de Navegación Rápida (solo si hay evaluación activa) */}
+          {evaluacionId && softwareActivo && (
+            <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-gray-100">
+              {esCompletadaActiva ? (
+                <>
+                  <button
+                    onClick={() => navigate("/resultado")}
+                    className="px-5 py-2.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
+                  >
+                    <CheckCircle2 size={14} />
+                    <span>Ver Dictamen Final (Paso 3)</span>
+                    <ArrowRight size={14} />
+                  </button>
+                  <button
+                    onClick={() => navigate("/factores")}
+                    className="px-4 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <span>Revisar Paso 1</span>
+                  </button>
+                  <button
+                    onClick={() => navigate("/subfactores")}
+                    className="px-4 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <span>Revisar Paso 2</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => navigate("/factores")}
+                    className="px-5 py-2.5 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
+                  >
+                    <span>Ir a Paso 1 (Factores)</span>
+                    <ArrowRight size={14} />
+                  </button>
+                  <button
+                    onClick={() => navigate("/subfactores")}
+                    className="px-4 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <span>Paso 2 (Subfactores)</span>
+                  </button>
+                  <button
+                    onClick={() => navigate("/resultado")}
+                    className="px-4 py-2.5 rounded-lg bg-white border border-[#DDE7E1] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <span>Paso 3 (Resultado)</span>
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Tarjeta Resumen Metodológico */}

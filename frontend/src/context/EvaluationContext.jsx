@@ -62,7 +62,7 @@ export const EvaluationProvider = ({ children }) => {
 
   // 2. Identificador de Evaluación en Base de Datos PostgreSQL
   const [evaluacionId, setEvaluacionId] = useState(() => {
-    return localStorage.getItem("guios_evaluacion_id") || "1";
+    return localStorage.getItem("guios_evaluacion_id") || null;
   });
 
   const [isBackendConnected, setIsBackendConnected] = useState(false);
@@ -74,39 +74,49 @@ export const EvaluationProvider = ({ children }) => {
 
   // 4. Estado de la Evaluación Activa (Persistido en LocalStorage)
   const [softwareActivo, setSoftwareActivo] = useState(() => {
-    return localStorage.getItem("guios_software_activo") || "Moodle";
+    return localStorage.getItem("guios_software_activo") || "";
   });
   const [contextoActivo, setContextoActivo] = useState(() => {
-    return (
-      localStorage.getItem("guios_contexto_activo") ||
-      "Educación · Plataforma de aprendizaje virtual"
-    );
+    return localStorage.getItem("guios_contexto_activo") || "";
   });
   const [descripcionCaso, setDescripcionCaso] = useState(() => {
-    return (
-      localStorage.getItem("guios_descripcion_caso") ||
-      "Evaluación de viabilidad para migrar el campus virtual institucional hacia Moodle 4.x garantizando interoperabilidad con LDAP y Office 365."
-    );
+    return localStorage.getItem("guios_descripcion_caso") || "";
   });
   const [estadoEvaluacionActiva, setEstadoEvaluacionActiva] = useState(() => {
     return localStorage.getItem("guios_evaluacion_estado") || "en_progreso";
   });
 
-  // Persistir metadatos activos en LocalStorage
+  // Persistir metadatos activos en LocalStorage solo si existen
   useEffect(() => {
-    localStorage.setItem("guios_software_activo", softwareActivo);
+    if (softwareActivo) {
+      localStorage.setItem("guios_software_activo", softwareActivo);
+    } else {
+      localStorage.removeItem("guios_software_activo");
+    }
   }, [softwareActivo]);
 
   useEffect(() => {
-    localStorage.setItem("guios_contexto_activo", contextoActivo);
+    if (contextoActivo) {
+      localStorage.setItem("guios_contexto_activo", contextoActivo);
+    } else {
+      localStorage.removeItem("guios_contexto_activo");
+    }
   }, [contextoActivo]);
 
   useEffect(() => {
-    localStorage.setItem("guios_descripcion_caso", descripcionCaso);
+    if (descripcionCaso) {
+      localStorage.setItem("guios_descripcion_caso", descripcionCaso);
+    } else {
+      localStorage.removeItem("guios_descripcion_caso");
+    }
   }, [descripcionCaso]);
 
   useEffect(() => {
-    localStorage.setItem("guios_evaluacion_estado", estadoEvaluacionActiva);
+    if (estadoEvaluacionActiva) {
+      localStorage.setItem("guios_evaluacion_estado", estadoEvaluacionActiva);
+    } else {
+      localStorage.removeItem("guios_evaluacion_estado");
+    }
   }, [estadoEvaluacionActiva]);
 
   // 5. Lista de Factores con sus Importancias y Evidencia
@@ -189,44 +199,63 @@ export const EvaluationProvider = ({ children }) => {
       let data = await apiService.getEvaluaciones(params);
       if (!Array.isArray(data)) data = [];
 
-      // Recuperar metadatos de la evaluación activa en sesión
+      // Recuperar ID de la evaluación activa en sesión
       const activeId = localStorage.getItem("guios_evaluacion_id");
-      const activeSoftware = localStorage.getItem("guios_software_activo");
       const activeEstado = localStorage.getItem("guios_evaluacion_estado") || "en_progreso";
-      const activeContexto = localStorage.getItem("guios_contexto_activo") || "";
-      const activeDesc = localStorage.getItem("guios_descripcion_caso") || "";
 
-      // Si la evaluación activa no está en la lista devuelta por la API (por ejemplo si fue creada offline),
-      // incluirla sintéticamente para que el usuario nunca vea la lista vacía ni pierda su evaluación activa
-      if (activeId && !data.some((e) => String(e.id) === String(activeId))) {
-        const itemActivo = {
-          id: isNaN(Number(activeId)) ? activeId : Number(activeId),
-          nombre_software: activeSoftware || "Evaluación FLOSS",
-          contexto_uso: activeContexto,
-          objetivo: activeDesc,
-          evaluador_nombre: currentUser?.nombre || "Admin Usuario",
-          fecha_inicio: new Date().toISOString(),
-          fecha_fin: activeEstado === "completada" ? new Date().toISOString() : null,
-          estado: activeEstado,
-          id_recomendacion: activeEstado === "completada" ? 3 : null,
-          recomendacion: activeEstado === "completada" ? { id: 3, tipo: "C", nombre: "Favorablemente Condicionada" } : null,
-          indice_viabilidad: activeEstado === "completada" ? 100 : 50,
-          progreso_porcentaje: activeEstado === "completada" ? 100 : 50,
-          resumen_foda: { fortalezas: 0, oportunidades: 0, debilidades: 0, amenazas: 0, criticos: 0, total_clasificados: 0 },
-        };
-        data = [itemActivo, ...data];
-      } else if (activeId) {
-        // Si está en la lista pero el estado local es 'completada', asegurar que figure como completada
-        data = data.map((item) => {
-          if (String(item.id) === String(activeId) && activeEstado === "completada") {
-            return {
-              ...item,
-              estado: "completada",
-              fecha_fin: item.fecha_fin || new Date().toISOString(),
-            };
-          }
-          return item;
-        });
+      // Validar si la evaluación activa realmente pertenece a este usuario en PostgreSQL
+      const matchActiva = activeId ? data.find((e) => String(e.id) === String(activeId)) : null;
+
+      if (matchActiva) {
+        // La evaluación activa es válida y pertenece a este usuario
+        if (activeEstado === "completada" && matchActiva.estado !== "completada") {
+          data = data.map((item) =>
+            String(item.id) === String(activeId)
+              ? { ...item, estado: "completada", fecha_fin: item.fecha_fin || new Date().toISOString() }
+              : item
+          );
+        }
+      } else if (data.length > 0) {
+        // La evaluación activa previa no pertenece a este usuario o ya no existe:
+        // Cargar automáticamente la más reciente del usuario logueado
+        const primera = data[0];
+        const idStr = String(primera.id);
+        const swNombre = primera.nombre_software || "";
+        const ctxNombre = primera.contexto_uso || "";
+        const descNombre = primera.objetivo || "";
+        const estNombre = primera.estado || "en_progreso";
+
+        localStorage.setItem("guios_evaluacion_id", idStr);
+        localStorage.setItem("guios_software_activo", swNombre);
+        localStorage.setItem("guios_contexto_activo", ctxNombre);
+        localStorage.setItem("guios_descripcion_caso", descNombre);
+        localStorage.setItem("guios_evaluacion_estado", estNombre);
+
+        setEvaluacionId(idStr);
+        setSoftwareActivo(swNombre);
+        setContextoActivo(ctxNombre);
+        setDescripcionCaso(descNombre);
+        setEstadoEvaluacionActiva(estNombre);
+      } else {
+        // El usuario NO tiene evaluaciones en PostgreSQL (cuenta nueva o limpia):
+        // Limpiar completamente el estado activo para no contaminar con datos ajenos
+        const evalKeys = [
+          "guios_evaluacion_id",
+          "guios_software_activo",
+          "guios_contexto_activo",
+          "guios_descripcion_caso",
+          "guios_evaluacion_estado",
+          "guios_factores",
+          "guios_subfactores",
+        ];
+        evalKeys.forEach((k) => localStorage.removeItem(k));
+        setEvaluacionId(null);
+        setSoftwareActivo("");
+        setContextoActivo("");
+        setDescripcionCaso("");
+        setEstadoEvaluacionActiva("en_progreso");
+        setFactores(getFactoresEnBlanco());
+        setSubfactoresState(getSubfactoresEnBlanco());
       }
 
       setEvaluacionesList(data);
@@ -861,9 +890,55 @@ export const EvaluationProvider = ({ children }) => {
     };
   }, [factores, subfactoresState]);
 
+  // Limpiar todas las claves de evaluación en LocalStorage
+  const limpiarDatosSesionLocal = () => {
+    const keys = [
+      "guios_access_token",
+      "guios_refresh_token",
+      "guios_user",
+      "guios_evaluacion_id",
+      "guios_software_activo",
+      "guios_contexto_activo",
+      "guios_descripcion_caso",
+      "guios_evaluacion_estado",
+      "guios_factores",
+      "guios_subfactores",
+    ];
+    keys.forEach((k) => localStorage.removeItem(k));
+  };
+
   // Login handler
   const login = async (email, password, remember) => {
+    const prevSaved = localStorage.getItem("guios_user");
+    let prevId = null;
+    try {
+      if (prevSaved) prevId = JSON.parse(prevSaved)?.id;
+    } catch {}
+
     const data = await apiService.login(email, password, remember);
+
+    // Si es un nuevo usuario o no coincide con la sesión anterior, reiniciar estados de evaluación
+    if (data.user && (!prevId || String(data.user.id) !== String(prevId))) {
+      const evalKeys = [
+        "guios_evaluacion_id",
+        "guios_software_activo",
+        "guios_contexto_activo",
+        "guios_descripcion_caso",
+        "guios_evaluacion_estado",
+        "guios_factores",
+        "guios_subfactores",
+      ];
+      evalKeys.forEach((k) => localStorage.removeItem(k));
+      setEvaluacionId(null);
+      setSoftwareActivo("");
+      setContextoActivo("");
+      setDescripcionCaso("");
+      setEstadoEvaluacionActiva("en_progreso");
+      setFactores(getFactoresEnBlanco());
+      setSubfactoresState(getSubfactoresEnBlanco());
+      setEvaluacionesList([]);
+    }
+
     setCurrentUser(data.user);
     if (data.isLiveApi) setIsBackendConnected(true);
     return data;
@@ -871,7 +946,16 @@ export const EvaluationProvider = ({ children }) => {
 
   const logout = () => {
     apiService.logout();
+    limpiarDatosSesionLocal();
     setCurrentUser(null);
+    setEvaluacionId(null);
+    setSoftwareActivo("");
+    setContextoActivo("");
+    setDescripcionCaso("");
+    setEstadoEvaluacionActiva("en_progreso");
+    setEvaluacionesList([]);
+    setFactores(getFactoresEnBlanco());
+    setSubfactoresState(getSubfactoresEnBlanco());
   };
 
   // Aplicar cálculo real del Paso 0 (IL, IE, IS, artículos y citas) sobre los factores activos
