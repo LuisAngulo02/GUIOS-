@@ -323,7 +323,7 @@ export const Evidencia = () => {
 
         {/* Tabla de Evidencia */}
         <div className="w-full overflow-x-auto lg:overflow-x-visible">
-          <table className="w-full text-left text-xs border-collapse">
+          <table className="w-full text-left text-xs border-collapse min-w-[700px]">
             <thead>
               <tr className="border-b border-[#DDE7E1] bg-[#F8FAF9] text-gray-500 font-semibold tracking-wider uppercase text-[11px]">
                 <th className="py-3 px-3 sm:px-4">Factor</th>

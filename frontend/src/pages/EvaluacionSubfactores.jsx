@@ -502,7 +502,7 @@ export const EvaluacionSubfactores = () => {
 
         {/* Tabla de Subfactores */}
         <div className="w-full overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+          <table className="w-full text-left text-xs border-collapse min-w-[640px]">
             <thead>
               <tr className="border-b border-[#DDE7E1] bg-[#F8FAF9] text-gray-500 font-semibold tracking-wider uppercase text-[11px]">
                 <th className="py-3 px-3 w-20">Código</th>

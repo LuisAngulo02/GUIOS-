@@ -218,7 +218,7 @@ export const FactoresRelevantes = () => {
       {/* 5. Contenedor de la Tabla */}
       <div className="w-full rounded-xl border border-gray-100 bg-white shadow-xs overflow-hidden">
         <div className="w-full overflow-x-auto lg:overflow-x-visible">
-          <table className="w-full text-left text-xs border-collapse">
+          <table className="w-full text-left text-xs border-collapse min-w-[760px]">
             <thead>
               <tr className="border-b border-gray-100 text-gray-500 font-medium text-[11px] bg-white">
                 <th className="py-3 px-3 sm:px-4 font-semibold text-gray-700">Factor</th>

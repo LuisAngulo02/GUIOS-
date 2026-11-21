@@ -883,7 +883,7 @@ export const Administracion = () => {
           {/* Tabla de Usuarios */}
           <div className="bg-white rounded-card border border-[#DDE7E1] shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse min-w-[650px]">
                 <thead>
                   <tr className="bg-[#F8FAF9] border-b border-[#DDE7E1] text-[11px] font-bold text-gray-500 uppercase tracking-wider">
                     <th className="py-3 px-4">Usuario</th>
@@ -1650,8 +1650,8 @@ export const Administracion = () => {
             </button>
           </div>
 
-          <div className="border border-gray-100 rounded-xl overflow-hidden shadow-2xs">
-            <table className="w-full text-left text-xs">
+          <div className="border border-gray-100 rounded-xl overflow-x-auto shadow-2xs">
+            <table className="w-full text-left text-xs min-w-[650px]">
               <thead>
                 <tr className="bg-[#F8FAF9] text-gray-500 font-semibold border-b border-gray-100 text-[11px]">
                   <th className="py-3 px-4">Fecha</th>

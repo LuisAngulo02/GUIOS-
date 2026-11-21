@@ -1,12 +1,12 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Check, LogOut } from "lucide-react";
+import { Check, LogOut, Menu, X } from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
 
 /**
  * Layout común: Barra superior verde (#3F6F58)
  */
-export const Topbar = () => {
+export const Topbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const { currentUser, saveStatus, softwareActivo, contextoActivo, logout } = useEvaluation();
   const navigate = useNavigate();
 
@@ -16,21 +16,33 @@ export const Topbar = () => {
   };
 
   return (
-    <header className="h-16 bg-[#3F6F58] text-white px-4 sm:px-6 flex items-center justify-between shadow-sm sticky top-0 z-30">
-      {/* Lado izquierdo: Marca GUIOS+ */}
-      <Link to="/dashboard" className="flex items-center gap-3 group">
-        <div className="w-10 h-10 rounded-lg bg-[#53876D] flex items-center justify-center font-bold text-white text-base shadow-inner">
-          G+
-        </div>
-        <div className="flex flex-col">
-          <span className="font-bold text-lg leading-tight tracking-wide text-white">
-            GUIOS+
-          </span>
-          <span className="text-[11px] text-green-100 font-light tracking-normal leading-none opacity-90 hidden sm:block">
-            Evaluación inteligente para adopción FLOSS
-          </span>
-        </div>
-      </Link>
+    <header className="h-16 bg-[#3F6F58] text-white px-3 sm:px-6 flex items-center justify-between shadow-sm sticky top-0 z-30">
+      {/* Lado izquierdo: Botón menú móvil + Marca GUIOS+ */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        <button
+          type="button"
+          onClick={onToggleMobileMenu}
+          className="md:hidden p-1.5 -ml-1 text-white hover:bg-[#4F8169] rounded-lg transition-colors cursor-pointer flex items-center justify-center"
+          title={isMobileMenuOpen ? "Cerrar menú" : "Abrir menú de navegación"}
+          aria-label="Menú principal"
+        >
+          {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+        </button>
+
+        <Link to="/dashboard" className="flex items-center gap-2.5 sm:gap-3 group">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#53876D] flex items-center justify-center font-bold text-white text-sm sm:text-base shadow-inner shrink-0">
+            G+
+          </div>
+          <div className="flex flex-col">
+            <span className="font-bold text-base sm:text-lg leading-tight tracking-wide text-white">
+              GUIOS+
+            </span>
+            <span className="text-[10px] sm:text-[11px] text-green-100 font-light tracking-normal leading-none opacity-90 hidden sm:block">
+              Evaluación inteligente para adopción FLOSS
+            </span>
+          </div>
+        </Link>
+      </div>
 
       {/* Lado derecho: Software activo, Estado de guardado y Perfil */}
       <div className="flex items-center gap-3 sm:gap-5">

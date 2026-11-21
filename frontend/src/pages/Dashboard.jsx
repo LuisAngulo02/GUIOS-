@@ -683,7 +683,7 @@ export const Dashboard = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full text-left text-xs border-collapse min-w-[700px]">
               <thead>
                 <tr className="border-b border-gray-100 text-gray-500 font-semibold bg-gray-50/50">
                   <th className="py-3 px-3 w-10 text-center">Comparar</th>
@@ -1230,8 +1230,8 @@ export const Dashboard = () => {
                     </div>
 
                     {/* Tabla Detallada Factor por Factor */}
-                    <div className="border border-gray-200 rounded-xl overflow-hidden shadow-xs">
-                      <table className="w-full text-left text-xs">
+                    <div className="border border-gray-200 rounded-xl overflow-x-auto shadow-xs">
+                      <table className="w-full text-left text-xs min-w-[650px]">
                         <thead>
                           <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-700 font-semibold">
                             <th className="py-2.5 px-3">Factor GUIOS</th>
