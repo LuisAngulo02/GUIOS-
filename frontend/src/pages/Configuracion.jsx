@@ -59,11 +59,31 @@ export const Configuracion = () => {
 
   // Cargar resumen si ya existe una consulta previa para esta evaluación
   useEffect(() => {
+    // Al cambiar de evaluación, limpiar inmediatamente el estado previo
+    setResultadoConsulta(null);
+    setCalculoExitoso(false);
+    setErrorCalculo("");
+
     if (!evaluacionId) return;
+
+    let cancelado = false;
     apiService
       .getEvidenciaBibliografica(evaluacionId)
       .then((res) => {
-        if (res && !res.sin_consulta && Array.isArray(res.items) && res.items.length > 0) {
+        if (cancelado) return;
+        // Validar que la consulta pertenezca realmente a esta evaluación y software
+        const coincideSoftware =
+          !res?.software ||
+          !softwareActivo ||
+          res.software.trim().toLowerCase() === softwareActivo.trim().toLowerCase();
+
+        if (
+          res &&
+          !res.sin_consulta &&
+          Array.isArray(res.items) &&
+          res.items.length > 0 &&
+          coincideSoftware
+        ) {
           setResultadoConsulta(res);
           setCalculoExitoso(true);
           aplicarEvidenciaEnFactores(res.items);
@@ -72,8 +92,17 @@ export const Configuracion = () => {
           setCalculoExitoso(false);
         }
       })
-      .catch(() => {});
-  }, [evaluacionId, aplicarEvidenciaEnFactores]);
+      .catch(() => {
+        if (!cancelado) {
+          setResultadoConsulta(null);
+          setCalculoExitoso(false);
+        }
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [evaluacionId, softwareActivo, aplicarEvidenciaEnFactores]);
 
   const handleCalcular = async () => {
     if (!softwareActivo.trim()) {

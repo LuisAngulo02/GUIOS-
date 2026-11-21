@@ -17,6 +17,7 @@ import {
   Check,
   Sliders,
   HelpCircle,
+  RefreshCw,
 } from "lucide-react";
 import { useEvaluation } from "../context/EvaluationContext";
 import { apiService } from "../services/apiService";
@@ -56,6 +57,7 @@ export const EvaluacionSubfactores = () => {
   const [ejecutandoIa, setEjecutandoIa] = useState(false);
   const [iaToast, setIaToast] = useState("");
   const [soloPendientes, setSoloPendientes] = useState(false);
+  const [avanzandoPaso3, setAvanzandoPaso3] = useState(false);
 
   const navigate = useNavigate();
 
@@ -193,8 +195,14 @@ export const EvaluacionSubfactores = () => {
       setModalIncompletoOpen(true);
       return;
     }
-    await sincronizarPaso2ConBackend();
-    navigate("/resultado");
+    setAvanzandoPaso3(true);
+    try {
+      await sincronizarPaso2ConBackend();
+    } catch (err) {
+      console.warn("Fallo sincronizando paso 2 antes de avanzar:", err);
+    } finally {
+      navigate("/resultado");
+    }
   };
 
   // Asistente de IA: Precalificación automatizada
@@ -603,12 +611,22 @@ export const EvaluacionSubfactores = () => {
 
           <button
             type="button"
+            disabled={avanzandoPaso3}
             onClick={handleContinuarPaso3}
-            className="px-5 py-2 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer ml-auto sm:ml-2"
+            className="px-5 py-2 rounded-lg bg-[#3F6F58] hover:bg-[#345C49] text-white font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm cursor-pointer ml-auto sm:ml-2 disabled:opacity-75 disabled:cursor-wait"
             title="Avanzar al Paso 3: Resultado y dictamen"
           >
-            <span>Ir al Paso 3 (Resultado)</span>
-            <ArrowRight size={14} />
+            {avanzandoPaso3 ? (
+              <>
+                <RefreshCw size={14} className="animate-spin" />
+                <span>Guardando y calculando...</span>
+              </>
+            ) : (
+              <>
+                <span>Ir al Paso 3 (Resultado)</span>
+                <ArrowRight size={14} />
+              </>
+            )}
           </button>
         </div>
       </div>

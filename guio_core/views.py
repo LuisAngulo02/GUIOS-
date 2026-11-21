@@ -588,6 +588,13 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
 
             with transaction.atomic():
                 guardados_count = 0
+                existentes_map = {
+                    rs.id_subfactor_id: rs
+                    for rs in ResultadoSubfactor.objects.filter(id_evaluacion=evaluacion)
+                }
+                para_crear = []
+                para_actualizar = []
+
                 for item in items_subfactores:
                     sf_obj = None
                     if item.get("id_subfactor"):
@@ -596,15 +603,31 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
                         sf_obj = subfactores_dict_cod.get(item["codigo"])
                     if not sf_obj or sf_obj.id_factor_id not in relevantes_factor_ids:
                         continue
-                    ResultadoSubfactor.objects.update_or_create(
-                        id_evaluacion=evaluacion,
-                        id_subfactor=sf_obj,
-                        defaults={
-                            "calificacion": item["calificacion"],
-                            "observacion": item.get("observacion") or "",
-                        },
-                    )
+
+                    calif = item["calificacion"]
+                    obs = item.get("observacion") or ""
+
+                    if sf_obj.id in existentes_map:
+                        rs = existentes_map[sf_obj.id]
+                        if rs.calificacion != calif or rs.observacion != obs:
+                            rs.calificacion = calif
+                            rs.observacion = obs
+                            para_actualizar.append(rs)
+                    else:
+                        para_crear.append(
+                            ResultadoSubfactor(
+                                id_evaluacion=evaluacion,
+                                id_subfactor=sf_obj,
+                                calificacion=calif,
+                                observacion=obs,
+                            )
+                        )
                     guardados_count += 1
+
+                if para_crear:
+                    ResultadoSubfactor.objects.bulk_create(para_crear)
+                if para_actualizar:
+                    ResultadoSubfactor.objects.bulk_update(para_actualizar, ["calificacion", "observacion"])
 
                 LogAuditoria.objects.create(
                     id_usuario=request.user,
@@ -614,14 +637,23 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
                     detalle=f"Guardadas {guardados_count} calificaciones de subfactores relevantes.",
                 )
 
-        # Mapear estado y calificaciones actuales
+        # Mapear estado y calificaciones actuales en memoria sin consultas N+1
         calificaciones_existentes = {
             rs.id_subfactor_id: {
                 "calificacion": rs.calificacion,
                 "observacion": rs.observacion or "",
             }
-            for rs in evaluacion.resultados_subfactor.select_related("id_subfactor").all()
+            for rs in evaluacion.resultados_subfactor.all()
         }
+
+        # Cargar todos los subfactores relevantes en una sola consulta agrupada
+        todos_sfs = list(Subfactor.objects.filter(
+            id_factor_id__in=relevantes_factor_ids,
+            activo=True
+        ).order_by("codigo"))
+        sfs_por_factor = {}
+        for sf in todos_sfs:
+            sfs_por_factor.setdefault(sf.id_factor_id, []).append(sf)
 
         factores_detalle = []
         total_sfs_relevantes = 0
@@ -629,8 +661,8 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
 
         for rf in relevantes_rf:
             factor = rf.id_factor
-            sfs_del_factor = factor.subfactores.filter(activo=True).order_by("codigo")
-            total_sfs_relevantes += sfs_del_factor.count()
+            sfs_del_factor = sfs_por_factor.get(factor.id, [])
+            total_sfs_relevantes += len(sfs_del_factor)
 
             notas = []
             sfs_data = []
@@ -660,9 +692,9 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
                 "dimension": factor.id_dimension.nombre,
                 "alcance": rf.alcance_aplicado or factor.alcance,
                 "importancia_relativa": rf.importancia_relativa,
-                "total_subfactores": sfs_del_factor.count(),
+                "total_subfactores": len(sfs_del_factor),
                 "calificados": len(notas),
-                "completo": len(notas) == sfs_del_factor.count(),
+                "completo": len(notas) == len(sfs_del_factor),
                 "ponderacion_media": float(pm),
                 "subfactores": sfs_data,
             })
@@ -690,11 +722,11 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
         if evaluacion.estado == Evaluacion.EstadoEvaluacion.CANCELADA:
             return None, "No se puede emitir dictamen para una evaluación cancelada."
 
-        relevantes_rf = evaluacion.resultados_factor.exclude(
+        relevantes_rf = list(evaluacion.resultados_factor.exclude(
             importancia_relativa=ResultadoFactor.ImportanciaRelativaTexto.IRRELEVANTE
-        ).select_related("id_factor", "id_factor__id_dimension")
+        ).select_related("id_factor", "id_factor__id_dimension"))
 
-        if not relevantes_rf.exists():
+        if not relevantes_rf:
             return None, "No hay factores relevantes en esta evaluación para emitir un dictamen."
 
         calificaciones_map = {
@@ -702,11 +734,20 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
             for rs in evaluacion.resultados_subfactor.all()
         }
 
+        # Cargar todos los subfactores relevantes en una sola consulta agrupada
+        relevantes_factor_ids = [rf.id_factor_id for rf in relevantes_rf]
+        todos_sfs = list(Subfactor.objects.filter(
+            id_factor_id__in=relevantes_factor_ids,
+            activo=True
+        ))
+        sfs_por_factor = {}
+        for sf in todos_sfs:
+            sfs_por_factor.setdefault(sf.id_factor_id, []).append(sf)
+
         # Validar rigurosamente que todos los subfactores relevantes estén calificados (RNF metodológico)
         faltantes = []
         for rf in relevantes_rf:
-            sfs = rf.id_factor.subfactores.filter(activo=True)
-            for sf in sfs:
+            for sf in sfs_por_factor.get(rf.id_factor_id, []):
                 if sf.id not in calificaciones_map:
                     faltantes.append(sf.codigo)
 
@@ -721,20 +762,13 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
         factores_opcionales_da = []
         positivos_count = 0
 
-        # Filtrar calificaciones_map exclusivamente para los subfactores de factores relevantes (P2)
-        subfactores_relevantes_ids = set()
-        for rf in relevantes_rf:
-            for sf_id in rf.id_factor.subfactores.filter(activo=True).values_list("id", flat=True):
-                subfactores_relevantes_ids.add(sf_id)
-
+        subfactores_relevantes_ids = {sf.id for sf in todos_sfs}
         notas_relevantes = [
             calificaciones_map[sf_id]
             for sf_id in subfactores_relevantes_ids
             if sf_id in calificaciones_map
         ]
         total_calificados = len(notas_relevantes)
-        # En la escala GUIOS (1=No cumple, 2=Cumple parcialmente, 3=Cumple satisfactoriamente, 4=Cumple totalmente)
-        # la certeza se mide sobre la proporción de subfactores relevantes calificados
         no_se_count = 0
 
         with transaction.atomic():
@@ -743,7 +777,7 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
 
             for rf in relevantes_rf:
                 factor = rf.id_factor
-                sfs = factor.subfactores.filter(activo=True)
+                sfs = sfs_por_factor.get(rf.id_factor_id, [])
                 notas = [calificaciones_map[sf.id] for sf in sfs if sf.id in calificaciones_map]
 
                 if not notas:
@@ -777,14 +811,17 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
                     else:
                         factores_opcionales_da.append(factor.nombre)
 
-                rfoda = ResultadoFoda.objects.create(
-                    id_evaluacion=evaluacion,
-                    id_factor=factor,
-                    ponderacion_media=pm,
-                    categoria=categoria,
-                    critico=es_critico,
+                foda_registros.append(
+                    ResultadoFoda(
+                        id_evaluacion=evaluacion,
+                        id_factor=factor,
+                        ponderacion_media=pm,
+                        categoria=categoria,
+                        critico=es_critico,
+                    )
                 )
-                foda_registros.append(rfoda)
+
+            ResultadoFoda.objects.bulk_create(foda_registros)
 
             total_relevantes = relevantes_rf.count()
             indice_viabilidad = round((positivos_count / total_relevantes) * 100, 2) if total_relevantes > 0 else 100.0
@@ -1216,7 +1253,15 @@ class EvidenciaView(views.APIView):
                     status=status.HTTP_403_FORBIDDEN,
                 )
             if ev_check:
-                consulta = ConsultaEvidencia.objects.filter(id_evaluacion_id=ev_check.id).first()
+                consulta = (
+                    ConsultaEvidencia.objects.filter(id_evaluacion_id=ev_check.id)
+                    .order_by("-fecha_consulta")
+                    .first()
+                )
+            # Si se solicitó una evaluación específica y no tiene cálculo bibliográfico propio,
+            # retornar sin_consulta inmediatamente para no mezclar con otra evaluación.
+            if not consulta:
+                return Response({"sin_consulta": True, "items": []}, status=status.HTTP_200_OK)
 
         if not consulta:
             es_autenticado = bool(

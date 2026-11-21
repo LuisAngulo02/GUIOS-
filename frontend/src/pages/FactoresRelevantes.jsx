@@ -86,6 +86,23 @@ export const FactoresRelevantes = () => {
     }
   };
 
+  // Formato combinado para IL e IE: Nivel entero (Decimal de precisión)
+  const formatIL = (f) => {
+    if (!f) return "—";
+    if (typeof f.IL === "string" && f.IL.includes("(")) return f.IL;
+    const num = f.IL_num ?? (typeof f.IL === "number" ? f.IL : parseInt(f.IL, 10)) ?? 2;
+    const dec = f.IL_dec || (num === 4 ? "0.92" : num === 3 ? "0.76" : num === 2 ? "0.50" : "0.25");
+    return `${num} (${dec})`;
+  };
+
+  const formatIE = (f) => {
+    if (!f) return "—";
+    if (typeof f.IE === "string" && f.IE.includes("(")) return f.IE;
+    const num = f.IE_num ?? (typeof f.IE === "number" ? f.IE : parseInt(f.IE, 10)) ?? 3;
+    const dec = f.IE_dec || (num === 4 ? "0.88" : num === 3 ? "0.75" : "0.52");
+    return `${num} (${dec})`;
+  };
+
   const handleGuardar = async () => {
     setGuardadoManual(true);
     await sincronizarPaso1ConBackend();
@@ -257,14 +274,14 @@ export const FactoresRelevantes = () => {
                       {factor.dimension}
                     </td>
 
-                    {/* IL */}
-                    <td className="py-3 px-1.5 text-center text-gray-600 font-mono text-xs whitespace-nowrap">
-                      {factor.IL_dec || (factor.IL === 4 ? "0.92" : factor.IL === 3 ? "0.76" : "0.55")}
+                    {/* IL (Combinado: nivel 1-4 y decimal normalizado) */}
+                    <td className="py-3 px-1.5 text-center text-gray-700 font-mono text-xs whitespace-nowrap">
+                      {formatIL(factor)}
                     </td>
 
-                    {/* IE */}
-                    <td className="py-3 px-1.5 text-center text-gray-600 font-mono text-xs whitespace-nowrap">
-                      {factor.IE_dec || (factor.IE === 4 ? "0.88" : factor.IE === 3 ? "0.71" : "0.52")}
+                    {/* IE (Combinado: nivel 1-4 y decimal normalizado) */}
+                    <td className="py-3 px-1.5 text-center text-gray-700 font-mono text-xs whitespace-nowrap">
+                      {formatIE(factor)}
                     </td>
 
                     {/* Importancia sugerida (Badge con color semántico según IS) */}
