@@ -385,8 +385,9 @@ export const EvaluationProvider = ({ children }) => {
 
         // 1. Factores: si vienen guardados en la BD, aplicarlos; si no, catálogo base limpio
         let baseFactores = getFactoresEnBlanco();
-        if (ev.resultados_factor && ev.resultados_factor.length > 0) {
-          const mapaRf = {};
+        const tieneResultadosFactorGuardados = Boolean(ev.resultados_factor && ev.resultados_factor.length > 0);
+        const mapaRf = {};
+        if (tieneResultadosFactorGuardados) {
           ev.resultados_factor.forEach((rf) => {
             mapaRf[rf.id_factor] = rf;
           });
@@ -418,8 +419,18 @@ export const EvaluationProvider = ({ children }) => {
             const evItem = mapaEv[Number(f.id)];
             if (!evItem) return f;
             const nuevoIS = evItem.IS ?? f.IS;
-            const irNum = Math.floor((nuevoIS + f.ID) / 2);
-            const irTexto = MAPA_NUMERO_A_TEXTO_IR[irNum] || "Irrelevante";
+            // Si el factor ya viene con un resultado guardado en PostgreSQL (resultados_factor),
+            // respetar su IR y relevancia ya persistidos para evitar discrepancias de dictamen.
+            const yaGuardadoEnBD = Boolean(tieneResultadosFactorGuardados && mapaRf[f.id]);
+            const irNum = yaGuardadoEnBD
+              ? parseInt(f.IR, 10) || Math.floor((nuevoIS + f.ID) / 2)
+              : Math.floor((nuevoIS + f.ID) / 2);
+            const irTexto = yaGuardadoEnBD
+              ? f.IR.split("·")[1]?.trim() || MAPA_NUMERO_A_TEXTO_IR[irNum] || "Irrelevante"
+              : MAPA_NUMERO_A_TEXTO_IR[irNum] || "Irrelevante";
+            const irFinal = yaGuardadoEnBD ? f.IR : `${irNum} · ${irTexto}`;
+            const relevanteFinal = yaGuardadoEnBD ? f.relevante : irNum > 1;
+
             return {
               ...f,
               IL: evItem.IL_num ?? f.IL,
@@ -430,8 +441,8 @@ export const EvaluationProvider = ({ children }) => {
               evidencia_count: evItem.documentos ?? f.evidencia_count,
               citas_acumuladas: evItem.citas ?? f.citas_acumuladas,
               articulos: Array.isArray(evItem.articulos) && evItem.articulos.length > 0 ? evItem.articulos : f.articulos,
-              IR: `${irNum} · ${irTexto}`,
-              relevante: irNum > 1,
+              IR: irFinal,
+              relevante: relevanteFinal,
             };
           });
         }

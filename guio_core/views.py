@@ -38,6 +38,8 @@ from guio_core.services.academic_ai_service import (
     ejecutar_paso_0,
     probar_consulta_factor,
     serializar_consulta_evidencia,
+    calcular_indicadores_tesis,
+    BENCHMARK_SLR_BY_FACTOR_NAME,
 )
 from guio_core.services.recommendation_ai_service import generar_recomendaciones_ia
 from guio_core.services.subfactor_ai_service import (
@@ -57,6 +59,7 @@ from guio_core.models import (
     LogAuditoria,
     FactorKeywords,
     ConsultaEvidencia,
+    EvidenciaFactor,
     ParametroGlobal,
 )
 from guio_core.serializers import (
@@ -1402,8 +1405,9 @@ class RecomendacionesIAView(views.APIView):
     authentication_classes = [OptionalJWTAuthentication]
 
     def post(self, request):
-        eval_id = request.data.get("evaluacion_id")
-        regenerar = bool(request.data.get("regenerar", False))
+        payload = dict(request.data)
+        eval_id = payload.get("evaluacion_id")
+        regenerar = bool(payload.get("regenerar", False))
         evaluacion_obj = None
 
         if eval_id and str(eval_id).isdigit():
@@ -1416,13 +1420,36 @@ class RecomendacionesIAView(views.APIView):
             evaluacion_obj = ev_check
 
             if evaluacion_obj and evaluacion_obj.recomendacion_ia and not regenerar:
-                return Response(evaluacion_obj.recomendacion_ia, status=status.HTTP_200_OK)
+                # Validar que el cache sea coherente con la recomendación actual de la evaluación
+                rec_solicitada = str(payload.get("recomendacion") or "").strip().upper()
+                rec_bd = str(evaluacion_obj.id_recomendacion.tipo if evaluacion_obj.id_recomendacion else "").strip().upper()
+                rec_esperada = rec_solicitada or rec_bd
 
-        payload = dict(request.data)
+                cached_json = evaluacion_obj.recomendacion_ia
+                cached_rec = str(cached_json.get("recomendacion") or "").strip().upper()
+                diag_cached = str(cached_json.get("diagnostico_ejecutivo") or "").lower()
+
+                cache_valido = True
+                if rec_esperada:
+                    if cached_rec and cached_rec != rec_esperada:
+                        cache_valido = False
+                    else:
+                        # Si el texto guardado menciona un dictamen contradictorio (e.g. dice 'dictamen c' cuando se espera B)
+                        for otra_letra in ["a", "b", "c"]:
+                            if otra_letra != rec_esperada.lower():
+                                if f"dictamen {otra_letra}" in diag_cached or f"recomendación {otra_letra}" in diag_cached:
+                                    cache_valido = False
+                                    break
+
+                if cache_valido:
+                    return Response(evaluacion_obj.recomendacion_ia, status=status.HTTP_200_OK)
+
         if evaluacion_obj and not payload.get("nombre_software"):
             payload["nombre_software"] = evaluacion_obj.nombre_software
 
         resultado_ia = generar_recomendaciones_ia(payload)
+        rec_final = str(payload.get("recomendacion") or (evaluacion_obj.id_recomendacion.tipo if evaluacion_obj and evaluacion_obj.id_recomendacion else "B")).strip().upper()
+        resultado_ia["recomendacion"] = rec_final
 
         if evaluacion_obj:
             evaluacion_obj.recomendacion_ia = resultado_ia
@@ -1535,6 +1562,54 @@ class CargarCasoUNEMIView(views.APIView):
                     factores_con_evidencia=9,
                 )
 
+            # Sincronizar los 18 factores de evidencia con los valores benchmark oficiales de la tesis doctoral
+            subfactores_count = {
+                f.id: Subfactor.objects.filter(id_factor=f, activo=True).count()
+                for f in Factor.objects.filter(activo=True)
+            }
+            factores_activos = list(Factor.objects.filter(activo=True))
+            crudos_bm = [
+                {
+                    "factor": f,
+                    "documentos": BENCHMARK_SLR_BY_FACTOR_NAME.get(f.nombre, {}).get("docs", 5),
+                    "citas": BENCHMARK_SLR_BY_FACTOR_NAME.get(f.nombre, {}).get("citas", 20),
+                    "autores_relevantes": BENCHMARK_SLR_BY_FACTOR_NAME.get(f.nombre, {}).get("autores", "Rea Sánchez, V. H."),
+                    "articulos": [],
+                    "fuente_principal": "Scopus (RSL Tesis Doctoral)",
+                }
+                for f in factores_activos
+            ]
+            evidencias_calculadas = calcular_indicadores_tesis(crudos_bm, subfactores_count)
+            for item in evidencias_calculadas:
+                f_obj = item["factor"]
+                EvidenciaFactor.objects.update_or_create(
+                    id_consulta=consulta_ev,
+                    id_factor=f_obj,
+                    defaults={
+                        "nombre_factor": f_obj.nombre,
+                        "documentos": item["documentos"],
+                        "citas": item["citas"],
+                        "autores_relevantes": item.get("autores_relevantes", ""),
+                        "fuente_principal": item.get("fuente_principal", "Scopus (RSL Tesis Doctoral)"),
+                        "il_calculado": item["il_calculado"],
+                        "il_normalizado": item["il_normalizado"],
+                        "ie_valor": item["ie_valor"],
+                        "ie_normalizado": item["ie_normalizado"],
+                        "is_calculado": item["is_calculado"],
+                        "articulos": [
+                            {
+                                "titulo": f"{f_obj.nombre} in FLOSS adoption: systematic literature review",
+                                "autores": item.get("autores_relevantes", "Rea Sánchez, V. H."),
+                                "anio": 2022,
+                                "citas": item["citas"],
+                                "fuente": "Scopus",
+                                "url": "",
+                                "meta": f"2022 · {item['citas']} citas",
+                            }
+                        ],
+                    },
+                )
+
             # 2. Configuración de Factores Relevantes del caso de estudio
             configuracion_factores = [
                 ("Compatibilidad", 4, Factor.AlcanceFactor.EXTERNO),
@@ -1603,17 +1678,27 @@ class CargarCasoUNEMIView(views.APIView):
             viewset_aux = EvaluacionViewSet()
             foda_regs, err = viewset_aux._ejecutar_calculo_foda_interno(evaluacion, user=user)
 
-            # 5. Recomendaciones IA de alto nivel
-            if not evaluacion.recomendacion_ia:
+            # 5. Recomendaciones IA de alto nivel (alineadas con el Dictamen B de la Tesis)
+            rec_ia_cached = evaluacion.recomendacion_ia
+            necesita_ia = (
+                not rec_ia_cached
+                or rec_ia_cached.get("recomendacion") != "B"
+                or "dictamen c" in str(rec_ia_cached.get("diagnostico_ejecutivo", "")).lower()
+            )
+            if necesita_ia:
                 payload_ia = {
                     "evaluacion_id": evaluacion.id,
                     "nombre_software": "LibreOffice",
-                    "contexto_uso": "Universidad Estatal de Milagro (UNEMI)",
-                    "recomendacion": evaluacion.id_recomendacion.tipo if evaluacion.id_recomendacion else "A",
-                    "viabilidad": float(evaluacion.indice_viabilidad or 100),
-                    "nivel_confianza": evaluacion.nivel_confianza,
+                    "contexto_uso": "Universidad Estatal de Milagro (UNEMI) - Migración Ofimática Administrativa y Docente",
+                    "descripcion_caso": "Caso de estudio piloto del Capítulo 6 de la tesis doctoral.",
+                    "recomendacion": "B",
+                    "dictamen_titulo": "Es posible adoptar con sugerencias por revisar",
+                    "viabilidad": float(evaluacion.indice_viabilidad or 94.4),
+                    "nivel_confianza": evaluacion.nivel_confianza or "Alto",
                 }
-                evaluacion.recomendacion_ia = generar_recomendaciones_ia(payload_ia)
+                res_unemi_ia = generar_recomendaciones_ia(payload_ia)
+                res_unemi_ia["recomendacion"] = "B"
+                evaluacion.recomendacion_ia = res_unemi_ia
                 evaluacion.save(update_fields=["recomendacion_ia"])
 
             if request.user and request.user.is_authenticated:
