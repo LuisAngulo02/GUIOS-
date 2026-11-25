@@ -139,6 +139,11 @@ export const EvaluacionSubfactores = () => {
   );
   const completadosActuales = calificadosActuales.length;
   const totalSfsActuales = subfactoresActuales.length;
+  const pendientesActuales = totalSfsActuales - completadosActuales;
+  const todosSon3 =
+    totalSfsActuales > 0 && subfactoresActuales.every((s) => Number(s.calificacion) === 3);
+  const todosSon4 =
+    totalSfsActuales > 0 && subfactoresActuales.every((s) => Number(s.calificacion) === 4);
 
   // Índice secuencial actual
   const indiceActual = factoresRelevantes.findIndex((f) => f.id === factorActual.id);
@@ -278,7 +283,10 @@ export const EvaluacionSubfactores = () => {
             <h1 className="text-2xl sm:text-3xl font-light text-[#2F5444] tracking-tight">
               Paso 2 · Evaluación de subfactores
             </h1>
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#EBF4EE] text-[#2F5444] border border-[#CDE1D4]">
+            <span
+              className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#EBF4EE] text-[#2F5444] border border-[#CDE1D4] max-w-[220px] sm:max-w-xs md:max-w-md truncate inline-block align-middle"
+              title={`${softwareActivo} #${evaluacionId}`}
+            >
               {softwareActivo} #{evaluacionId}
             </span>
           </div>
@@ -406,13 +414,16 @@ export const EvaluacionSubfactores = () => {
       </div>
 
       {/* 3. Tarjeta de Contexto del Factor Seleccionado */}
-      <div className="bg-white rounded-card border border-[#DDE7E1] p-4 sm:p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3 sm:gap-4 w-full md:w-auto">
+      <div className="bg-white rounded-card border border-[#DDE7E1] p-4 sm:p-5 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 overflow-hidden">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1 w-full lg:w-auto">
           <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-[#EBF4EE] border border-[#CDE1D4] flex items-center justify-center font-bold text-lg sm:text-xl text-[#2F5444] shrink-0">
             {softwareActivo.charAt(0)}
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-gray-800 text-sm truncate">
+            <h3
+              className="font-semibold text-gray-800 text-sm truncate"
+              title={`${softwareActivo} / ${contextoActivo ? contextoActivo.split("·")[0].trim() : "Evaluación activa"}`}
+            >
               {softwareActivo} / {contextoActivo ? contextoActivo.split("·")[0].trim() : "Evaluación activa"}
             </h3>
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1">
@@ -429,15 +440,15 @@ export const EvaluacionSubfactores = () => {
         </div>
 
         {/* Selector de Factor */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 w-full md:w-auto justify-start md:justify-end border-t md:border-t-0 pt-3 md:pt-0 border-gray-100">
-          <label className="text-xs font-semibold text-gray-600 shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 w-full lg:w-auto justify-start lg:justify-end border-t lg:border-t-0 pt-3 lg:pt-0 border-gray-100 shrink-0">
+          <label className="text-xs font-semibold text-gray-600 shrink-0 whitespace-nowrap">
             Factor ({indiceActual + 1} de {factoresRelevantes.length}):
           </label>
-          <div className="w-full sm:w-auto min-w-0">
+          <div className="w-full sm:w-auto min-w-0 max-w-full">
             <select
               value={selectedFactorId}
               onChange={(e) => setSelectedFactorId(Number(e.target.value))}
-              className="w-full sm:w-auto max-w-full px-3 py-2 text-xs font-semibold rounded-lg border border-[#DDE7E1] bg-white text-[#2F5444] focus:outline-none focus:ring-2 focus:ring-[#3F6F58] cursor-pointer"
+              className="w-full sm:w-auto max-w-full sm:max-w-xs md:max-w-sm px-3 py-2 text-xs font-semibold rounded-lg border border-[#DDE7E1] bg-white text-[#2F5444] focus:outline-none focus:ring-2 focus:ring-[#3F6F58] cursor-pointer"
             >
               {factoresRelevantes.map((f) => (
                 <option key={f.id} value={f.id}>
@@ -476,7 +487,11 @@ export const EvaluacionSubfactores = () => {
               <button
                 type="button"
                 onClick={() => calificarBloqueFactor(factorActual.id, 4)}
-                className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 cursor-pointer"
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-colors flex items-center gap-1 cursor-pointer ${
+                  todosSon4
+                    ? "bg-emerald-600 text-white border-emerald-700 shadow-2xs"
+                    : "bg-white hover:bg-emerald-50 text-emerald-700 border-emerald-200"
+                }`}
                 title="Marcar todos los subfactores de este factor como 4 (Cumple totalmente)"
               >
                 <CheckCheck size={12} />
@@ -484,17 +499,34 @@ export const EvaluacionSubfactores = () => {
               </button>
               <button
                 type="button"
-                onClick={() => calificarBloqueFactor(factorActual.id, 3, true)}
-                className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-white hover:bg-amber-50 text-amber-800 border border-amber-200 transition-colors flex items-center gap-1 cursor-pointer"
-                title="Asignar nota 3 (Cumple satisfactoriamente) a los reactivos sin responder de este factor"
+                onClick={() => {
+                  // Si no hay pendientes (ej. tras pulsar 4), sobrescribe todos a 3;
+                  // si hay reactivos pendientes, solo califica los pendientes respetando los calificados.
+                  calificarBloqueFactor(factorActual.id, 3, pendientesActuales > 0);
+                }}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-colors flex items-center gap-1 cursor-pointer ${
+                  todosSon3
+                    ? "bg-amber-600 text-white border-amber-700 shadow-2xs"
+                    : "bg-white hover:bg-amber-50 text-amber-800 border-amber-200"
+                }`}
+                title={
+                  pendientesActuales > 0
+                    ? `Asignar nota 3 (Cumple satisfactoriamente) a los ${pendientesActuales} reactivos sin responder`
+                    : "Cambiar todos los reactivos de este factor a 3 (Cumple satisfactoriamente)"
+                }
               >
-                <span>Pendientes a Satisfactorio (3)</span>
+                {todosSon3 && <Check size={12} className="text-white" />}
+                <span>
+                  {pendientesActuales > 0
+                    ? `Pendientes a Satisfactorio (3) (${pendientesActuales})`
+                    : "Marcar todo Satisfactorio (3)"}
+                </span>
               </button>
               <button
                 type="button"
                 onClick={() => limpiarCalificacionesFactor(factorActual.id)}
                 className="p-1 rounded-md bg-white hover:bg-red-50 text-gray-400 hover:text-red-600 border border-gray-200 transition-colors cursor-pointer"
-                title="Limpiar calificaciones de este factor"
+                title="Limpiar calificaciones de este factor (volver a dejar pendientes)"
               >
                 <RotateCcw size={12} />
               </button>
